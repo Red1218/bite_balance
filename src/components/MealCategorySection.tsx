@@ -103,7 +103,7 @@ const MealCategorySection = ({
       <div className="seamless-meal-card overflow-hidden">
         {/* Category Header */}
         <motion.div 
-          className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-all duration-300 backdrop-blur-md"
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-all duration-300 backdrop-blur-md"
           onClick={() => setIsExpanded(!isExpanded)}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
@@ -112,9 +112,9 @@ const MealCategorySection = ({
           <div className="flex items-center gap-3">
             <span className="text-2xl">{category.emoji}</span>
             <div>
-              <h3 className="font-semibold text-white text-lg">{category.name}</h3>
-              <div className="flex items-center gap-1 text-sm text-gray-300">
-                <span className="text-[#ff4d4d] font-medium">{category.totalCalories} kcal</span>
+              <h3 className="font-semibold text-foreground text-lg">{category.name}</h3>
+              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                <span className="text-primary font-medium">{category.totalCalories} kcal</span>
                 <span>•</span>
                 <span>{mealEntries} {mealEntries === 1 ? 'entry' : 'entries'}</span>
               </div>
@@ -126,7 +126,7 @@ const MealCategorySection = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-8 h-8 p-0 text-[#ff4d4d] hover:text-white hover:bg-[#ff4d4d]/20 border border-[#ff4d4d]/30 rounded-full backdrop-blur-sm"
+                className="w-8 h-8 p-0 text-primary hover:text-primary-foreground hover:bg-primary/20 border border-primary/30 rounded-full backdrop-blur-sm"
                 onClick={(e) => e.stopPropagation()}
               >
                 <Plus className="w-4 h-4" />
@@ -137,7 +137,7 @@ const MealCategorySection = ({
               variants={chevronVariants}
               animate={isExpanded ? "expanded" : "collapsed"}
             >
-              <ChevronDown className="w-5 h-5 text-gray-300" />
+              <ChevronDown className="w-5 h-5 text-muted-foreground" />
             </motion.div>
           </div>
         </motion.div>
@@ -152,10 +152,10 @@ const MealCategorySection = ({
               exit="collapsed"
               className="overflow-hidden"
             >
-              <div className="border-t border-white/10 bg-black/10 backdrop-blur-md">
+              <div className="border-t border-border bg-muted/10 backdrop-blur-md">
                 {category.meals.length === 0 ? (
                   <div className="p-6 text-center">
-                    <p className="text-gray-300 text-sm mb-3">No meals logged yet</p>
+                    <p className="text-muted-foreground text-sm mb-3">No meals logged yet</p>
                     <Link to={`/add-meal?mealTime=${category.key}`}>
                       <Button className="primary-button text-sm backdrop-blur-sm">
                         <Plus className="w-4 h-4 mr-2" />
@@ -177,12 +177,12 @@ const MealCategorySection = ({
                             delay: mealIndex * 0.08,
                             ease: [0.25, 0.46, 0.45, 0.94]
                           }}
-                          className="glass-card p-3 border border-white/10 hover:bg-white/10 transition-all duration-200 group backdrop-blur-md"
+                          className="glass-card p-3 border border-border hover:bg-accent/50 transition-all duration-200 group backdrop-blur-md"
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex-1">
-                              <h4 className="font-medium text-white text-sm mb-1">{meal.name}</h4>
-                              <div className="flex items-center gap-1 text-xs text-gray-300">
+                              <h4 className="font-medium text-foreground text-sm mb-1">{meal.name}</h4>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
                                 <Clock className="w-3 h-3" />
                                 <span>
                                   {new Date(meal.logged_at).toLocaleTimeString('en-US', { 
@@ -198,7 +198,7 @@ const MealCategorySection = ({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => onEditMeal(meal)}
-                                className="w-7 h-7 p-0 text-[#ff4d4d] hover:text-white hover:bg-[#ff4d4d]/20 border border-[#ff4d4d]/30 backdrop-blur-sm"
+                                className="w-7 h-7 p-0 text-primary hover:text-primary-foreground hover:bg-primary/20 border border-primary/30 backdrop-blur-sm"
                               >
                                 <Edit className="w-3 h-3" />
                               </Button>
@@ -207,7 +207,7 @@ const MealCategorySection = ({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => onDeleteMeal(meal.id, meal.name)}
-                                className="w-7 h-7 p-0 text-[#ff4d4d] hover:text-white hover:bg-[#ff4d4d]/20 border border-[#ff4d4d]/30 backdrop-blur-sm"
+                                className="w-7 h-7 p-0 text-primary hover:text-primary-foreground hover:bg-primary/20 border border-primary/30 backdrop-blur-sm"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
@@ -216,24 +216,24 @@ const MealCategorySection = ({
                           
                           <div className="grid grid-cols-5 gap-2 text-xs">
                             <div className="text-center">
-                              <div className="text-[#ff4d4d] font-semibold">{meal.calories}</div>
-                              <div className="text-gray-300">kcal</div>
+                              <div className="text-primary font-semibold">{meal.calories}</div>
+                              <div className="text-muted-foreground">kcal</div>
                             </div>
                             <div className="text-center">
-                              <div className="text-white font-semibold">{Math.round(meal.protein || 0)}g</div>
-                              <div className="text-gray-300">protein</div>
+                              <div className="text-foreground font-semibold">{Math.round(meal.protein || 0)}g</div>
+                              <div className="text-muted-foreground">protein</div>
                             </div>
                             <div className="text-center">
-                              <div className="text-white font-semibold">{Math.round(meal.carbs || 0)}g</div>
-                              <div className="text-gray-300">carbs</div>
+                              <div className="text-foreground font-semibold">{Math.round(meal.carbs || 0)}g</div>
+                              <div className="text-muted-foreground">carbs</div>
                             </div>
                             <div className="text-center">
-                              <div className="text-white font-semibold">{Math.round(meal.fat || 0)}g</div>
-                              <div className="text-gray-300">fats</div>
+                              <div className="text-foreground font-semibold">{Math.round(meal.fat || 0)}g</div>
+                              <div className="text-muted-foreground">fats</div>
                             </div>
                             <div className="text-center">
-                              <div className="text-white font-semibold">{Math.round(meal.fiber || 0)}g</div>
-                              <div className="text-gray-300">fiber</div>
+                              <div className="text-foreground font-semibold">{Math.round(meal.fiber || 0)}g</div>
+                              <div className="text-muted-foreground">fiber</div>
                             </div>
                           </div>
                         </motion.div>
