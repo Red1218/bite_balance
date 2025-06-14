@@ -7,6 +7,49 @@
 
 @layer base {
   :root {
+    /* Light theme variables */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+
+    --primary: 0 72.2% 50.6%;
+    --primary-foreground: 0 85.7% 97.3%;
+
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 72.2% 50.6%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 3.9%;
+    --sidebar-primary: 0 72.2% 50.6%;
+    --sidebar-primary-foreground: 0 85.7% 97.3%;
+    --sidebar-accent: 0 0% 96.1%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 89.8%;
+    --sidebar-ring: 0 72.2% 50.6%;
+  }
+
+  .dark {
+    /* Dark theme variables */
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
 
@@ -23,7 +66,7 @@
     --secondary-foreground: 0 0% 98%;
 
     --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 83.9%;
+    --muted-foreground: 0 0% 63.9%;
 
     --accent: 0 0% 14.9%;
     --accent-foreground: 0 0% 98%;
@@ -34,8 +77,6 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 72.2% 50.6%;
-
-    --radius: 0.75rem;
 
     --sidebar-background: 0 0% 3.9%;
     --sidebar-foreground: 0 0% 98%;
@@ -56,8 +97,15 @@
   body {
     @apply bg-background text-foreground;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(260 15% 8%) 100%);
     min-height: 100vh;
+  }
+
+  body:not(.dark) {
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(220 20% 98%) 100%);
+  }
+
+  .dark body {
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(260 15% 8%) 100%);
   }
 
   /* Ensure all text elements use proper foreground colors */
@@ -93,16 +141,36 @@
 
 @layer components {
   .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/20 shadow-2xl rounded-xl;
+    @apply backdrop-blur-xl border border-border/20 shadow-2xl rounded-xl;
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:not(.dark *) {
+    @apply bg-white/80;
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .glass-card {
+    @apply bg-white/5;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
     box-shadow: 
       0 8px 32px rgba(0, 0, 0, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.15),
       inset 0 -1px 0 rgba(255, 255, 255, 0.08);
-    transition: all 0.3s ease;
   }
   
-  .glass-card:hover {
+  .glass-card:hover:not(.dark *) {
+    @apply bg-white/90;
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .dark .glass-card:hover {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
     box-shadow: 
       0 12px 40px rgba(0, 0, 0, 0.4),
@@ -125,12 +193,24 @@
   
   .seamless-meal-card {
     @apply backdrop-blur-xl border-0 shadow-none rounded-xl;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
     transition: all 0.3s ease;
     position: relative;
   }
+
+  .seamless-meal-card:not(.dark *) {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 100%);
+  }
+
+  .dark .seamless-meal-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  }
   
-  .seamless-meal-card:hover {
+  .seamless-meal-card:hover:not(.dark *) {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.5) 100%);
+    transform: none;
+  }
+
+  .dark .seamless-meal-card:hover {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
     transform: none;
   }

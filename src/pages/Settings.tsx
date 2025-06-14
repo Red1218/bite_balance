@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -5,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
+import { ArrowLeft, Save, Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Settings = () => {
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
   
   const [settings, setSettings] = useState({
     dailyCalorieGoal: "2200",
@@ -19,8 +22,7 @@ const Settings = () => {
       breakfast: "08:00",
       lunch: "12:00",
       dinner: "19:00"
-    },
-    theme: "light"
+    }
   });
 
   const handleSave = () => {
@@ -35,13 +37,38 @@ const Settings = () => {
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mb-2">
           <Link to="/">
             <Button variant="ghost" size="icon" className="text-foreground hover:bg-accent">
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">⚙️ Settings</h1>
+          <h1 className="text-xl font-medium text-foreground">Settings</h1>
+        </div>
+
+        {/* Theme Toggle */}
+        <div className="glass-card p-4">
+          <h3 className="text-base font-medium text-foreground mb-4">Appearance</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {theme === 'dark' ? (
+                  <Moon className="w-5 h-5 text-foreground" />
+                ) : (
+                  <Sun className="w-5 h-5 text-foreground" />
+                )}
+                <div>
+                  <Label htmlFor="theme-toggle" className="text-foreground text-sm">Dark Mode</Label>
+                  <p className="text-xs text-muted-foreground">Switch between light and dark themes</p>
+                </div>
+              </div>
+              <Switch
+                id="theme-toggle"
+                checked={theme === 'dark'}
+                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Daily Goal */}
@@ -144,27 +171,6 @@ const Settings = () => {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Theme */}
-        <div className="glass-card p-4">
-          <h3 className="text-base font-medium text-foreground mb-4">App Theme</h3>
-          <div className="space-y-2">
-            <Label htmlFor="theme" className="text-foreground text-sm">Color Theme</Label>
-            <Select 
-              value={settings.theme} 
-              onValueChange={(value) => setSettings({ ...settings, theme: value })}
-            >
-              <SelectTrigger className="bg-background/50 border-border text-foreground rounded-xl h-12 backdrop-blur-sm [&>svg]:text-muted-foreground">
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border backdrop-blur-xl">
-                <SelectItem value="light" className="text-foreground hover:bg-accent focus:bg-accent">Light</SelectItem>
-                <SelectItem value="dark" className="text-foreground hover:bg-accent focus:bg-accent">Dark</SelectItem>
-                <SelectItem value="red" className="text-foreground hover:bg-accent focus:bg-accent">Red Accent (Current)</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
