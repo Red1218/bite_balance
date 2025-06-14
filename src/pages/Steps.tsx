@@ -1,47 +1,26 @@
-import React, { useState } from 'react';
+
+import React from 'react';
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Check, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Activity, Footprints, Flame } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useHealthConnect } from '@/hooks/useHealthConnect';
 
 const Steps = () => {
-  const [googleFitConnected, setGoogleFitConnected] = useState(false);
-  const [onePlusConnected, setOnePlusConnected] = useState(false);
-  const [googleFitLoading, setGoogleFitLoading] = useState(false);
-  const [onePlusLoading, setOnePlusLoading] = useState(false);
-  const [stepCount, setStepCount] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const {
+    isAvailable,
+    isConnected,
+    healthData,
+    loading,
+    requestPermissions,
+    fetchHealthData
+  } = useHealthConnect();
 
-  const handleGoogleFitConnect = async () => {
-    setGoogleFitLoading(true);
-    
-    // Simulate OAuth process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setGoogleFitConnected(true);
-    setGoogleFitLoading(false);
-    setStepCount(Math.floor(Math.random() * 5000) + 5000);
+  const handleConnect = async () => {
+    await requestPermissions();
   };
 
-  const handleOnePlusConnect = async () => {
-    setOnePlusLoading(true);
-    
-    // Simulate OAuth process
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setOnePlusConnected(true);
-    setOnePlusLoading(false);
-    setStepCount(Math.floor(Math.random() * 5000) + 5000);
-  };
-
-  const handleRefreshSteps = async () => {
-    setIsRefreshing(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newSteps = Math.floor(Math.random() * 5000) + 5000;
-    setStepCount(newSteps);
-    setIsRefreshing(false);
+  const handleRefresh = async () => {
+    await fetchHealthData();
   };
 
   return (
@@ -54,84 +33,135 @@ const Steps = () => {
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">Track Your Steps</h1>
+          <h1 className="text-xl font-medium text-foreground">Health Connect</h1>
         </div>
 
         <div className="glass-card p-6 space-y-6">
-          {/* Google Fit Connection */}
-          <div className="space-y-3">
-            {googleFitConnected ? (
-              <div className="flex items-center justify-center space-x-2 p-4 bg-green-500/20 rounded-xl border border-green-500/30">
-                <Check className="w-5 h-5 text-green-400" />
-                <span className="text-green-300 font-medium">Connected to Google Fit</span>
+          {!isAvailable ? (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-muted/30 rounded-full flex items-center justify-center mx-auto">
+                <Activity className="w-8 h-8 text-muted-foreground" />
               </div>
-            ) : (
-              <>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground mb-2">
+                  Health Connect Not Available
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Health Connect is not available on this device. Please ensure you have 
+                  Android 14+ and Health Connect installed from Google Play Store.
+                </p>
+              </div>
+            </div>
+          ) : !isConnected ? (
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                <Activity className="w-8 h-8 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground mb-2">
+                  Connect to Health Connect
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Connect to Health Connect to automatically track your steps and calories 
+                  from all your fitness apps and devices in one place.
+                </p>
                 <Button
-                  onClick={handleGoogleFitConnect}
-                  disabled={googleFitLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white transition-colors h-12 rounded-xl"
+                  onClick={handleConnect}
+                  disabled={loading}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-colors h-12 rounded-xl"
                 >
-                  {googleFitLoading ? (
+                  {loading ? (
                     <div className="flex items-center space-x-2">
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       <span>Connecting...</span>
                     </div>
                   ) : (
-                    "Connect to Google Fit"
-                  )}
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">Requires permission to access step data</p>
-              </>
-            )}
-          </div>
-
-          {/* OnePlus Health Connection */}
-          <div className="space-y-3">
-            {onePlusConnected ? (
-              <div className="flex items-center justify-center space-x-2 p-4 bg-green-500/20 rounded-xl border border-green-500/30">
-                <Check className="w-5 h-5 text-green-400" />
-                <span className="text-green-300 font-medium">Connected to OnePlus Health</span>
-              </div>
-            ) : (
-              <>
-                <Button
-                  onClick={handleOnePlusConnect}
-                  disabled={onePlusLoading}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white transition-colors h-12 rounded-xl"
-                >
-                  {onePlusLoading ? (
                     <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Connecting...</span>
+                      <Activity className="w-5 h-5" />
+                      <span>Connect Health Connect</span>
                     </div>
-                  ) : (
-                    "Connect to OnePlus Health"
                   )}
                 </Button>
-                <p className="text-xs text-muted-foreground text-center">Requires permission to access step data</p>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Connection Status */}
+              <div className="flex items-center justify-center space-x-2 p-4 bg-green-500/20 rounded-xl border border-green-500/30">
+                <Activity className="w-5 h-5 text-green-400" />
+                <span className="text-green-300 font-medium">Connected to Health Connect</span>
+              </div>
 
-          {/* Step Count Display */}
-          {(googleFitConnected || onePlusConnected) && (
-            <div className="mt-6 p-4 bg-background/50 rounded-xl border border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">Today's Steps</h3>
-                  <p className="text-3xl font-bold text-primary">{stepCount.toLocaleString()}</p>
+              {/* Health Data */}
+              {healthData && (
+                <div className="space-y-4">
+                  {/* Steps Card */}
+                  <div className="p-4 bg-background/50 rounded-xl border border-border">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Footprints className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold text-foreground">Steps</h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRefresh}
+                        disabled={loading}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-3xl font-bold text-primary mb-2">
+                        {healthData.steps.toLocaleString()}
+                      </p>
+                      <div className="w-full bg-muted/30 rounded-full h-3 mb-2">
+                        <div 
+                          className="bg-primary h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min((healthData.steps / 10000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {Math.round((healthData.steps / 10000) * 100)}% of 10,000 step goal
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Calories Cards */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-background/50 rounded-xl border border-border">
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <Flame className="w-4 h-4 text-orange-500" />
+                          <h4 className="text-sm font-medium text-foreground">Active Calories</h4>
+                        </div>
+                        <p className="text-2xl font-bold text-orange-500">
+                          {Math.round(healthData.activeCalories)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">kcal burned</p>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 bg-background/50 rounded-xl border border-border">
+                      <div className="text-center">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <Flame className="w-4 h-4 text-red-500" />
+                          <h4 className="text-sm font-medium text-foreground">Total Calories</h4>
+                        </div>
+                        <p className="text-2xl font-bold text-red-500">
+                          {Math.round(healthData.totalCalories)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">kcal burned</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    Last updated: {new Date(healthData.lastUpdated).toLocaleTimeString()}
+                  </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRefreshSteps}
-                  disabled={isRefreshing}
-                  className="h-10 w-10 text-muted-foreground hover:text-foreground hover:scale-110 transition-all duration-300"
-                >
-                  <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </div>
