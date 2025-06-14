@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,13 +62,13 @@ const History = () => {
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mb-2">
           <Link to="/">
             <Button variant="ghost" size="icon" className="text-foreground hover:bg-accent">
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">📈 History</h1>
+          <h1 className="text-xl font-medium text-foreground">History</h1>
         </div>
 
         {/* Date Selector */}

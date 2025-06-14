@@ -54,7 +54,7 @@ const Steps = () => {
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">🦶 Track Your Steps</h1>
+          <h1 className="text-xl font-medium text-foreground">Track Your Steps</h1>
         </div>
 
         <div className="glass-card p-6 space-y-6">

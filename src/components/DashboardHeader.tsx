@@ -8,7 +8,7 @@ interface DashboardHeaderProps {
 
 const DashboardHeader = ({ todayDate }: DashboardHeaderProps) => {
   return (
-    <div className="flex flex-col gap-4 animate-fade-in-up">
+    <div className="flex flex-col gap-4 animate-fade-in-up mb-2">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
         <div className="flex items-center gap-2 text-muted-foreground mt-1">

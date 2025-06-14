@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,13 +81,13 @@ const SavedMeals = () => {
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mb-2">
           <Link to="/">
             <Button variant="ghost" size="icon" className="text-foreground hover:bg-accent">
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">💾 Saved Meals</h1>
+          <h1 className="text-xl font-medium text-foreground">Saved Meals</h1>
           <div className="ml-auto">
             <Button 
               onClick={() => setShowAddForm(true)}
@@ -125,7 +126,7 @@ const SavedMeals = () => {
           {filteredMeals.map((meal) => (
             <div key={meal.id} className="glass-card p-4">
               <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-medium text-foreground leading-tight">{meal.name}</h3>
+                <h3 className="text-lg font-medium text-foreground leading-tight truncate pr-2 flex-1">{meal.name}</h3>
                 <div className="flex gap-1 ml-2">
                   <Button
                     variant="ghost"
