@@ -23,11 +23,36 @@ export const useHealthConnect = () => {
 
   const checkAvailability = async () => {
     try {
+      console.log('Checking Health Connect availability...');
       const result = await HealthConnect.isAvailable();
+      console.log('Availability result:', result);
+      
       setIsAvailable(result.available);
+      
+      if (!result.available) {
+        if (result.error) {
+          console.error('Health Connect error:', result.error);
+          toast({
+            title: "Health Connect Error",
+            description: result.error,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Health Connect Not Available",
+            description: `Please install Health Connect from Google Play Store (Status: ${result.status})`,
+            variant: "destructive"
+          });
+        }
+      }
     } catch (error) {
       console.error('Error checking Health Connect availability:', error);
       setIsAvailable(false);
+      toast({
+        title: "Error",
+        description: "Failed to check Health Connect availability",
+        variant: "destructive"
+      });
     }
   };
 
@@ -43,7 +68,10 @@ export const useHealthConnect = () => {
 
     setLoading(true);
     try {
+      console.log('Requesting Health Connect permissions...');
       const result = await HealthConnect.requestPermissions();
+      console.log('Permission result:', result);
+      
       setIsConnected(result.granted);
       
       if (result.granted) {
@@ -53,9 +81,11 @@ export const useHealthConnect = () => {
         });
         await fetchHealthData();
       } else {
+        const errorMessage = result.error || "Please grant permissions to access health data";
+        console.error('Permission denied:', errorMessage);
         toast({
           title: "Permissions Required",
-          description: "Please grant permissions to access health data",
+          description: errorMessage,
           variant: "destructive"
         });
       }
@@ -65,7 +95,7 @@ export const useHealthConnect = () => {
       console.error('Error requesting permissions:', error);
       toast({
         title: "Connection Failed",
-        description: "Failed to connect to Health Connect",
+        description: `Failed to connect to Health Connect: ${error}`,
         variant: "destructive"
       });
       return false;
@@ -79,10 +109,14 @@ export const useHealthConnect = () => {
 
     setLoading(true);
     try {
+      console.log('Fetching health data...');
       const [stepsResult, caloriesResult] = await Promise.all([
         HealthConnect.getTodaysSteps(),
         HealthConnect.getTodaysCalories()
       ]);
+
+      console.log('Steps result:', stepsResult);
+      console.log('Calories result:', caloriesResult);
 
       setHealthData({
         steps: stepsResult.steps,
@@ -94,7 +128,7 @@ export const useHealthConnect = () => {
       console.error('Error fetching health data:', error);
       toast({
         title: "Data Fetch Failed",
-        description: "Failed to fetch health data from Health Connect",
+        description: `Failed to fetch health data: ${error}`,
         variant: "destructive"
       });
     } finally {
