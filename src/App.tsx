@@ -9,33 +9,28 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import AuthLanding from "./components/AuthLanding";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import AddMeal from "./pages/AddMeal";
 import SavedMeals from "./pages/SavedMeals";
 import History from "./pages/History";
 import Steps from "./pages/Steps";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
-import { Suspense, lazy } from "react";
 
 const queryClient = new QueryClient();
-
-// Lazy load the heavy AddMeal component
-const AddMeal = lazy(() => import("./pages/AddMeal"));
-
-const LoadingSpinner = () => (
-  <div className="min-h-screen bg-background flex items-center justify-center">
-    <div className="text-center">
-      <div className="w-8 h-8 bg-primary rounded-full animate-pulse mx-auto mb-4"></div>
-      <p className="text-muted-foreground">Loading...</p>
-    </div>
-  </div>
-);
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-red-500 rounded-full animate-pulse mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
   
   if (!user) {
@@ -49,7 +44,14 @@ const AppRoutes = () => {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 bg-red-500 rounded-full animate-pulse mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -60,11 +62,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/" element={<AppLayout />}>
         <Route index element={<Dashboard />} />
-        <Route path="/add-meal" element={
-          <Suspense fallback={<LoadingSpinner />}>
-            <AddMeal />
-          </Suspense>
-        } />
+        <Route path="/add-meal" element={<AddMeal />} />
         <Route path="/saved-meals" element={<SavedMeals />} />
         <Route path="/history" element={<History />} />
         <Route path="/steps" element={<Steps />} />

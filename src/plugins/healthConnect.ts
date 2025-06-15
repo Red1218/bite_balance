@@ -2,8 +2,8 @@
 import { registerPlugin } from '@capacitor/core';
 
 export interface HealthConnectPlugin {
-  isAvailable(): Promise<{ available: boolean; status: number; error?: string }>;
-  requestPermissions(): Promise<{ granted: boolean; error?: string }>;
+  isAvailable(): Promise<{ available: boolean; status: number }>;
+  requestPermissions(): Promise<{ granted: boolean }>;
   getTodaysSteps(): Promise<{ steps: number; date: string }>;
   getTodaysCalories(): Promise<{ 
     activeCalories: number; 
