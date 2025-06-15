@@ -45,10 +45,12 @@ const AddMeal = () => {
   });
 
   const handleFoodSelect = (food: FoodItem) => {
+    console.log('Food selected:', food);
     setSelectedFood(food);
     setMealData(prev => ({
       ...prev,
-      name: food.name
+      name: food.name,
+      // Don't set nutritional values here - let the portion calculator handle them
     }));
     
     toast({
@@ -64,6 +66,7 @@ const AddMeal = () => {
     fat: string;
     fiber: string;
   }) => {
+    console.log('Calculated values received:', values);
     setMealData(prev => ({
       ...prev,
       ...values
@@ -72,6 +75,8 @@ const AddMeal = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('Form submission started with data:', mealData);
     
     if (!user) {
       toast({
@@ -85,7 +90,16 @@ const AddMeal = () => {
     if (!mealData.name || !mealData.mealTime || !mealData.calories) {
       toast({
         title: "Error", 
-        description: "Please fill in all required fields",
+        description: "Please fill in meal name, meal time, and calories",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (Number(mealData.calories) <= 0) {
+      toast({
+        title: "Error", 
+        description: "Please enter a valid portion size to calculate calories",
         variant: "destructive"
       });
       return;
@@ -94,21 +108,28 @@ const AddMeal = () => {
     setLoading(true);
     
     try {
+      const mealToInsert = {
+        user_id: user.id,
+        name: mealData.name,
+        calories: Number(mealData.calories),
+        protein: Number(mealData.protein) || 0,
+        carbs: Number(mealData.carbs) || 0,
+        fat: Number(mealData.fat) || 0,
+        fiber: Number(mealData.fiber) || 0,
+        meal_time: mealData.mealTime,
+        logged_date: mealData.date
+      };
+
+      console.log('Inserting meal:', mealToInsert);
+
       const { error } = await supabase
         .from('daily_meals')
-        .insert({
-          user_id: user.id,
-          name: mealData.name,
-          calories: Number(mealData.calories),
-          protein: Number(mealData.protein) || 0,
-          carbs: Number(mealData.carbs) || 0,
-          fat: Number(mealData.fat) || 0,
-          fiber: Number(mealData.fiber) || 0,
-          meal_time: mealData.mealTime,
-          logged_date: mealData.date
-        });
+        .insert(mealToInsert);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       toast({
         title: "Meal added",
@@ -198,7 +219,7 @@ const AddMeal = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Meal Name */}
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-foreground text-base">Meal Name</Label>
+                  <Label htmlFor="name" className="text-foreground text-base">Meal Name *</Label>
                   <Input
                     id="name"
                     value={mealData.name}
@@ -211,7 +232,7 @@ const AddMeal = () => {
 
                 {/* Calories */}
                 <div className="space-y-2">
-                  <Label htmlFor="calories" className="text-foreground text-base">Calories</Label>
+                  <Label htmlFor="calories" className="text-foreground text-base">Calories *</Label>
                   <Input
                     id="calories"
                     type="number"
@@ -220,12 +241,13 @@ const AddMeal = () => {
                     placeholder="Enter total calories"
                     className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-14 text-base backdrop-blur-sm"
                     required
+                    min="1"
                   />
                 </div>
 
                 {/* Macronutrients */}
                 <div className="space-y-4">
-                  <h3 className="text-foreground text-base font-medium">Macronutrients</h3>
+                  <h3 className="text-foreground text-base font-medium">Macronutrients (optional)</h3>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -238,6 +260,7 @@ const AddMeal = () => {
                         onChange={(e) => setMealData({ ...mealData, protein: e.target.value })}
                         placeholder="g"
                         className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
+                        min="0"
                       />
                     </div>
 
@@ -251,6 +274,7 @@ const AddMeal = () => {
                         onChange={(e) => setMealData({ ...mealData, carbs: e.target.value })}
                         placeholder="g"
                         className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
+                        min="0"
                       />
                     </div>
                   </div>
@@ -266,6 +290,7 @@ const AddMeal = () => {
                         onChange={(e) => setMealData({ ...mealData, fat: e.target.value })}
                         placeholder="g"
                         className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
+                        min="0"
                       />
                     </div>
 
@@ -279,6 +304,7 @@ const AddMeal = () => {
                         onChange={(e) => setMealData({ ...mealData, fiber: e.target.value })}
                         placeholder="g"
                         className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
+                        min="0"
                       />
                     </div>
                   </div>
@@ -286,7 +312,7 @@ const AddMeal = () => {
 
                 {/* Meal Time */}
                 <div className="space-y-2">
-                  <Label htmlFor="mealTime" className="text-foreground text-base">Meal Time</Label>
+                  <Label htmlFor="mealTime" className="text-foreground text-base">Meal Time *</Label>
                   <Select 
                     value={mealData.mealTime} 
                     onValueChange={(value) => setMealData({ ...mealData, mealTime: value })}
@@ -304,19 +330,12 @@ const AddMeal = () => {
                   </Select>
                 </div>
 
-                {/* Hidden Date Field */}
-                <input
-                  type="hidden"
-                  value={mealData.date}
-                  onChange={(e) => setMealData({ ...mealData, date: e.target.value })}
-                />
-
                 {/* Submit Button */}
                 <div className="pt-4">
                   <Button 
                     type="submit" 
                     className="w-full primary-button h-14 text-lg font-medium rounded-xl"
-                    disabled={loading}
+                    disabled={loading || !mealData.name || !mealData.mealTime || !mealData.calories}
                   >
                     {loading ? "Adding..." : "Add Meal"}
                   </Button>
