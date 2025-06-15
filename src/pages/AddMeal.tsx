@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +10,10 @@ import { ArrowLeft, Search, Calculator } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import FoodSearch from "@/components/FoodSearch";
-import PortionCalculator from "@/components/PortionCalculator";
+
+// Lazy load heavy components
+const FoodSearch = lazy(() => import("@/components/FoodSearch"));
+const PortionCalculator = lazy(() => import("@/components/PortionCalculator"));
 
 interface FoodItem {
   id: string;
@@ -25,6 +26,13 @@ interface FoodItem {
   source: 'USDA' | 'INDIAN' | 'CUSTOM';
   category?: string;
 }
+
+const ComponentLoader = () => (
+  <div className="animate-pulse">
+    <div className="h-12 bg-muted rounded-xl mb-4"></div>
+    <div className="h-24 bg-muted rounded-xl"></div>
+  </div>
+);
 
 const AddMeal = () => {
   const { toast } = useToast();
@@ -190,15 +198,19 @@ const AddMeal = () => {
               </p>
             </CardHeader>
             <CardContent>
-              <FoodSearch onFoodSelect={handleFoodSelect} />
+              <Suspense fallback={<ComponentLoader />}>
+                <FoodSearch onFoodSelect={handleFoodSelect} />
+              </Suspense>
             </CardContent>
           </Card>
 
           {/* Portion Calculator */}
-          <PortionCalculator 
-            selectedFood={selectedFood}
-            onCalculatedValues={handleCalculatedValues}
-          />
+          <Suspense fallback={<ComponentLoader />}>
+            <PortionCalculator 
+              selectedFood={selectedFood}
+              onCalculatedValues={handleCalculatedValues}
+            />
+          </Suspense>
 
           <div className="flex items-center gap-4">
             <Separator className="flex-1" />
