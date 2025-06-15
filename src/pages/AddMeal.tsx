@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,17 +10,12 @@ import { ArrowLeft, Save } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import FoodSearch from "@/components/FoodSearch";
-import PortionCalculator from "@/components/PortionCalculator";
-import { NutrientValues } from "@/types/nutrients";
 
 const AddMeal = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [baseNutrients, setBaseNutrients] = useState<NutrientValues | null>(null);
-  const [selectedFoodName, setSelectedFoodName] = useState("");
   const [mealData, setMealData] = useState({
     name: "",
     mealTime: "",
@@ -33,37 +27,6 @@ const AddMeal = () => {
     date: new Date().toISOString().split('T')[0],
     notes: ""
   });
-
-  const handleFoodSelect = (nutrients: NutrientValues, foodName: string, baseNutrients: NutrientValues) => {
-    setMealData({
-      ...mealData,
-      name: foodName,
-      calories: nutrients.calories.toString(),
-      protein: nutrients.protein.toString(),
-      carbs: nutrients.carbs.toString(),
-      fat: nutrients.fat.toString(),
-      fiber: nutrients.fiber.toString()
-    });
-
-    setBaseNutrients(baseNutrients);
-    setSelectedFoodName(foodName);
-
-    toast({
-      title: "Food Selected",
-      description: `Nutritional information loaded for "${foodName}"`,
-    });
-  };
-
-  const handleCalculatedNutrients = (nutrients: NutrientValues) => {
-    setMealData({
-      ...mealData,
-      calories: nutrients.calories.toString(),
-      protein: nutrients.protein.toString(),
-      carbs: nutrients.carbs.toString(),
-      fat: nutrients.fat.toString(),
-      fiber: nutrients.fiber.toString()
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,8 +85,6 @@ const AddMeal = () => {
         date: new Date().toISOString().split('T')[0],
         notes: ""
       });
-      setBaseNutrients(null);
-      setSelectedFoodName("");
 
       // Navigate back to dashboard
       navigate("/");
@@ -154,33 +115,6 @@ const AddMeal = () => {
 
         <div className="glass-card p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Food Search */}
-            <FoodSearch onFoodSelect={handleFoodSelect} />
-
-            {/* Portion Calculator */}
-            {baseNutrients && selectedFoodName && (
-              <>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 h-px bg-border"></div>
-                  <span className="text-muted-foreground text-sm">adjust portion size</span>
-                  <div className="flex-1 h-px bg-border"></div>
-                </div>
-                
-                <PortionCalculator
-                  baseNutrients={baseNutrients}
-                  foodName={selectedFoodName}
-                  onCalculatedNutrients={handleCalculatedNutrients}
-                />
-              </>
-            )}
-
-            {/* Divider */}
-            <div className="flex items-center gap-4">
-              <div className="flex-1 h-px bg-border"></div>
-              <span className="text-muted-foreground text-sm">or enter manually</span>
-              <div className="flex-1 h-px bg-border"></div>
-            </div>
-
             {/* Meal Name */}
             <div className="space-y-2">
               <Label htmlFor="name" className="text-foreground text-base">Meal Name</Label>
