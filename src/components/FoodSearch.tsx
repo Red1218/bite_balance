@@ -8,7 +8,7 @@ import { useNutrientsApi } from '@/hooks/useNutrientsApi';
 import { NutrientValues } from '@/types/nutrients';
 
 interface FoodSearchProps {
-  onFoodSelect: (nutrients: NutrientValues, foodName: string) => void;
+  onFoodSelect: (nutrients: NutrientValues, foodName: string, baseNutrients: NutrientValues) => void;
 }
 
 const FoodSearch = ({ onFoodSelect }: FoodSearchProps) => {
@@ -34,7 +34,8 @@ const FoodSearch = ({ onFoodSelect }: FoodSearchProps) => {
   const handleFoodSelect = async (fdcId: number, description: string) => {
     const nutrients = await getFoodDetails(fdcId);
     if (nutrients) {
-      onFoodSelect(nutrients, description);
+      // Pass the same nutrients as both display and base values
+      onFoodSelect(nutrients, description, nutrients);
       setSearchTerm('');
       setShowResults(false);
       clearSearch();
