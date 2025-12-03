@@ -1,1 +1,4 @@
 project_id = "ccxqhjoqwaftnojpjojt"
+
+[functions.search-food]
+verify_jwt = false
