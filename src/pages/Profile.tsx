@@ -1,26 +1,32 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Calculator, Save, User, ArrowLeft } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/manualClient";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { Calculator, Save, User, ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/manualClient';
+import { Link } from 'react-router-dom';
 
 const Profile = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   const [profile, setProfile] = useState({
-    name: "",
-    age: "",
-    weight: "",
-    height: "",
-    activityLevel: "active",
-    gender: "male",
-    goal: "maintain"
+    name: '',
+    age: '',
+    weight: '',
+    height: '',
+    activityLevel: 'active',
+    gender: 'male',
+    goal: 'maintain',
   });
 
   const [calculatedGoal, setCalculatedGoal] = useState<number | null>(null);
@@ -39,13 +45,13 @@ const Profile = () => {
 
       if (data) {
         setProfile({
-          name: data.name || "",
-          age: data.age?.toString() || "",
-          weight: data.weight?.toString() || "",
-          height: data.height?.toString() || "",
-          activityLevel: "active",
-          gender: "male",
-          goal: "maintain"
+          name: data.name || '',
+          age: data.age?.toString() || '',
+          weight: data.weight?.toString() || '',
+          height: data.height?.toString() || '',
+          activityLevel: 'active',
+          gender: 'male',
+          goal: 'maintain',
         });
       }
     };
@@ -60,16 +66,16 @@ const Profile = () => {
 
     if (!weight || !height || !age) {
       toast({
-        title: "Invalid Input",
-        description: "Please fill in all fields with valid numbers.",
-        variant: "destructive"
+        title: 'Invalid Input',
+        description: 'Please fill in all fields with valid numbers.',
+        variant: 'destructive',
       });
       return;
     }
 
     // Mifflin-St Jeor Equation
     let bmr;
-    if (profile.gender === "male") {
+    if (profile.gender === 'male') {
       bmr = 10 * weight + 6.25 * height - 5 * age + 5;
     } else {
       bmr = 10 * weight + 6.25 * height - 5 * age - 161;
@@ -79,18 +85,22 @@ const Profile = () => {
     const activityMultipliers = {
       sedentary: 1.2,
       active: 1.55,
-      very_active: 1.725
+      very_active: 1.725,
     };
 
-    const tdee = bmr * activityMultipliers[profile.activityLevel as keyof typeof activityMultipliers];
+    const tdee =
+      bmr *
+      activityMultipliers[
+        profile.activityLevel as keyof typeof activityMultipliers
+      ];
 
     // Goal adjustments
     let goalCalories = tdee;
     switch (profile.goal) {
-      case "lose":
+      case 'lose':
         goalCalories = tdee - 500;
         break;
-      case "gain":
+      case 'gain':
         goalCalories = tdee + 500;
         break;
       default:
@@ -102,9 +112,9 @@ const Profile = () => {
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     setLoading(true);
-    
+
     try {
       const { error } = await supabase
         .from('profiles')
@@ -113,21 +123,21 @@ const Profile = () => {
           age: parseInt(profile.age) || null,
           weight: parseFloat(profile.weight) || null,
           height: parseFloat(profile.height) || null,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id);
 
       if (error) throw error;
 
       toast({
-        title: "Profile Updated!",
-        description: "Your profile information has been saved successfully.",
+        title: 'Profile Updated!',
+        description: 'Your profile information has been saved successfully.',
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to save profile. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save profile. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -140,7 +150,11 @@ const Profile = () => {
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link to="/">
-            <Button variant="ghost" size="icon" className="text-foreground hover:bg-accent">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-foreground hover:bg-accent"
+            >
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
@@ -152,27 +166,37 @@ const Profile = () => {
 
         {/* Personal Information */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-medium text-foreground mb-4">Personal Information</h3>
+          <h3 className="text-base font-medium text-foreground mb-4">
+            Personal Information
+          </h3>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="name" className="text-foreground text-sm">Name</Label>
+                <Label htmlFor="name" className="text-foreground text-sm">
+                  Name
+                </Label>
                 <Input
                   id="name"
                   value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, name: e.target.value })
+                  }
                   placeholder="Your name"
                   className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="age" className="text-foreground text-sm">Age</Label>
+                <Label htmlFor="age" className="text-foreground text-sm">
+                  Age
+                </Label>
                 <Input
                   id="age"
                   type="number"
                   value={profile.age}
-                  onChange={(e) => setProfile({ ...profile, age: e.target.value })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, age: e.target.value })
+                  }
                   placeholder="Years"
                   className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
                 />
@@ -181,24 +205,32 @@ const Profile = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="weight" className="text-foreground text-sm">Weight (kg)</Label>
+                <Label htmlFor="weight" className="text-foreground text-sm">
+                  Weight (kg)
+                </Label>
                 <Input
                   id="weight"
                   type="number"
                   value={profile.weight}
-                  onChange={(e) => setProfile({ ...profile, weight: e.target.value })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, weight: e.target.value })
+                  }
                   placeholder="Kilograms"
                   className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="height" className="text-foreground text-sm">Height (cm)</Label>
+                <Label htmlFor="height" className="text-foreground text-sm">
+                  Height (cm)
+                </Label>
                 <Input
                   id="height"
                   type="number"
                   value={profile.height}
-                  onChange={(e) => setProfile({ ...profile, height: e.target.value })}
+                  onChange={(e) =>
+                    setProfile({ ...profile, height: e.target.value })
+                  }
                   placeholder="Centimeters"
                   className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm"
                 />
@@ -207,52 +239,107 @@ const Profile = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="gender" className="text-foreground text-sm">Gender</Label>
-                <Select 
-                  value={profile.gender} 
-                  onValueChange={(value) => setProfile({ ...profile, gender: value })}
+                <Label htmlFor="gender" className="text-foreground text-sm">
+                  Gender
+                </Label>
+                <Select
+                  value={profile.gender}
+                  onValueChange={(value) =>
+                    setProfile({ ...profile, gender: value })
+                  }
                 >
                   <SelectTrigger className="bg-background/50 border-border text-foreground rounded-xl h-12 backdrop-blur-sm [&>svg]:text-muted-foreground">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border backdrop-blur-xl">
-                    <SelectItem value="male" className="text-foreground hover:bg-accent focus:bg-accent">Male</SelectItem>
-                    <SelectItem value="female" className="text-foreground hover:bg-accent focus:bg-accent">Female</SelectItem>
+                    <SelectItem
+                      value="male"
+                      className="text-foreground hover:bg-accent focus:bg-accent"
+                    >
+                      Male
+                    </SelectItem>
+                    <SelectItem
+                      value="female"
+                      className="text-foreground hover:bg-accent focus:bg-accent"
+                    >
+                      Female
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="activityLevel" className="text-foreground text-sm">Activity Level</Label>
-                <Select 
-                  value={profile.activityLevel} 
-                  onValueChange={(value) => setProfile({ ...profile, activityLevel: value })}
+                <Label
+                  htmlFor="activityLevel"
+                  className="text-foreground text-sm"
+                >
+                  Activity Level
+                </Label>
+                <Select
+                  value={profile.activityLevel}
+                  onValueChange={(value) =>
+                    setProfile({ ...profile, activityLevel: value })
+                  }
                 >
                   <SelectTrigger className="bg-background/50 border-border text-foreground rounded-xl h-12 backdrop-blur-sm [&>svg]:text-muted-foreground">
                     <SelectValue placeholder="Select activity level" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border backdrop-blur-xl">
-                    <SelectItem value="sedentary" className="text-foreground hover:bg-accent focus:bg-accent">Sedentary</SelectItem>
-                    <SelectItem value="active" className="text-foreground hover:bg-accent focus:bg-accent">Active</SelectItem>
-                    <SelectItem value="very_active" className="text-foreground hover:bg-accent focus:bg-accent">Very Active</SelectItem>
+                    <SelectItem
+                      value="sedentary"
+                      className="text-foreground hover:bg-accent focus:bg-accent"
+                    >
+                      Sedentary
+                    </SelectItem>
+                    <SelectItem
+                      value="active"
+                      className="text-foreground hover:bg-accent focus:bg-accent"
+                    >
+                      Active
+                    </SelectItem>
+                    <SelectItem
+                      value="very_active"
+                      className="text-foreground hover:bg-accent focus:bg-accent"
+                    >
+                      Very Active
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal" className="text-foreground text-sm">Goal</Label>
-              <Select 
-                value={profile.goal} 
-                onValueChange={(value) => setProfile({ ...profile, goal: value })}
+              <Label htmlFor="goal" className="text-foreground text-sm">
+                Goal
+              </Label>
+              <Select
+                value={profile.goal}
+                onValueChange={(value) =>
+                  setProfile({ ...profile, goal: value })
+                }
               >
                 <SelectTrigger className="bg-background/50 border-border text-foreground rounded-xl h-12 backdrop-blur-sm [&>svg]:text-muted-foreground">
                   <SelectValue placeholder="Select your goal" />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border backdrop-blur-xl">
-                  <SelectItem value="lose" className="text-foreground hover:bg-accent focus:bg-accent">Lose Weight</SelectItem>
-                  <SelectItem value="maintain" className="text-foreground hover:bg-accent focus:bg-accent">Maintain Weight</SelectItem>
-                  <SelectItem value="gain" className="text-foreground hover:bg-accent focus:bg-accent">Gain Weight</SelectItem>
+                  <SelectItem
+                    value="lose"
+                    className="text-foreground hover:bg-accent focus:bg-accent"
+                  >
+                    Lose Weight
+                  </SelectItem>
+                  <SelectItem
+                    value="maintain"
+                    className="text-foreground hover:bg-accent focus:bg-accent"
+                  >
+                    Maintain Weight
+                  </SelectItem>
+                  <SelectItem
+                    value="gain"
+                    className="text-foreground hover:bg-accent focus:bg-accent"
+                  >
+                    Gain Weight
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -261,12 +348,15 @@ const Profile = () => {
 
         {/* Calorie Goal Calculator */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-medium text-foreground mb-4">Calorie Goal Calculator</h3>
+          <h3 className="text-base font-medium text-foreground mb-4">
+            Calorie Goal Calculator
+          </h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Calculate your daily calorie goal based on your personal information and activity level.
+            Calculate your daily calorie goal based on your personal information
+            and activity level.
           </p>
-          
-          <Button 
+
+          <Button
             onClick={calculateCalorieGoal}
             className="w-full primary-button h-12 mb-4"
           >
@@ -276,10 +366,15 @@ const Profile = () => {
 
           {calculatedGoal && (
             <div className="p-4 bg-primary/20 border border-primary/30 rounded-xl">
-              <h4 className="font-semibold text-primary mb-2">Recommended Daily Calorie Goal</h4>
-              <div className="text-3xl font-bold text-primary mb-2">{calculatedGoal} calories</div>
+              <h4 className="font-semibold text-primary mb-2">
+                Recommended Daily Calorie Goal
+              </h4>
+              <div className="text-3xl font-bold text-primary mb-2">
+                {calculatedGoal} calories
+              </div>
               <p className="text-sm text-muted-foreground">
-                This is based on your current profile settings and {profile.goal} goal.
+                This is based on your current profile settings and{' '}
+                {profile.goal} goal.
               </p>
             </div>
           )}
@@ -287,28 +382,32 @@ const Profile = () => {
 
         {/* Health Metrics Summary */}
         <div className="glass-card p-4">
-          <h3 className="text-base font-medium text-foreground mb-4">Health Summary</h3>
+          <h3 className="text-base font-medium text-foreground mb-4">
+            Health Summary
+          </h3>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="p-3 bg-background/50 rounded-lg border border-border">
               <div className="text-xl font-bold text-foreground">
-                {profile.weight ? parseFloat(profile.weight).toFixed(1) : "--"}
+                {profile.weight ? parseFloat(profile.weight).toFixed(1) : '--'}
               </div>
               <p className="text-xs text-muted-foreground">Weight (kg)</p>
             </div>
-            
+
             <div className="p-3 bg-background/50 rounded-lg border border-border">
               <div className="text-xl font-bold text-foreground">
-                {profile.height ? parseFloat(profile.height).toFixed(0) : "--"}
+                {profile.height ? parseFloat(profile.height).toFixed(0) : '--'}
               </div>
               <p className="text-xs text-muted-foreground">Height (cm)</p>
             </div>
-            
+
             <div className="p-3 bg-background/50 rounded-lg border border-border">
               <div className="text-xl font-bold text-primary">
-                {profile.weight && profile.height 
-                  ? (parseFloat(profile.weight) / Math.pow(parseFloat(profile.height) / 100, 2)).toFixed(1)
-                  : "--"
-                }
+                {profile.weight && profile.height
+                  ? (
+                      parseFloat(profile.weight) /
+                      Math.pow(parseFloat(profile.height) / 100, 2)
+                    ).toFixed(1)
+                  : '--'}
               </div>
               <p className="text-xs text-muted-foreground">BMI</p>
             </div>
@@ -317,8 +416,8 @@ const Profile = () => {
 
         {/* Save Button */}
         <div className="pt-4">
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             className="w-full primary-button h-12"
             disabled={loading}
           >

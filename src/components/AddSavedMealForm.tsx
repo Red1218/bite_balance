@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,10 @@ interface AddSavedMealFormProps {
   onCancel: () => void;
 }
 
-const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCancel }) => {
+const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
+  onMealAdded,
+  onCancel,
+}) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
     fat: '',
     fiber: '',
     notes: '',
-    tagInput: ''
+    tagInput: '',
   });
   const [tags, setTags] = useState<string[]>([]);
 
@@ -40,26 +42,26 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast({
-        title: "Error",
-        description: "You must be logged in to save meals",
-        variant: "destructive"
+        title: 'Error',
+        description: 'You must be logged in to save meals',
+        variant: 'destructive',
       });
       return;
     }
 
     if (!formData.name || !formData.calories) {
       toast({
-        title: "Error",
-        description: "Please fill in meal name and calories",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Please fill in meal name and calories',
+        variant: 'destructive',
       });
       return;
     }
@@ -67,34 +69,32 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('saved_meals')
-        .insert({
-          user_id: user.id,
-          name: formData.name,
-          calories: Number(formData.calories),
-          protein: Number(formData.protein) || 0,
-          carbs: Number(formData.carbs) || 0,
-          fat: Number(formData.fat) || 0,
-          fiber: Number(formData.fiber) || 0,
-          tags: tags.length > 0 ? tags : null,
-          notes: formData.notes || null
-        });
+      const { error } = await supabase.from('saved_meals').insert({
+        user_id: user.id,
+        name: formData.name,
+        calories: Number(formData.calories),
+        protein: Number(formData.protein) || 0,
+        carbs: Number(formData.carbs) || 0,
+        fat: Number(formData.fat) || 0,
+        fiber: Number(formData.fiber) || 0,
+        tags: tags.length > 0 ? tags : null,
+        notes: formData.notes || null,
+      });
 
       if (error) throw error;
 
       toast({
-        title: "Success",
-        description: "Meal saved successfully!"
+        title: 'Success',
+        description: 'Meal saved successfully!',
       });
 
       onMealAdded();
     } catch (error) {
       console.error('Error saving meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to save meal. Please try again.",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to save meal. Please try again.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -124,7 +124,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="e.g., Protein Smoothie"
                 required
               />
@@ -135,7 +137,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
                 id="calories"
                 type="number"
                 value={formData.calories}
-                onChange={(e) => setFormData({ ...formData, calories: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, calories: e.target.value })
+                }
                 placeholder="0"
                 required
               />
@@ -150,7 +154,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
                 type="number"
                 step="0.1"
                 value={formData.protein}
-                onChange={(e) => setFormData({ ...formData, protein: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, protein: e.target.value })
+                }
                 placeholder="0"
               />
             </div>
@@ -161,7 +167,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
                 type="number"
                 step="0.1"
                 value={formData.carbs}
-                onChange={(e) => setFormData({ ...formData, carbs: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, carbs: e.target.value })
+                }
                 placeholder="0"
               />
             </div>
@@ -172,7 +180,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
                 type="number"
                 step="0.1"
                 value={formData.fat}
-                onChange={(e) => setFormData({ ...formData, fat: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, fat: e.target.value })
+                }
                 placeholder="0"
               />
             </div>
@@ -183,7 +193,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
                 type="number"
                 step="0.1"
                 value={formData.fiber}
-                onChange={(e) => setFormData({ ...formData, fiber: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, fiber: e.target.value })
+                }
                 placeholder="0"
               />
             </div>
@@ -195,7 +207,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
               <Input
                 id="tags"
                 value={formData.tagInput}
-                onChange={(e) => setFormData({ ...formData, tagInput: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, tagInput: e.target.value })
+                }
                 placeholder="Add a tag..."
                 onKeyPress={(e) => {
                   if (e.key === 'Enter') {
@@ -211,7 +225,11 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
                     🏷️ {tag}
                     <button
                       type="button"
@@ -231,7 +249,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
             <Textarea
               id="notes"
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, notes: e.target.value })
+              }
               placeholder="Any additional notes..."
               rows={3}
             />
@@ -244,7 +264,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({ onMealAdded, onCanc
               className="bg-red-500 hover:bg-red-600 text-white flex-1"
             >
               <Save className="w-4 h-4 mr-2" />
-              {loading ? "Saving..." : "Save Meal"}
+              {loading ? 'Saving...' : 'Save Meal'}
             </Button>
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel

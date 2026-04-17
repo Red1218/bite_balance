@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -20,13 +19,23 @@ const MealTimeSelector: React.FC<MealTimeSelectorProps> = ({
   open,
   onOpenChange,
   onSelect,
-  mealName
+  mealName,
 }) => {
   const mealTimes = [
-    { value: 'breakfast', label: 'Breakfast', icon: Coffee, color: 'text-amber-600' },
+    {
+      value: 'breakfast',
+      label: 'Breakfast',
+      icon: Coffee,
+      color: 'text-amber-600',
+    },
     { value: 'lunch', label: 'Lunch', icon: Sun, color: 'text-yellow-600' },
-    { value: 'dinner', label: 'Dinner', icon: Sunset, color: 'text-orange-600' },
-    { value: 'snack', label: 'Snack', icon: Moon, color: 'text-blue-600' }
+    {
+      value: 'dinner',
+      label: 'Dinner',
+      icon: Sunset,
+      color: 'text-orange-600',
+    },
+    { value: 'snack', label: 'Snack', icon: Moon, color: 'text-blue-600' },
   ];
 
   return (

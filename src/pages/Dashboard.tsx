@@ -1,24 +1,23 @@
-
-import { useState } from "react";
-import { useDailyMeals } from "@/hooks/useDailyMeals";
-import EditMealDialog from "@/components/EditMealDialog";
-import StepsSection from "@/components/StepsSection";
-import MacronutrientsTracker from "@/components/MacronutrientsTracker";
-import DailySummary from "@/components/DailySummary";
-import DashboardHeader from "@/components/DashboardHeader";
-import TodaysMealsSection from "@/components/TodaysMealsSection";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
+import { useDailyMeals, DailyMeal } from '@/hooks/useDailyMeals';
+import EditMealDialog from '@/components/EditMealDialog';
+import StepsSection from '@/components/StepsSection';
+import MacronutrientsTracker from '@/components/MacronutrientsTracker';
+import DailySummary from '@/components/DailySummary';
+import DashboardHeader from '@/components/DashboardHeader';
+import TodaysMealsSection from '@/components/TodaysMealsSection';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
   const { meals, loading, totals, updateMeal, deleteMeal } = useDailyMeals();
-  const [editingMeal, setEditingMeal] = useState<any>(null);
+  const [editingMeal, setEditingMeal] = useState<DailyMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const dailyGoal = 2200;
 
-  const handleEditMeal = (meal: any) => {
+  const handleEditMeal = (meal: DailyMeal) => {
     setEditingMeal(meal);
     setIsEditDialogOpen(true);
   };
@@ -27,29 +26,29 @@ const Dashboard = () => {
     if (window.confirm('Are you sure you want to delete this meal?')) {
       await deleteMeal(mealId);
       toast({
-        title: "Meal deleted",
+        title: 'Meal deleted',
         description: `"${mealName}" has been removed from your daily log.`,
       });
     }
   };
 
-  const handleSaveMeal = async (updates: any) => {
+  const handleSaveMeal = async (updates: Partial<DailyMeal>) => {
     if (editingMeal) {
       await updateMeal(editingMeal.id, updates);
       toast({
-        title: "Meal updated",
+        title: 'Meal updated',
         description: `"${updates.name || editingMeal.name}" has been updated.`,
       });
     }
   };
 
   const todayData = {
-    date: new Date().toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
+    date: new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
   };
 
   // Group meals by meal_time and calculate totals
@@ -61,7 +60,7 @@ const Dashboard = () => {
         totalCalories: 0,
         totalProtein: 0,
         totalCarbs: 0,
-        totalFat: 0
+        totalFat: 0,
       };
     }
     acc[mealTime].meals.push(meal);
@@ -70,7 +69,7 @@ const Dashboard = () => {
     acc[mealTime].totalCarbs += meal.carbs || 0;
     acc[mealTime].totalFat += meal.fat || 0;
     return acc;
-  }, {} as any);
+  }, {} as Record<string, { meals: DailyMeal[]; totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number }>);
 
   if (loading) {
     return (
@@ -115,7 +114,10 @@ const Dashboard = () => {
         <MacronutrientsTracker totals={totals} />
 
         {/* Steps Section */}
-        <div className="animate-slide-in-right" style={{ animationDelay: '400ms' }}>
+        <div
+          className="animate-slide-in-right"
+          style={{ animationDelay: '400ms' }}
+        >
           <StepsSection />
         </div>
       </div>

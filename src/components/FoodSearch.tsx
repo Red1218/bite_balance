@@ -12,7 +12,8 @@ interface FoodSearchProps {
 export const FoodSearch = ({ onSelect }: FoodSearchProps) => {
   const [query, setQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
-  const { results, loading, error, searchFoods, clearResults } = useFoodSearch();
+  const { results, loading, error, searchFoods, clearResults } =
+    useFoodSearch();
   const debounceRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +41,10 @@ export const FoodSearch = ({ onSelect }: FoodSearchProps) => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setShowResults(false);
       }
     };
@@ -91,15 +95,13 @@ export const FoodSearch = ({ onSelect }: FoodSearchProps) => {
           {loading && (
             <div className="flex items-center justify-center p-4 gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Searching...</span>
+              <span className="text-sm text-muted-foreground">
+                Searching...
+              </span>
             </div>
           )}
 
-          {error && (
-            <div className="p-4 text-sm text-destructive">
-              {error}
-            </div>
-          )}
+          {error && <div className="p-4 text-sm text-destructive">{error}</div>}
 
           {!loading && !error && results.length === 0 && query.length >= 2 && (
             <div className="p-4 text-sm text-muted-foreground text-center">
@@ -131,12 +133,17 @@ export const FoodSearch = ({ onSelect }: FoodSearchProps) => {
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{food.name}</p>
+                      <p className="font-medium text-sm truncate">
+                        {food.name}
+                      </p>
                       {food.brand && (
-                        <p className="text-xs text-muted-foreground truncate">{food.brand}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {food.brand}
+                        </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-1">
-                        {food.calories} kcal • P: {food.protein}g • C: {food.carbs}g • F: {food.fat}g
+                        {food.calories} kcal • P: {food.protein}g • C:{' '}
+                        {food.carbs}g • F: {food.fat}g
                       </p>
                     </div>
                   </button>

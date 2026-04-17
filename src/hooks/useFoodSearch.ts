@@ -38,9 +38,10 @@ export const useFoodSearch = () => {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke<SearchResponse>('search-food', {
-        body: { query: query.trim(), page },
-      });
+      const { data, error: fnError } =
+        await supabase.functions.invoke<SearchResponse>('search-food', {
+          body: { query: query.trim(), page },
+        });
 
       if (fnError) {
         throw new Error(fnError.message);

@@ -1,8 +1,7 @@
-
 import React from 'react';
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Activity, Footprints, Flame } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, Activity, Footprints, Flame } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 
 const Steps = () => {
@@ -12,7 +11,7 @@ const Steps = () => {
     healthData,
     loading,
     requestPermissions,
-    fetchHealthData
+    fetchHealthData,
   } = useHealthConnect();
 
   const handleConnect = async () => {
@@ -29,11 +28,17 @@ const Steps = () => {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link to="/">
-            <Button variant="ghost" size="icon" className="text-foreground hover:bg-accent">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-foreground hover:bg-accent"
+            >
               <ArrowLeft className="w-6 h-6" />
             </Button>
           </Link>
-          <h1 className="text-xl font-medium text-foreground">Health Connect</h1>
+          <h1 className="text-xl font-medium text-foreground">
+            Health Connect
+          </h1>
         </div>
 
         <div className="glass-card p-6 space-y-6">
@@ -47,8 +52,9 @@ const Steps = () => {
                   Health Connect Not Available
                 </h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Health Connect is not available on this device. Please ensure you have 
-                  Android 14+ and Health Connect installed from Google Play Store.
+                  Health Connect is not available on this device. Please ensure
+                  you have Android 14+ and Health Connect installed from Google
+                  Play Store.
                 </p>
               </div>
             </div>
@@ -62,8 +68,9 @@ const Steps = () => {
                   Connect to Health Connect
                 </h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Connect to Health Connect to automatically track your steps and calories 
-                  from all your fitness apps and devices in one place.
+                  Connect to Health Connect to automatically track your steps
+                  and calories from all your fitness apps and devices in one
+                  place.
                 </p>
                 <Button
                   onClick={handleConnect}
@@ -89,7 +96,9 @@ const Steps = () => {
               {/* Connection Status */}
               <div className="flex items-center justify-center space-x-2 p-4 bg-green-500/20 rounded-xl border border-green-500/30">
                 <Activity className="w-5 h-5 text-green-400" />
-                <span className="text-green-300 font-medium">Connected to Health Connect</span>
+                <span className="text-green-300 font-medium">
+                  Connected to Health Connect
+                </span>
               </div>
 
               {/* Health Data */}
@@ -117,13 +126,16 @@ const Steps = () => {
                         {healthData.steps.toLocaleString()}
                       </p>
                       <div className="w-full bg-muted/30 rounded-full h-3 mb-2">
-                        <div 
+                        <div
                           className="bg-primary h-3 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min((healthData.steps / 10000) * 100, 100)}%` }}
+                          style={{
+                            width: `${Math.min((healthData.steps / 10000) * 100, 100)}%`,
+                          }}
                         />
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {Math.round((healthData.steps / 10000) * 100)}% of 10,000 step goal
+                        {Math.round((healthData.steps / 10000) * 100)}% of
+                        10,000 step goal
                       </p>
                     </div>
                   </div>
@@ -134,31 +146,40 @@ const Steps = () => {
                       <div className="text-center">
                         <div className="flex items-center justify-center gap-2 mb-2">
                           <Flame className="w-4 h-4 text-orange-500" />
-                          <h4 className="text-sm font-medium text-foreground">Active Calories</h4>
+                          <h4 className="text-sm font-medium text-foreground">
+                            Active Calories
+                          </h4>
                         </div>
                         <p className="text-2xl font-bold text-orange-500">
                           {Math.round(healthData.activeCalories)}
                         </p>
-                        <p className="text-xs text-muted-foreground">kcal burned</p>
+                        <p className="text-xs text-muted-foreground">
+                          kcal burned
+                        </p>
                       </div>
                     </div>
-                    
+
                     <div className="p-4 bg-background/50 rounded-xl border border-border">
                       <div className="text-center">
                         <div className="flex items-center justify-center gap-2 mb-2">
                           <Flame className="w-4 h-4 text-red-500" />
-                          <h4 className="text-sm font-medium text-foreground">Total Calories</h4>
+                          <h4 className="text-sm font-medium text-foreground">
+                            Total Calories
+                          </h4>
                         </div>
                         <p className="text-2xl font-bold text-red-500">
                           {Math.round(healthData.totalCalories)}
                         </p>
-                        <p className="text-xs text-muted-foreground">kcal burned</p>
+                        <p className="text-xs text-muted-foreground">
+                          kcal burned
+                        </p>
                       </div>
                     </div>
                   </div>
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Last updated: {new Date(healthData.lastUpdated).toLocaleTimeString()}
+                    Last updated:{' '}
+                    {new Date(healthData.lastUpdated).toLocaleTimeString()}
                   </p>
                 </div>
               )}

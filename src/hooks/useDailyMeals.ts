@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/manualClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,7 +24,7 @@ export const useDailyMeals = () => {
 
   const fetchTodaysMeals = async () => {
     if (!user) return;
-    
+
     try {
       const today = new Date().toISOString().split('T')[0];
       const { data, error } = await supabase
@@ -40,9 +39,9 @@ export const useDailyMeals = () => {
     } catch (error) {
       console.error('Error fetching meals:', error);
       toast({
-        title: "Error",
+        title: 'Error',
         description: "Failed to load today's meals",
-        variant: "destructive"
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -57,7 +56,7 @@ export const useDailyMeals = () => {
         .from('daily_meals')
         .update({
           ...updates,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .eq('user_id', user.id);
@@ -65,20 +64,20 @@ export const useDailyMeals = () => {
       if (error) throw error;
 
       // Update local state
-      setMeals(prev => prev.map(meal => 
-        meal.id === id ? { ...meal, ...updates } : meal
-      ));
+      setMeals((prev) =>
+        prev.map((meal) => (meal.id === id ? { ...meal, ...updates } : meal))
+      );
 
       toast({
-        title: "Success",
-        description: "Meal updated successfully"
+        title: 'Success',
+        description: 'Meal updated successfully',
       });
     } catch (error) {
       console.error('Error updating meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to update meal",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update meal',
+        variant: 'destructive',
       });
     }
   };
@@ -96,40 +95,41 @@ export const useDailyMeals = () => {
       if (error) throw error;
 
       // Update local state
-      setMeals(prev => prev.filter(meal => meal.id !== id));
+      setMeals((prev) => prev.filter((meal) => meal.id !== id));
 
       toast({
-        title: "Success",
-        description: "Meal deleted successfully"
+        title: 'Success',
+        description: 'Meal deleted successfully',
       });
     } catch (error) {
       console.error('Error deleting meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete meal",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to delete meal',
+        variant: 'destructive',
       });
     }
   };
 
-  const addMealFromSaved = async (savedMeal: any, mealTime: string = 'snack') => {
+  const addMealFromSaved = async (
+    savedMeal: any,
+    mealTime: string = 'snack'
+  ) => {
     if (!user) return;
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const { error } = await supabase
-        .from('daily_meals')
-        .insert({
-          user_id: user.id,
-          name: savedMeal.name,
-          calories: savedMeal.calories,
-          protein: savedMeal.protein || 0,
-          carbs: savedMeal.carbs || 0,
-          fat: savedMeal.fat || 0,
-          fiber: savedMeal.fiber || 0,
-          meal_time: mealTime,
-          logged_date: today
-        });
+      const { error } = await supabase.from('daily_meals').insert({
+        user_id: user.id,
+        name: savedMeal.name,
+        calories: savedMeal.calories,
+        protein: savedMeal.protein || 0,
+        carbs: savedMeal.carbs || 0,
+        fat: savedMeal.fat || 0,
+        fiber: savedMeal.fiber || 0,
+        meal_time: mealTime,
+        logged_date: today,
+      });
 
       if (error) throw error;
 
@@ -137,27 +137,30 @@ export const useDailyMeals = () => {
       await fetchTodaysMeals();
 
       toast({
-        title: "Success",
-        description: `${savedMeal.name} added to today's meals`
+        title: 'Success',
+        description: `${savedMeal.name} added to today's meals`,
       });
     } catch (error) {
       console.error('Error adding meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to add meal to today",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to add meal to today',
+        variant: 'destructive',
       });
     }
   };
 
   // Calculate totals
-  const totals = meals.reduce((acc, meal) => ({
-    calories: acc.calories + (meal.calories || 0),
-    protein: acc.protein + (meal.protein || 0),
-    carbs: acc.carbs + (meal.carbs || 0),
-    fat: acc.fat + (meal.fat || 0),
-    fiber: acc.fiber + (meal.fiber || 0)
-  }), { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+  const totals = meals.reduce(
+    (acc, meal) => ({
+      calories: acc.calories + (meal.calories || 0),
+      protein: acc.protein + (meal.protein || 0),
+      carbs: acc.carbs + (meal.carbs || 0),
+      fat: acc.fat + (meal.fat || 0),
+      fiber: acc.fiber + (meal.fiber || 0),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
+  );
 
   useEffect(() => {
     fetchTodaysMeals();
@@ -170,6 +173,6 @@ export const useDailyMeals = () => {
     updateMeal,
     deleteMeal,
     addMealFromSaved,
-    refetch: fetchTodaysMeals
+    refetch: fetchTodaysMeals,
   };
 };

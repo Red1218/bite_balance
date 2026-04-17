@@ -32,6 +32,7 @@ import java.util.Set;
 import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
+import kotlin.jvm.JvmClassMappingKt;
 import kotlinx.coroutines.BuildersKt;
 import kotlinx.coroutines.CoroutineScope;
 import kotlinx.coroutines.Dispatchers;
@@ -44,9 +45,9 @@ public class HealthConnectPlugin extends Plugin {
     private PluginCall pendingCall;
 
     private static final Set<String> PERMISSIONS = new HashSet<String>() {{
-        add(HealthPermission.getReadPermission(StepsRecord.class));
-        add(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord.class));
-        add(HealthPermission.getReadPermission(TotalCaloriesBurnedRecord.class));
+        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(StepsRecord.class)));
+        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(ActiveCaloriesBurnedRecord.class)));
+        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(TotalCaloriesBurnedRecord.class)));
     }};
 
     @Override

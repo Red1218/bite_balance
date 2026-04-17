@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/manualClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,7 +23,7 @@ export const useSavedMeals = () => {
 
   const fetchSavedMeals = async () => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('saved_meals')
@@ -37,9 +36,9 @@ export const useSavedMeals = () => {
     } catch (error) {
       console.error('Error fetching saved meals:', error);
       toast({
-        title: "Error",
-        description: "Failed to load saved meals",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to load saved meals',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -54,7 +53,7 @@ export const useSavedMeals = () => {
         .from('saved_meals')
         .update({
           ...updates,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .eq('user_id', user.id);
@@ -62,20 +61,20 @@ export const useSavedMeals = () => {
       if (error) throw error;
 
       // Update local state
-      setMeals(prev => prev.map(meal => 
-        meal.id === id ? { ...meal, ...updates } : meal
-      ));
+      setMeals((prev) =>
+        prev.map((meal) => (meal.id === id ? { ...meal, ...updates } : meal))
+      );
 
       toast({
-        title: "Success",
-        description: "Meal updated successfully"
+        title: 'Success',
+        description: 'Meal updated successfully',
       });
     } catch (error) {
       console.error('Error updating meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to update meal",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to update meal',
+        variant: 'destructive',
       });
     }
   };
@@ -93,18 +92,18 @@ export const useSavedMeals = () => {
       if (error) throw error;
 
       // Update local state
-      setMeals(prev => prev.filter(meal => meal.id !== id));
+      setMeals((prev) => prev.filter((meal) => meal.id !== id));
 
       toast({
-        title: "Success",
-        description: "Meal deleted successfully"
+        title: 'Success',
+        description: 'Meal deleted successfully',
       });
     } catch (error) {
       console.error('Error deleting meal:', error);
       toast({
-        title: "Error",
-        description: "Failed to delete meal",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to delete meal',
+        variant: 'destructive',
       });
     }
   };
@@ -118,6 +117,6 @@ export const useSavedMeals = () => {
     loading,
     updateMeal,
     deleteMeal,
-    refetch: fetchSavedMeals
+    refetch: fetchSavedMeals,
   };
 };

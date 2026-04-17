@@ -1,27 +1,26 @@
 // Trigger rebuild to pick up latest backend configuration
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import AuthLanding from "./components/AuthLanding";
-import AppLayout from "./components/AppLayout";
-import Dashboard from "./pages/Dashboard";
-import AddMeal from "./pages/AddMeal";
-import SavedMeals from "./pages/SavedMeals";
-import History from "./pages/History";
-import Steps from "./pages/Steps";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
+import { Toaster } from '@/components/ui/toaster';
+import { Toaster as Sonner } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import AuthLanding from './components/AuthLanding';
+import AppLayout from './components/AppLayout';
+import Dashboard from './pages/Dashboard';
+import AddMeal from './pages/AddMeal';
+import SavedMeals from './pages/SavedMeals';
+import History from './pages/History';
+import Steps from './pages/Steps';
+import Settings from './pages/Settings';
+import Profile from './pages/Profile';
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -32,17 +31,20 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
+
   if (!user) {
     return <AuthLanding />;
   }
-  
+
   return <>{children}</>;
 };
 
+import { useNativeApp } from './hooks/useNativeApp';
+
 const AppRoutes = () => {
   const { user, loading } = useAuth();
-  
+  useNativeApp();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">

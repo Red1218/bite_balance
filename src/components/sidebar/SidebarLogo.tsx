@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,10 +8,12 @@ interface SidebarLogoProps {
 
 const SidebarLogo = ({ isOpen }: SidebarLogoProps) => {
   return (
-    <div className={cn(
-      "p-6 border-b border-gray-200 transition-all duration-300",
-      !isOpen && "md:p-4"
-    )}>
+    <div
+      className={cn(
+        'p-6 border-b border-gray-200 transition-all duration-300',
+        !isOpen && 'md:p-4'
+      )}
+    >
       {isOpen ? (
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center">

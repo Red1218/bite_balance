@@ -1,4 +1,3 @@
-
 import React from 'react';
 import MealCategorySection from './MealCategorySection';
 
@@ -20,41 +19,41 @@ interface TodaysMealsSectionProps {
   onDeleteMeal: (mealId: string, mealName: string) => void;
 }
 
-const TodaysMealsSection = ({ 
-  meals, 
-  groupedMeals, 
-  onEditMeal, 
-  onDeleteMeal 
+const TodaysMealsSection = ({
+  meals,
+  groupedMeals,
+  onEditMeal,
+  onDeleteMeal,
 }: TodaysMealsSectionProps) => {
   const mealCategories = [
-    { 
-      key: 'breakfast', 
-      name: 'Breakfast', 
+    {
+      key: 'breakfast',
+      name: 'Breakfast',
       emoji: '🌅',
       meals: groupedMeals.breakfast?.meals || [],
-      totalCalories: groupedMeals.breakfast?.totalCalories || 0
+      totalCalories: groupedMeals.breakfast?.totalCalories || 0,
     },
-    { 
-      key: 'lunch', 
-      name: 'Lunch', 
+    {
+      key: 'lunch',
+      name: 'Lunch',
       emoji: '🌞',
       meals: groupedMeals.lunch?.meals || [],
-      totalCalories: groupedMeals.lunch?.totalCalories || 0
+      totalCalories: groupedMeals.lunch?.totalCalories || 0,
     },
-    { 
-      key: 'dinner', 
-      name: 'Dinner', 
+    {
+      key: 'dinner',
+      name: 'Dinner',
       emoji: '🌙',
       meals: groupedMeals.dinner?.meals || [],
-      totalCalories: groupedMeals.dinner?.totalCalories || 0
+      totalCalories: groupedMeals.dinner?.totalCalories || 0,
     },
-    { 
-      key: 'snack', 
-      name: 'Snacks', 
+    {
+      key: 'snack',
+      name: 'Snacks',
       emoji: '🍎',
       meals: groupedMeals.snack?.meals || [],
-      totalCalories: groupedMeals.snack?.totalCalories || 0
-    }
+      totalCalories: groupedMeals.snack?.totalCalories || 0,
+    },
   ];
 
   return (
