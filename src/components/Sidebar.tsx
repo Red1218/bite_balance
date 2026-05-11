@@ -23,7 +23,8 @@ const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
         onClick={onToggle}
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 z-50 glass-card hover:bg-card/70 border-white/10"
+        className="fixed left-4 z-50 glass-card hover:bg-card/70 border-white/10"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
       >
         {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </Button>
@@ -37,7 +38,13 @@ const Sidebar = ({ isOpen, onToggle }: SidebarProps) => {
             : 'w-[75%] max-w-sm -translate-x-full'
         )}
       >
-        <div className="flex flex-col h-full">
+        <div 
+          className="flex flex-col h-full"
+          style={{ 
+            paddingTop: 'env(safe-area-inset-top, 0px)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+          }}
+        >
           <SidebarLogo isOpen={isOpen} />
           <SidebarNavigation isOpen={isOpen} onToggle={onToggle} />
           <SidebarSignOut isOpen={isOpen} />

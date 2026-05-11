@@ -7,6 +7,10 @@ export interface HealthData {
   activeCalories: number;
   totalCalories: number;
   lastUpdated: string;
+  history?: {
+    steps: Array<{ steps: number; date: string }>;
+    calories: Array<{ activeCalories: number; totalCalories: number; date: string }>;
+  };
 }
 
 export const useHealthConnect = () => {
@@ -24,6 +28,15 @@ export const useHealthConnect = () => {
     try {
       const result = await HealthConnect.isAvailable();
       setIsAvailable(result.available);
+      
+      if (result.available) {
+        const permResult = await HealthConnect.checkPermissions();
+        if (permResult.granted) {
+          setIsConnected(true);
+          // We call fetchHealthData directly, but we pass a flag to bypass the state check
+          await fetchHealthData(true);
+        }
+      }
     } catch (error) {
       console.error('Error checking Health Connect availability:', error);
       setIsAvailable(false);
@@ -73,14 +86,16 @@ export const useHealthConnect = () => {
     }
   };
 
-  const fetchHealthData = async () => {
-    if (!isConnected && !isAvailable) return;
+  const fetchHealthData = async (force: boolean = false) => {
+    if (!force && !isConnected && !isAvailable) return;
 
     setLoading(true);
     try {
-      const [stepsResult, caloriesResult] = await Promise.all([
+      const [stepsResult, caloriesResult, stepsHistory, caloriesHistory] = await Promise.all([
         HealthConnect.getTodaysSteps(),
         HealthConnect.getTodaysCalories(),
+        HealthConnect.getStepsForDays(30),
+        HealthConnect.getCaloriesForDays(30),
       ]);
 
       setHealthData({
@@ -88,6 +103,10 @@ export const useHealthConnect = () => {
         activeCalories: caloriesResult.activeCalories,
         totalCalories: caloriesResult.totalCalories,
         lastUpdated: new Date().toISOString(),
+        history: {
+          steps: stepsHistory,
+          calories: caloriesHistory,
+        }
       });
     } catch (error) {
       console.error('Error fetching health data:', error);

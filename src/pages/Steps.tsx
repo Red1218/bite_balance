@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Activity, Footprints, Flame } from 'lucide-react';
+import { ArrowLeft, Activity, Footprints, Flame, Calendar as CalendarIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import ActivityCalendarDrawer from '@/components/ActivityCalendarDrawer';
 
 const Steps = () => {
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const {
     isAvailable,
     isConnected,
@@ -177,7 +180,41 @@ const Steps = () => {
                     </div>
                   </div>
 
-                  <p className="text-xs text-muted-foreground text-center">
+                  {/* History Chart */}
+                  {healthData.history && healthData.history.steps.length > 0 && (
+                    <div className="p-4 bg-background/50 rounded-xl border border-border mt-4">
+                      <h3 className="font-semibold text-foreground mb-4 text-sm flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-primary" />
+                        Last 7 Days (Steps)
+                      </h3>
+                      <div className="h-48 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={healthData.history.steps.map(d => ({ ...d, day: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) }))}>
+                            <XAxis dataKey="day" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                            <Tooltip 
+                              cursor={{fill: 'transparent'}}
+                              contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'hsl(var(--background))', color: 'hsl(var(--foreground))' }}
+                              itemStyle={{ color: 'hsl(var(--primary))' }}
+                            />
+                            <Bar dataKey="steps" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex justify-center">
+                    <Button 
+                      variant="outline" 
+                      className="w-full gap-2 border-primary/20 text-primary hover:bg-primary/10 h-12 rounded-xl"
+                      onClick={() => setIsCalendarOpen(true)}
+                    >
+                      <CalendarIcon className="w-5 h-5" />
+                      View Full Activity Calendar
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground text-center mt-4">
                     Last updated:{' '}
                     {new Date(healthData.lastUpdated).toLocaleTimeString()}
                   </p>
@@ -187,6 +224,12 @@ const Steps = () => {
           )}
         </div>
       </div>
+      
+      <ActivityCalendarDrawer 
+        healthData={healthData} 
+        open={isCalendarOpen} 
+        onOpenChange={setIsCalendarOpen} 
+      />
     </div>
   );
 };

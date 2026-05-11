@@ -19,7 +19,7 @@ const AppLayout = () => {
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
-      <main className="flex-1 pt-20 px-4 pb-8 w-full max-w-[100vw] overflow-x-hidden">
+      <main className="flex-1 pt-20 px-4 pb-24 w-full max-w-[100vw] overflow-x-hidden">
         <Outlet />
       </main>
     </div>
