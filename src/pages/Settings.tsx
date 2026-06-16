@@ -9,10 +9,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ArrowLeft, Save, Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useEffect } from 'react';
 
 const Settings = () => {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   const [settings, setSettings] = useState({
     dailyCalorieGoal: '2200',
@@ -25,13 +30,52 @@ const Settings = () => {
     },
   });
 
-  const handleSave = () => {
-    console.log('Saving settings:', settings);
-    toast({
-      title: 'Settings Saved!',
-      description: 'Your preferences have been updated successfully.',
-    });
+  useEffect(() => {
+    if (user?.user_metadata) {
+      const meta = user.user_metadata;
+      setSettings({
+        dailyCalorieGoal: String(meta.calorie_goal ?? '2200'),
+        defaultMealTags: meta.default_tags ?? 'Healthy, Quick, Protein',
+        remindersEnabled: meta.reminders_enabled ?? true,
+        reminderTimes: meta.reminder_times ?? {
+          breakfast: '08:00',
+          lunch: '12:00',
+          dinner: '19:00',
+        },
+      });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          calorie_goal: Number(settings.dailyCalorieGoal) || 2200,
+          default_tags: settings.defaultMealTags,
+          reminders_enabled: settings.remindersEnabled,
+          reminder_times: settings.reminderTimes,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Settings Saved!',
+        description: 'Your preferences have been updated successfully.',
+      });
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: 'Save Failed',
+        description: 'Failed to update preferences. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -242,9 +286,13 @@ const Settings = () => {
 
         {/* Save Button */}
         <div className="pt-4">
-          <Button onClick={handleSave} className="w-full primary-button h-12">
+          <Button 
+            onClick={handleSave} 
+            className="w-full primary-button h-12"
+            disabled={loading}
+          >
             <Save className="w-4 h-4 mr-2" />
-            Save Settings
+            {loading ? 'Saving Settings...' : 'Save Settings'}
           </Button>
         </div>
       </div>

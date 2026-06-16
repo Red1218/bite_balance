@@ -12,7 +12,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Calculator, Save, User, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/manualClient';
+import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 
 const Profile = () => {
@@ -44,15 +44,19 @@ const Profile = () => {
         .single();
 
       if (data) {
+        const meta = user.user_metadata || {};
         setProfile({
           name: data.name || '',
           age: data.age?.toString() || '',
           weight: data.weight?.toString() || '',
           height: data.height?.toString() || '',
-          activityLevel: 'active',
-          gender: 'male',
-          goal: 'maintain',
+          activityLevel: meta.activity_level || 'active',
+          gender: meta.gender || 'male',
+          goal: meta.weight_goal || 'maintain',
         });
+        if (meta.calorie_goal) {
+          setCalculatedGoal(Number(meta.calorie_goal));
+        }
       }
     };
 
@@ -129,11 +133,25 @@ const Profile = () => {
 
       if (error) throw error;
 
+      // Update user metadata
+      const calorieGoal = calculatedGoal || user.user_metadata?.calorie_goal || 2200;
+      const { error: metaError } = await supabase.auth.updateUser({
+        data: {
+          gender: profile.gender,
+          activity_level: profile.activityLevel,
+          weight_goal: profile.goal,
+          calorie_goal: calorieGoal,
+        },
+      });
+
+      if (metaError) throw metaError;
+
       toast({
         title: 'Profile Updated!',
         description: 'Your profile information has been saved successfully.',
       });
     } catch (error) {
+      console.error('Error saving profile:', error);
       toast({
         title: 'Error',
         description: 'Failed to save profile. Please try again.',

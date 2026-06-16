@@ -8,14 +8,16 @@ import DashboardHeader from '@/components/DashboardHeader';
 import TodaysMealsSection from '@/components/TodaysMealsSection';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Dashboard = () => {
   const { meals, loading, totals, updateMeal, deleteMeal } = useDailyMeals();
   const [editingMeal, setEditingMeal] = useState<DailyMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
-  const dailyGoal = 2200;
+  const dailyGoal = Number(user?.user_metadata?.calorie_goal || 2200);
 
   const handleEditMeal = (meal: DailyMeal) => {
     setEditingMeal(meal);

@@ -11,12 +11,13 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Search, Edit3 } from 'lucide-react';
+import { ArrowLeft, Search, Edit3, Scan, Sparkles, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/manualClient';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { FoodSearch } from '@/components/FoodSearch';
 import { FoodResult } from '@/hooks/useFoodSearch';
+import BarcodeScanner from '@/components/BarcodeScanner';
 
 const AddMeal = () => {
   const { toast } = useToast();
@@ -24,6 +25,9 @@ const AddMeal = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('search');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const [parsing, setParsing] = useState(false);
   const [mealData, setMealData] = useState({
     name: '',
     mealTime: '',
@@ -51,6 +55,47 @@ const AddMeal = () => {
       title: 'Food selected',
       description: 'Review the nutritional info and select meal time to save.',
     });
+  };
+
+  const handleAILogSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiText.trim() || aiText.trim().length < 3) return;
+
+    setParsing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('parse-meal', {
+        body: { text: aiText.trim() },
+      });
+
+      if (error) throw error;
+
+      if (data) {
+        setMealData({
+          ...mealData,
+          name: data.name,
+          calories: String(data.calories),
+          protein: String(data.protein),
+          carbs: String(data.carbs),
+          fat: String(data.fat),
+          fiber: String(data.fiber),
+        });
+        setActiveTab('manual');
+        toast({
+          title: 'Parsed Successfully!',
+          description: 'Review the nutritional estimates below and select meal time to save.',
+        });
+        setAiText('');
+      }
+    } catch (err) {
+      console.error('Error parsing meal text:', err);
+      toast({
+        title: 'Parsing Failed',
+        description: 'Failed to extract details from text. Please enter manually.',
+        variant: 'destructive',
+      });
+    } finally {
+      setParsing(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,10 +185,14 @@ const AddMeal = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="w-4 h-4" />
               Search
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              AI Log
             </TabsTrigger>
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <Edit3 className="w-4 h-4" />
@@ -156,7 +205,59 @@ const AddMeal = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 Search for foods to auto-fill nutritional information
               </p>
-              <FoodSearch onSelect={handleFoodSelect} />
+              <div className="flex flex-col gap-4">
+                <FoodSearch onSelect={handleFoodSelect} />
+                
+                <div className="flex items-center justify-center pt-2 relative">
+                  <div className="absolute w-full h-[1px] bg-border/40" />
+                  <span className="text-xs text-muted-foreground bg-card px-2 z-10">OR</span>
+                </div>
+
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setIsScannerOpen(true)}
+                  className="w-full h-12 border-primary/20 text-primary hover:bg-primary/10 rounded-xl gap-2 mt-2"
+                >
+                  <Scan className="w-5 h-5" />
+                  Scan Barcode
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ai">
+            <div className="glass-card p-6">
+              <p className="text-sm text-muted-foreground mb-4">
+                Describe your meal in natural language to automatically parse its nutrition facts.
+              </p>
+              <form onSubmit={handleAILogSubmit} className="space-y-4">
+                <textarea
+                  value={aiText}
+                  onChange={(e) => setAiText(e.target.value)}
+                  placeholder="e.g. I had two scrambled eggs with a slice of wheat toast and a cup of black coffee for breakfast"
+                  className="w-full min-h-24 p-3 rounded-xl bg-background/50 border border-border text-foreground placeholder:text-muted-foreground text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary backdrop-blur-sm"
+                  disabled={parsing}
+                  required
+                />
+                <Button
+                  type="submit"
+                  disabled={parsing || !aiText.trim()}
+                  className="w-full primary-button h-12 gap-2"
+                >
+                  {parsing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Analyzing Meal...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      <span>Parse with AI</span>
+                    </>
+                  )}
+                </Button>
+              </form>
             </div>
           </TabsContent>
 
@@ -366,6 +467,12 @@ const AddMeal = () => {
           </TabsContent>
         </Tabs>
       </div>
+      
+      <BarcodeScanner 
+        open={isScannerOpen} 
+        onOpenChange={setIsScannerOpen} 
+        onScanSuccess={handleFoodSelect} 
+      />
     </div>
   );
 };

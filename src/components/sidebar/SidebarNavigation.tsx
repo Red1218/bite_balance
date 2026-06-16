@@ -37,7 +37,7 @@ const SidebarNavigation = ({ isOpen, onToggle }: SidebarNavigationProps) => {
   };
 
   return (
-    <nav className="flex-1 px-4 py-6">
+    <nav className="flex-1 overflow-y-auto px-4 py-6">
       <div className="space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon;

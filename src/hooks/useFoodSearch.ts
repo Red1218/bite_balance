@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/manualClient';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface FoodResult {
   id: string;
