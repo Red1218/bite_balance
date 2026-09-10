@@ -1,0 +1,191 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark minimalistic design system with red accents */
+
+@layer base {
+  :root {
+    /* Light theme — Bite Balance design system v2 */
+    --background: 30 14% 97%;
+    --foreground: 220 14% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 14% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 14% 12%;
+
+    --primary: 0 72% 46%; /* 5% darker than dark-mode accent for AA on white */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 30 12% 94%;
+    --secondary-foreground: 220 14% 12%;
+
+    --muted: 30 12% 94%;
+    --muted-foreground: 220 8% 42%;
+
+    --accent: 30 12% 94%;
+    --accent-foreground: 220 14% 12%;
+
+    --faint: 220 8% 58%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 24 8% 88%;
+    --input: 24 8% 88%;
+    --ring: 0 72% 46%;
+
+    --radius: 0.75rem;
+
+    --chart-protein: 0 72% 50%;
+    --chart-carbs: 38 88% 48%;
+    --chart-fat: 262 62% 58%;
+    --chart-fiber: 150 60% 34%;
+    --chart-water: 199 88% 55%;
+    --chart-steps: 28 90% 58%;
+  }
+
+  .dark {
+    /* Dark theme — Bite Balance design system v2 */
+    --background: 220 12% 5%;
+    --foreground: 0 0% 96%;
+
+    --card: 220 9% 10%;
+    --card-foreground: 0 0% 96%;
+
+    --popover: 220 9% 10%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 0 72% 51%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 9% 14%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 220 9% 14%;
+    --muted-foreground: 220 6% 62%;
+
+    --accent: 220 9% 14%;
+    --accent-foreground: 0 0% 96%;
+
+    --faint: 220 6% 44%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 8% 18%;
+    --input: 220 8% 18%;
+    --ring: 0 72% 51%;
+
+    --chart-protein: 0 72% 56%;
+    --chart-carbs: 38 92% 55%;
+    --chart-fat: 262 70% 66%;
+    --chart-fiber: 150 58% 46%;
+    --chart-water: 199 88% 55%;
+    --chart-steps: 28 90% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    min-height: 100vh;
+    overscroll-behavior-y: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Re-enable text selection just for input elements */
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+
+  /* Numbers are always tabular mono, per the design system */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Ensure all text elements use proper foreground colors */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-foreground font-display;
+  }
+
+  p {
+    @apply text-foreground;
+  }
+
+  label {
+    @apply text-foreground;
+  }
+}
+
+@layer components {
+  /* Elevation e1 · card — the default surface for stat cards, meal rows, list items */
+  .elevation-card {
+    @apply bg-card border border-border rounded-xl;
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.04) inset,
+      0 10px 24px -14px hsl(0 0% 0% / 0.8);
+  }
+
+  /* Elevation e2 · glass — reserved for the hero metric, bottom nav, sheets and drawer only */
+  .elevation-glass {
+    @apply border rounded-xl;
+    background: hsl(var(--card) / 0.72);
+    border-color: hsl(0 0% 100% / 0.09);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.07) inset,
+      0 24px 48px -20px hsl(0 0% 0% / 0.9);
+  }
+
+  .loading-skeleton {
+    @apply animate-pulse bg-muted/30 rounded;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s ease-out;
+}

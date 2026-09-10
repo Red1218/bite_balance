@@ -1,0 +1,13 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- "Bitten disc" mark, nested viewport centers/pads it within the adaptive-icon safe zone -->
+  <svg x="215" y="215" width="594" height="594" viewBox="0 0 64 64">
+    <defs>
+      <mask id="bitemask">
+        <rect width="64" height="64" fill="#fff"/>
+        <circle cx="55" cy="11" r="13" fill="#000"/>
+        <rect x="0" y="29.5" width="64" height="5" fill="#000"/>
+      </mask>
+    </defs>
+    <circle cx="32" cy="32" r="26" fill="#ffffff" mask="url(#bitemask)"/>
+  </svg>
+</svg>
