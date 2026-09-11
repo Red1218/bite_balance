@@ -44,6 +44,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import ChatMealLog from '@/components/ChatMealLog';
 
 const categories = [
   { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
@@ -81,8 +82,6 @@ const AddMeal = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('search');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [aiText, setAiText] = useState('');
-  const [parsing, setParsing] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
   
   const [indianCategory, setIndianCategory] = useState('south_indian');
@@ -489,66 +488,6 @@ const AddMeal = () => {
     saveToRecentSearches(food);
   };
 
-  const handleAILogSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiText.trim() || aiText.trim().length < 3) return;
-
-    setParsing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('parse-meal', {
-        body: { text: aiText.trim() },
-      });
-
-      if (error) throw error;
-
-      if (data) {
-        // Try to parse weight from user input text
-        const weightMatch = aiText.match(/(\d+(?:\.\d+)?)\s*(g|grams|gram|oz|ounces|ounce)/i);
-        let parsedWeight = 100;
-        if (weightMatch) {
-          const val = parseFloat(weightMatch[1]);
-          const unit = weightMatch[2].toLowerCase();
-          parsedWeight = unit.startsWith('oz') ? Math.round(val * 28.35) : val;
-        }
-
-        setBaseNutrition({
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          fiber: data.fiber,
-          servingSizeWeight: parsedWeight,
-        });
-        setPortionWeight(String(parsedWeight));
-
-        setMealData({
-          ...mealData,
-          name: data.name,
-          calories: String(data.calories),
-          protein: String(data.protein),
-          carbs: String(data.carbs),
-          fat: String(data.fat),
-          fiber: String(data.fiber),
-        });
-        setActiveTab('manual');
-        toast({
-          title: 'Parsed Successfully!',
-          description: 'Review the nutritional estimates below and select meal time to save.',
-        });
-        setAiText('');
-      }
-    } catch (err) {
-      console.error('Error parsing meal text:', err);
-      toast({
-        title: 'Parsing Failed',
-        description: 'Failed to extract details from text. Please enter manually.',
-        variant: 'destructive',
-      });
-    } finally {
-      setParsing(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -931,38 +870,7 @@ const AddMeal = () => {
           </TabsContent>
 
           <TabsContent value="ai">
-            <div className="elevation-card p-6">
-              <p className="text-sm text-muted-foreground mb-4">
-                Describe your meal in natural language to automatically parse its nutrition facts.
-              </p>
-              <form onSubmit={handleAILogSubmit} className="space-y-4">
-                <textarea
-                  value={aiText}
-                  onChange={(e) => setAiText(e.target.value)}
-                  placeholder="e.g. I had two scrambled eggs with a slice of wheat toast and a cup of black coffee for breakfast"
-                  className="w-full min-h-24 p-3 rounded-xl bg-background/50 border border-border text-foreground placeholder:text-muted-foreground text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50 backdrop-blur-sm"
-                  disabled={parsing}
-                  required
-                />
-                <Button
-                  type="submit"
-                  disabled={parsing || !aiText.trim()}
-                  className="w-full h-12 gap-2 rounded-xl"
-                >
-                  {parsing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Analyzing Meal...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-5 h-5" />
-                      <span>Parse with AI</span>
-                    </>
-                  )}
-                </Button>
-              </form>
-            </div>
+            <ChatMealLog />
           </TabsContent>
 
           <TabsContent value="manual">

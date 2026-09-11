@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { FoodDbEntry, indianFoodDb } from './indianFoodDb.ts';
+import { FoodDbEntry, indianFoodDb } from '../_shared/indianFoodDb.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

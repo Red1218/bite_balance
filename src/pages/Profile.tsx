@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Calculator, Save, Moon, Sun, Monitor, ChevronRight } from 'lucide-react';
+import { Calculator, Save, Moon, Sun, Monitor, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
@@ -21,6 +21,20 @@ import { cn } from '@/lib/utils';
 const WATER_GOAL_GLASSES = 8; // matches useWaterTracker's fixed daily goal
 const STEP_GOAL = 10000; // matches Steps.tsx
 
+// Standard adult RDA defaults -- same values the chat-meal edge function's
+// reference data assumes. `cap` marks an upper limit rather than a target minimum.
+const MICRO_GOALS = [
+  { label: 'Vitamin C', value: '90 mg', dot: 'bg-chart-vitc' },
+  { label: 'Vitamin D', value: '15 µg', dot: 'bg-chart-vitd' },
+  { label: 'Vitamin B12', value: '2.4 µg', dot: 'bg-chart-b12' },
+  { label: 'Iron', value: '18 mg', dot: 'bg-chart-iron' },
+  { label: 'Calcium', value: '1,000 mg', dot: 'bg-chart-calcium' },
+  { label: 'Potassium', value: '3,500 mg', dot: 'bg-chart-potassium' },
+  { label: 'Sodium', value: '≤ 2,300 mg', dot: 'bg-chart-sodium' },
+  { label: 'Magnesium', value: '400 mg', dot: 'bg-chart-magnesium' },
+  { label: 'Zinc', value: '11 mg', dot: 'bg-chart-zinc' },
+];
+
 const Profile = () => {
   const { toast } = useToast();
   const { user, signOut } = useAuth();
@@ -28,6 +42,7 @@ const Profile = () => {
   const { isConnected: healthConnected, requestPermissions } = useHealthConnect();
 
   const [isEditing, setIsEditing] = useState(false);
+  const [microsOpen, setMicrosOpen] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -345,6 +360,30 @@ const Profile = () => {
               </div>
             ))}
           </div>
+          <button
+            type="button"
+            onClick={() => setMicrosOpen((v) => !v)}
+            className="flex w-full items-center justify-between border-t border-border pt-3.5"
+          >
+            <span className="font-sans text-sm text-foreground">Micronutrients</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              9 tracked
+              {microsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </span>
+          </button>
+          {microsOpen && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-1">
+              {MICRO_GOALS.map((row) => (
+                <div key={row.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('h-[7px] w-[7px] rounded-sm', row.dot)} />
+                    <span className="font-sans text-xs text-foreground">{row.label}</span>
+                  </div>
+                  <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

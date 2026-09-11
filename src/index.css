@@ -45,6 +45,16 @@
     --chart-fiber: 150 60% 34%;
     --chart-water: 199 88% 55%;
     --chart-steps: 28 90% 58%;
+
+    --chart-vitc: 168 34% 38%;
+    --chart-vitd: 190 38% 40%;
+    --chart-b12: 206 36% 44%;
+    --chart-iron: 222 32% 48%;
+    --chart-calcium: 238 28% 52%;
+    --chart-potassium: 258 28% 52%;
+    --chart-sodium: 20 30% 44%;
+    --chart-magnesium: 284 24% 50%;
+    --chart-zinc: 312 22% 48%;
   }
 
   .dark {
@@ -85,6 +95,16 @@
     --chart-fiber: 150 58% 46%;
     --chart-water: 199 88% 55%;
     --chart-steps: 28 90% 58%;
+
+    --chart-vitc: 168 30% 48%;
+    --chart-vitd: 190 32% 52%;
+    --chart-b12: 206 30% 56%;
+    --chart-iron: 222 28% 60%;
+    --chart-calcium: 238 24% 64%;
+    --chart-potassium: 258 24% 62%;
+    --chart-sodium: 20 24% 56%;
+    --chart-magnesium: 284 20% 60%;
+    --chart-zinc: 312 18% 58%;
   }
 }
 
