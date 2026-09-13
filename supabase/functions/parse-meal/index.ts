@@ -195,24 +195,36 @@ Format:
 }
 Estimate values accurately based on average food tables. Return ONLY the JSON object, do not explain your response.`;
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: `${systemPrompt}\n\nMeal description: "${text}"` }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json'
+    const geminiBody = JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: `${systemPrompt}\n\nMeal description: "${text}"` }
+          ]
         }
-      }),
+      ],
+      generationConfig: {
+        responseMimeType: 'application/json'
+      }
     });
+
+    // Gemini occasionally returns 503/429 when its servers are momentarily
+    // overloaded -- both are meant to be retried, so give it one more try
+    // before falling back to the rule-based parser.
+    let response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: geminiBody,
+    });
+    if (response.status === 503 || response.status === 429) {
+      console.warn(`Gemini API returned status ${response.status}, retrying once`);
+      await new Promise((r) => setTimeout(r, 1000));
+      response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: geminiBody,
+      });
+    }
 
     if (!response.ok) {
       console.error(`Gemini API returned status ${response.status}`);

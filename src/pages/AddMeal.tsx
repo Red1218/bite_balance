@@ -870,7 +870,7 @@ const AddMeal = () => {
           </TabsContent>
 
           <TabsContent value="ai">
-            <ChatMealLog />
+            <ChatMealLog defaultMealTime={mealData.mealTime} />
           </TabsContent>
 
           <TabsContent value="manual">

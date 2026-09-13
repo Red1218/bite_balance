@@ -60,7 +60,11 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 const fmt = (n: number) => (n >= 100 ? Math.round(n).toLocaleString() : Math.round(n * 10) / 10);
 
-const ChatMealLog = () => {
+interface ChatMealLogProps {
+  defaultMealTime: MealTime;
+}
+
+const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -97,6 +101,7 @@ const ChatMealLog = () => {
       const { data, error } = await supabase.functions.invoke('chat-meal', {
         body: {
           messages: nextMessages.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+          defaultMealTime,
         },
       });
 

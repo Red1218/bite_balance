@@ -44,13 +44,13 @@ const buildReferenceTable = (): string => {
   return rows.join('\n');
 };
 
-const buildSystemPrompt = (): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
+const buildSystemPrompt = (defaultMealTime: string): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
 
 Maintain a running list of every distinct food item mentioned across the WHOLE conversation so far, not just the latest message -- merge new items into what was already understood, never drop earlier ones unless the user corrects or removes something.
 
 For each item determine:
 - name: a short readable food name
-- mealTime: one of "breakfast", "lunch", "snack", "dinner" -- infer from what the user said (explicit meal name, or time of day mentioned). If genuinely never stated for an item, default to "snack".
+- mealTime: one of "breakfast", "lunch", "snack", "dinner" -- infer from what the user said (explicit meal name, or time of day mentioned). The user currently has "${defaultMealTime}" selected on the page, so if a message describes food with NO meal indicated at all AND the conversation so far has only touched one meal-time, use "${defaultMealTime}" rather than asking or guessing "snack". Only ask which meal-time an item belongs to when the user has already mentioned or logged more than one meal-time in this conversation and a new item's meal-time is genuinely unclear.
 - grams: the portion size. Parse an explicit weight/count when given (e.g. "100g", "2 idlis" using a sensible per-piece weight). Use a reasonable default portion when not given.
 - calories, protein, carbs, fat, fiber (grams), vitaminC (mg), vitaminD (mcg), vitaminB12 (mcg), iron (mg), calcium (mg), potassium (mg), sodium (mg), magnesium (mg), zinc (mg) -- all scaled to the item's grams.
 
@@ -59,7 +59,7 @@ ${buildReferenceTable()}
 
 For anything not in the table, estimate reasonably from general nutrition knowledge.
 
-Only ask a clarifying question when something would meaningfully change the estimate -- an ambiguous portion size, or a cooking method that changes fat/calories a lot (fried vs grilled). Don't ask about minor details. When you do ask, keep it short and put it in "reply", and optionally suggest 2-3 short quick-reply options in "replyOptions". When nothing needs asking, "reply" should just briefly acknowledge what was understood (e.g. mention the running total for the meal-time just touched) and "replyOptions" should be omitted or empty.
+Only ask a clarifying question when something would meaningfully change the estimate -- an ambiguous portion size, a cooking method that changes fat/calories a lot (fried vs grilled), or which meal-time an item belongs to per the rule above. Don't ask about minor details. When you do ask, keep it short and put it in "reply", and optionally suggest 2-3 short quick-reply options in "replyOptions". When nothing needs asking, "reply" should just briefly acknowledge what was understood (e.g. mention the running total for the meal-time just touched) and "replyOptions" should be omitted or empty.
 
 Respond with ONLY a JSON object of this exact shape, no other text:
 {
@@ -73,7 +73,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const { messages } = (await req.json()) as { messages: ChatMessage[] };
+  const { messages, defaultMealTime } = (await req.json()) as {
+    messages: ChatMessage[];
+    defaultMealTime?: string;
+  };
+  const fallbackMealTime = (['breakfast', 'lunch', 'snack', 'dinner'].includes(defaultMealTime as string)
+    ? defaultMealTime
+    : 'snack') as ChatMealItem['mealTime'];
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(
@@ -93,21 +99,34 @@ serve(async (req) => {
 
   try {
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`;
+    const geminiBody = JSON.stringify({
+      systemInstruction: { parts: [{ text: buildSystemPrompt(fallbackMealTime) }] },
+      contents: messages.map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })),
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    });
 
-    const response = await fetch(geminiUrl, {
+    // Gemini occasionally returns 503/429 when its servers are momentarily
+    // overloaded -- both are meant to be retried, so give it one more try
+    // before failing the whole conversation turn.
+    let response = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
-        contents: messages.map((m) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
-        })),
-        generationConfig: {
-          responseMimeType: 'application/json',
-        },
-      }),
+      body: geminiBody,
     });
+    if (response.status === 503 || response.status === 429) {
+      console.warn(`Gemini API returned status ${response.status}, retrying once`);
+      await new Promise((r) => setTimeout(r, 1000));
+      response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: geminiBody,
+      });
+    }
 
     if (!response.ok) {
       console.error(`Gemini API returned status ${response.status}`);
@@ -127,7 +146,7 @@ serve(async (req) => {
       name: String(it.name || 'Item'),
       mealTime: (['breakfast', 'lunch', 'snack', 'dinner'].includes(it.mealTime as string)
         ? it.mealTime
-        : 'snack') as ChatMealItem['mealTime'],
+        : fallbackMealTime) as ChatMealItem['mealTime'],
       grams: Math.round(Number(it.grams) || 100),
       calories: Math.round(Number(it.calories) || 0),
       protein: Math.round((Number(it.protein) || 0) * 10) / 10,
