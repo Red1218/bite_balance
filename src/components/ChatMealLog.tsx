@@ -32,7 +32,7 @@ interface ChatMealLogProps {
 const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { closeAddMeal } = useAddMealSheet();
+  const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
 
   const [messages, setMessages] = useState<ChatMsg[]>([{ id: 'm0', who: 'bot', text: GREETING }]);
   const [items, setItems] = useState<ChatMealItem[]>([]);
@@ -112,6 +112,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
         title: 'Logged',
         description: `${items.length} item${items.length === 1 ? '' : 's'} across ${mealTimeCount} meal-time${mealTimeCount === 1 ? '' : 's'} added to today.`,
       });
+      notifyMealsLogged();
       closeAddMeal();
     } catch (err) {
       console.error('Error logging chat meals:', err);

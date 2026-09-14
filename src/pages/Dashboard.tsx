@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDailyMeals, DailyMeal } from '@/hooks/useDailyMeals';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import EditMealDialog from '@/components/EditMealDialog';
@@ -12,10 +12,18 @@ import StreakBanner from '@/components/StreakBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const Dashboard = () => {
-  const { meals, loading, totals, updateMeal, deleteMeal } = useDailyMeals();
+  const { meals, loading, totals, updateMeal, deleteMeal, refetch } = useDailyMeals();
   const { healthData } = useHealthConnect();
+  const { mealsLoggedAt } = useAddMealSheet();
+
+  // The Add Meal sheet is an overlay, not a route change -- Dashboard stays
+  // mounted underneath it, so it needs this nudge to see meals logged there.
+  useEffect(() => {
+    if (mealsLoggedAt > 0) refetch();
+  }, [mealsLoggedAt]);
   const [editingMeal, setEditingMeal] = useState<DailyMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();

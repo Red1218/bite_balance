@@ -78,7 +78,7 @@ const popularFoods = [
 const AddMeal = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { closeAddMeal } = useAddMealSheet();
+  const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('search');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -543,6 +543,7 @@ const AddMeal = () => {
         notes: '',
       });
 
+      notifyMealsLogged();
       closeAddMeal();
     } catch (error) {
       console.error('Error adding meal:', error);

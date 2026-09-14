@@ -66,7 +66,7 @@ const savedMealToItem = (meal: SavedMeal, mealTime: MealTime): ChatMealItem => (
 const DescribeMealLog = ({ defaultMealTime }: DescribeMealLogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { closeAddMeal } = useAddMealSheet();
+  const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
   const { meals: savedMeals } = useSavedMeals();
 
   const [draft, setDraft] = useState('');
@@ -248,6 +248,7 @@ const DescribeMealLog = ({ defaultMealTime }: DescribeMealLogProps) => {
         title: 'Logged',
         description: `${items.length} item${items.length === 1 ? '' : 's'} across ${mealTimeCount} meal-time${mealTimeCount === 1 ? '' : 's'} added to today.`,
       });
+      notifyMealsLogged();
       closeAddMeal();
     } catch (err) {
       console.error('Error logging described meals:', err);
