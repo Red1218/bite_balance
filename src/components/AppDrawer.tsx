@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookmarkPlus, Footprints, HelpCircle } from 'lucide-react';
+import { Footprints, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSavedMeals } from '@/hooks/useSavedMeals';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import LogoMark from '@/components/LogoMark';
@@ -13,11 +12,9 @@ interface AppDrawerProps {
 
 const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
   const location = useLocation();
-  const { meals } = useSavedMeals();
   const { isConnected, healthData } = useHealthConnect();
 
   const navItems = [
-    { path: '/saved-meals', icon: BookmarkPlus, label: 'Saved meals', badge: meals.length ? String(meals.length) : undefined },
     { path: '/steps', icon: Footprints, label: 'Steps', badge: isConnected && healthData ? healthData.steps.toLocaleString() : undefined },
   ] as const;
 

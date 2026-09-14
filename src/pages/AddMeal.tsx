@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,28 +12,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Search,
   Edit3,
-  ScanBarcode,
   Sparkles,
   Loader2,
   Plus,
-  Clock,
-  Trash2,
-  CheckCircle,
-  Flame
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { FoodSearch } from '@/components/FoodSearch';
-import BarcodeScanner from '@/components/BarcodeScanner';
-import { 
-  searchFoodsDb, 
-  createCustomFood, 
-  updateCustomFood, 
-  deleteCustomFood,
-  IndianFood
-} from '@/services/foodService';
+import { createCustomFood } from '@/services/foodService';
 import {
   Dialog,
   DialogContent,
@@ -41,9 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import ChatMealLog from '@/components/ChatMealLog';
-import DescribeMealLog from '@/components/DescribeMealLog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const categories = [
@@ -61,39 +45,15 @@ const categories = [
   { id: 'beverages', name: 'Beverages', icon: '☕' },
 ];
 
-const popularFoods = [
-  { id: '11111111-1111-1111-1111-111111111111', name: 'Idli', category: 'south_indian', serving_size: 50, serving_unit: 'piece', calories: 120, protein: 3.2, carbs: 24.8, fat: 0.4, fiber: 1.6, is_verified: true },
-  { id: '22222222-2222-2222-2222-222222222222', name: 'Plain Dosa', category: 'south_indian', serving_size: 80, serving_unit: 'piece', calories: 169, protein: 3.5, carbs: 30.3, fat: 3.5, fiber: 1.4, is_verified: true },
-  { id: '33333333-3333-3333-3333-333333333333', name: 'Masala Dosa', category: 'south_indian', serving_size: 150, serving_unit: 'piece', calories: 193, protein: 3.2, carbs: 32.3, fat: 5.7, fiber: 1.7, is_verified: true },
-  { id: '88888888-8888-8888-8888-888888888888', name: 'Chapati (Roti)', category: 'north_indian', serving_size: 30, serving_unit: 'piece', calories: 267, protein: 9.3, carbs: 55.0, fat: 1.3, fiber: 7.7, is_verified: true },
-  { id: '66666666-6666-6666-6666-666666666666', name: 'White Rice', category: 'rice_grains', serving_size: 100, serving_unit: 'g', calories: 130, protein: 2.7, carbs: 28.0, fat: 0.3, fiber: 0.4, is_verified: true },
-  { id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', name: 'Paneer Butter Masala', category: 'dairy', serving_size: 100, serving_unit: 'g', calories: 229, protein: 7.8, carbs: 6.2, fat: 19.5, fiber: 0.8, is_verified: true },
-  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'Dal Tadka', category: 'curries', serving_size: 100, serving_unit: 'g', calories: 110, protein: 5.2, carbs: 15.4, fat: 3.5, fiber: 4.2, is_verified: true },
-  { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'Sambar', category: 'curries', serving_size: 100, serving_unit: 'g', calories: 62, protein: 2.1, carbs: 8.4, fat: 2.2, fiber: 2.1, is_verified: true },
-  { id: '14141414-1414-1414-1414-141414141414', name: 'Boiled Egg', category: 'eggs', serving_size: 50, serving_unit: 'piece', calories: 155, protein: 13.0, carbs: 1.1, fat: 11.0, fiber: 0.0, is_verified: true },
-  { id: '15151515-1515-1515-1515-151515151515', name: 'Banana', category: 'fruits', serving_size: 120, serving_unit: 'piece', calories: 89, protein: 1.1, carbs: 22.8, fat: 0.3, fiber: 2.6, is_verified: true },
-  { id: '16161616-1616-1616-1616-161616161616', name: 'Apple', category: 'fruits', serving_size: 180, serving_unit: 'piece', calories: 52, protein: 0.3, carbs: 14.0, fat: 0.2, fiber: 2.4, is_verified: true },
-];
-
 const AddMeal = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('search');
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
   const [autoFilling, setAutoFilling] = useState(false);
-  
-  const [indianCategory, setIndianCategory] = useState('south_indian');
-  const [indianSearchQuery, setIndianSearchQuery] = useState('');
-  const [categoryFoods, setCategoryFoods] = useState<IndianFood[]>([]);
-  const [loadingFoods, setLoadingFoods] = useState(false);
-  
-  const [recentSearches, setRecentSearches] = useState<IndianFood[]>([]);
+
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
-  const [isEditingCustom, setIsEditingCustom] = useState(false);
-  const [editingCustomId, setEditingCustomId] = useState<string | null>(null);
-  
   const [customFoodForm, setCustomFoodForm] = useState({
     name: '',
     category: 'south_indian',
@@ -107,67 +67,19 @@ const AddMeal = () => {
     aliases: '',
   });
 
-  // Load recent searches from localStorage
-  useEffect(() => {
-    try {
-      const recent = localStorage.getItem('recent_searches');
-      if (recent) {
-        setRecentSearches(JSON.parse(recent));
-      }
-    } catch (err) {
-      console.warn('Failed to load recent searches:', err);
-    }
-  }, []);
-
-  const saveToRecentSearches = (food: IndianFood) => {
-    try {
-      const recent = localStorage.getItem('recent_searches');
-      let list = recent ? JSON.parse(recent) : [];
-      list = list.filter((item: IndianFood) => item.id !== food.id);
-      list.unshift(food);
-      list = list.slice(0, 8); // Keep last 8 searches
-      localStorage.setItem('recent_searches', JSON.stringify(list));
-      setRecentSearches(list);
-    } catch (err) {
-      console.warn('Failed to save recent search:', err);
-    }
-  };
-
-  const clearRecentSearches = () => {
-    localStorage.removeItem('recent_searches');
-    setRecentSearches([]);
-  };
-
-  const resetCustomFoodForm = () => {
-    setCustomFoodForm({
-      name: '',
-      category: indianCategory || 'south_indian',
-      serving_size: '100',
-      serving_unit: 'g',
-      calories: '',
-      protein: '',
-      carbs: '',
-      fat: '',
-      fiber: '',
-      aliases: '',
-    });
-    setIsEditingCustom(false);
-    setEditingCustomId(null);
-  };
-
-  const handleCreateOrUpdateCustomFood = async (e: React.FormEvent) => {
+  const handleCreateCustomFood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       toast({
         title: 'Error',
-        description: 'You must be logged in to manage custom foods',
+        description: 'You must be logged in to save custom foods',
         variant: 'destructive',
       });
       return;
     }
 
     try {
-      const payload = {
+      const created = await createCustomFood({
         name: customFoodForm.name,
         category: customFoodForm.category,
         serving_size: Number(customFoodForm.serving_size) || 100,
@@ -177,49 +89,31 @@ const AddMeal = () => {
         carbs: Number(customFoodForm.carbs) || 0,
         fat: Number(customFoodForm.fat) || 0,
         fiber: Number(customFoodForm.fiber) || 0,
-      };
+      });
 
-      let foodId = '';
+      if (customFoodForm.aliases.trim()) {
+        const aliasList = customFoodForm.aliases
+          .split(',')
+          .map((a) => a.trim())
+          .filter((a) => a.length > 0);
 
-      if (isEditingCustom && editingCustomId) {
-        const updated = await updateCustomFood(editingCustomId, payload);
-        foodId = updated.id;
-        toast({
-          title: 'Custom Food Updated',
-          description: `"${customFoodForm.name}" has been updated.`,
-        });
-      } else {
-        const created = await createCustomFood(payload);
-        foodId = created.id;
-
-        // Insert aliases if provided
-        if (customFoodForm.aliases.trim()) {
-          const aliasList = customFoodForm.aliases
-            .split(',')
-            .map((a) => a.trim())
-            .filter((a) => a.length > 0);
-
-          for (const alias of aliasList) {
-            try {
-              await supabase.from('food_aliases').insert({
-                food_id: foodId,
-                alias: alias,
-              });
-            } catch (err) {
-              console.warn('Failed to insert alias:', alias, err);
-            }
+        for (const alias of aliasList) {
+          try {
+            await supabase.from('food_aliases').insert({
+              food_id: created.id,
+              alias: alias,
+            });
+          } catch (err) {
+            console.warn('Failed to insert alias:', alias, err);
           }
         }
-
-        toast({
-          title: 'Custom Food Created',
-          description: `"${customFoodForm.name}" has been added.`,
-        });
       }
 
+      toast({
+        title: 'Custom Food Saved',
+        description: `"${customFoodForm.name}" has been added to your foods.`,
+      });
       setIsCustomDialogOpen(false);
-      resetCustomFoodForm();
-      fetchCategoryOrSearchFoods();
     } catch (err) {
       console.error(err);
       toast({
@@ -230,85 +124,21 @@ const AddMeal = () => {
     }
   };
 
-  const handleEditClick = (e: React.MouseEvent, food: IndianFood) => {
-    e.stopPropagation(); // prevent selecting the food for logging
-    setIsEditingCustom(true);
-    setEditingCustomId(food.id);
+  const openSaveAsCustomFood = () => {
     setCustomFoodForm({
-      name: food.name,
-      category: food.category,
-      serving_size: String(food.serving_size || 100),
-      serving_unit: food.serving_unit || 'g',
-      calories: String(food.calories),
-      protein: String(food.protein),
-      carbs: String(food.carbs),
-      fat: String(food.fat),
-      fiber: String(food.fiber || 0),
+      name: mealData.name,
+      category: 'south_indian',
+      serving_size: portionWeight || '100',
+      serving_unit: 'g',
+      calories: mealData.calories,
+      protein: mealData.protein,
+      carbs: mealData.carbs,
+      fat: mealData.fat,
+      fiber: mealData.fiber,
       aliases: '',
     });
     setIsCustomDialogOpen(true);
   };
-
-  const handleDeleteClick = async (e: React.MouseEvent, id: string, name: string) => {
-    e.stopPropagation(); // prevent selection
-    if (window.confirm(`Are you sure you want to delete custom food "${name}"?`)) {
-      try {
-        await deleteCustomFood(id);
-        toast({
-          title: 'Deleted',
-          description: `Custom food "${name}" has been deleted.`,
-        });
-        fetchCategoryOrSearchFoods();
-      } catch (err) {
-        console.error(err);
-        toast({
-          title: 'Error',
-          description: 'Failed to delete custom food',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const fetchCategoryOrSearchFoods = useCallback(async () => {
-    setLoadingFoods(true);
-    try {
-      if (indianSearchQuery.trim().length >= 2) {
-        const results = await searchFoodsDb(indianSearchQuery);
-        setCategoryFoods(results);
-      } else {
-        const { data, error } = await supabase
-          .from('indian_foods')
-          .select('*')
-          .eq('category', indianCategory)
-          .or(`user_id.is.null,user_id.eq.${user?.id || '00000000-0000-0000-0000-000000000000'}`)
-          .order('is_verified', { ascending: false })
-          .order('name', { ascending: true });
-
-        if (!error && data) {
-          setCategoryFoods(data as unknown as IndianFood[]);
-        } else {
-          setCategoryFoods([]);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load foods:', err);
-    } finally {
-      setLoadingFoods(false);
-    }
-  }, [indianCategory, indianSearchQuery, user?.id]);
-
-  useEffect(() => {
-    fetchCategoryOrSearchFoods();
-  }, [fetchCategoryOrSearchFoods]);
-
-  useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      fetchCategoryOrSearchFoods();
-    }, 350);
-
-    return () => clearTimeout(delayDebounce);
-  }, [indianSearchQuery, fetchCategoryOrSearchFoods]);
 
   const [baseNutrition, setBaseNutrition] = useState<{
     calories: number;
@@ -339,15 +169,6 @@ const AddMeal = () => {
     date: new Date().toISOString().split('T')[0],
     notes: '',
   });
-
-  const parseServingWeight = (servingSize: string): number => {
-    if (!servingSize) return 100;
-    const parenMatch = servingSize.match(/\((\d+(?:\.\d+)?)\s*g/i);
-    if (parenMatch) return parseFloat(parenMatch[1]);
-    const directMatch = servingSize.match(/(\d+(?:\.\d+)?)\s*g/i);
-    if (directMatch) return parseFloat(directMatch[1]);
-    return 100;
-  };
 
   const handlePortionWeightChange = (newWeightStr: string) => {
     setPortionWeight(newWeightStr);
@@ -448,46 +269,6 @@ const AddMeal = () => {
     }
   };
 
-  const handleFoodSelect = (food: IndianFood) => {
-    // Determine default portion weight in grams
-    let defaultWeight = 100;
-    if (typeof food.serving_size === 'number') {
-      defaultWeight = food.serving_size;
-    } else if (typeof food.serving_size === 'string') {
-      defaultWeight = parseServingWeight(food.serving_size);
-    }
-
-    setBaseNutrition({
-      calories: Number(food.calories),
-      protein: Number(food.protein),
-      carbs: Number(food.carbs),
-      fat: Number(food.fat),
-      fiber: Number(food.fiber) || 0,
-      servingSizeWeight: 100, // Normalized base is 100g
-    });
-    
-    setPortionWeight(String(defaultWeight));
-
-    const ratio = defaultWeight / 100;
-    setMealData({
-      ...mealData,
-      name: food.is_verified ? food.name : `${food.name} (Custom)`,
-      calories: String(Math.round(Number(food.calories) * ratio)),
-      protein: String(Math.round(Number(food.protein) * ratio * 10) / 10),
-      carbs: String(Math.round(Number(food.carbs) * ratio * 10) / 10),
-      fat: String(Math.round(Number(food.fat) * ratio * 10) / 10),
-      fiber: String(Math.round((Number(food.fiber) || 0) * ratio * 10) / 10),
-    });
-
-    setActiveTab('manual');
-    toast({
-      title: 'Food Selected',
-      description: `Loaded nutrition facts for ${food.name}. Review values to save.`,
-    });
-
-    saveToRecentSearches(food);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -582,19 +363,7 @@ const AddMeal = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
-            <TabsTrigger value="search" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
-              <Search className="w-3.5 h-3.5" />
-              Search
-            </TabsTrigger>
-            <TabsTrigger value="indian" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
-              <Sparkles className="w-3.5 h-3.5 text-chart-carbs" />
-              Indian
-            </TabsTrigger>
-            <TabsTrigger value="describe" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
-              <Sparkles className="w-3.5 h-3.5" />
-              Describe
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-6">
             <TabsTrigger value="chat" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
               Chat
@@ -604,264 +373,6 @@ const AddMeal = () => {
               Manual
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="search" className="space-y-4">
-            <div className="elevation-card p-6">
-              <p className="text-sm text-muted-foreground mb-4">
-                Search for foods to auto-fill nutritional information
-              </p>
-              <div className="flex flex-col gap-4">
-                <FoodSearch onSelect={handleFoodSelect} />
-
-                <div className="flex items-center justify-center pt-2 relative">
-                  <div className="absolute w-full h-[1px] bg-border/40" />
-                  <span className="text-xs text-muted-foreground bg-card px-2 z-10">OR</span>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsScannerOpen(true)}
-                  className="w-full h-12 border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 rounded-xl gap-2 mt-2"
-                >
-                  <ScanBarcode className="w-5 h-5" />
-                  Scan Barcode
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="indian" className="space-y-4">
-            <div className="elevation-card p-4 sm:p-6 space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-base font-display font-semibold text-foreground flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                    Indian Cuisine Database
-                  </h2>
-                  <p className="text-[11px] text-muted-foreground">
-                    Search standard dishes & manage custom foods
-                  </p>
-                </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    resetCustomFoodForm();
-                    setIsCustomDialogOpen(true);
-                  }}
-                  className="rounded-lg text-xs h-8 flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Custom
-                </Button>
-              </div>
-
-              {/* Search input with debounced querying */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search foods or aliases (e.g. roti, dosa, curry)..."
-                  value={indianSearchQuery}
-                  onChange={(e) => setIndianSearchQuery(e.target.value)}
-                  className="pl-9 h-10 text-xs bg-background/50 border-border focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                />
-              </div>
-
-              {/* Display browse view if query is short */}
-              {indianSearchQuery.trim().length < 2 ? (
-                <div className="space-y-4">
-                  {/* Recent Searches */}
-                  {recentSearches.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-primary/80" />
-                          Recent Logs
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={clearRecentSearches}
-                          className="text-[10px] text-primary/80 hover:text-primary hover:underline"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {recentSearches.map((food) => (
-                          <button
-                            key={`recent-${food.id}`}
-                            type="button"
-                            onClick={() => handleFoodSelect(food)}
-                            className="flex items-center gap-1 px-2.5 py-1 bg-accent/20 hover:bg-accent/40 border border-border/30 rounded-full text-[10px] text-foreground transition-all"
-                          >
-                            <span>{food.name}</span>
-                            {food.is_verified && <CheckCircle className="w-2.5 h-2.5 text-primary" />}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Popular Foods Quick Section */}
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                      <Flame className="w-3 h-3 text-chart-carbs" />
-                      Popular Foods
-                    </h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {popularFoods.map((food) => (
-                        <button
-                          key={`pop-${food.id}`}
-                          type="button"
-                          onClick={() => handleFoodSelect(food)}
-                          className="flex items-center gap-1 px-3 py-1 bg-primary/5 hover:bg-primary/10 border border-primary/20 hover:border-primary/40 rounded-full text-[10px] text-foreground transition-all"
-                        >
-                          <span>{food.name}</span>
-                          <span className="text-[8px] text-muted-foreground">({food.serving_size}{food.serving_unit === 'g' ? 'g' : ` ${food.serving_unit}`})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Categories Horizontal Scroll */}
-                  <div className="space-y-2 pt-2 border-t border-border/10">
-                    <h3 className="text-xs font-semibold text-muted-foreground">
-                      Browse Categories
-                    </h3>
-                    <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none -mx-2 px-2">
-                      {categories.map((cat) => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setIndianCategory(cat.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-medium whitespace-nowrap transition-all ${
-                            indianCategory === cat.id
-                              ? 'bg-primary border-primary text-primary-foreground shadow-sm font-semibold'
-                              : 'bg-background hover:bg-accent border-border text-muted-foreground'
-                          }`}
-                        >
-                          <span>{cat.icon}</span>
-                          <span>{cat.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Foods List */}
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                {loadingFoods ? (
-                  // Loading Skeleton
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/40 animate-pulse bg-background/20">
-                        <div className="w-11 h-11 rounded-lg bg-muted flex-shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-3 bg-muted rounded w-3/4" />
-                          <div className="h-2 bg-muted rounded w-1/2" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : categoryFoods.length > 0 ? (
-                  categoryFoods.map((food) => (
-                    <button
-                      key={food.id}
-                      type="button"
-                      onClick={() => handleFoodSelect(food)}
-                      className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-border/40 hover:border-primary/20 bg-background/35 hover:bg-accent/40 text-left transition-all duration-200"
-                    >
-                      {food.image_url ? (
-                        <img
-                          src={food.image_url}
-                          alt={food.name}
-                          className="w-11 h-11 rounded-lg object-cover bg-muted flex-shrink-0"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1585938338392-50a59970d2ee?w=120&auto=format&fit=crop';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-11 h-11 rounded-lg bg-primary/12 border border-primary/24 flex items-center justify-center flex-shrink-0 text-primary">
-                          {food.category === 'beverages' ? '☕' : food.category === 'fruits' ? '🍎' : '🍛'}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start gap-1">
-                          <div className="flex items-center gap-1 truncate">
-                            <p className="font-semibold text-xs text-foreground truncate">
-                              {food.name}
-                            </p>
-                            {food.is_verified ? (
-                              <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" title="Verified food" />
-                            ) : (
-                              <Badge className="bg-chart-carbs/10 text-chart-carbs border-0 text-[8px] h-4 py-0 px-1 font-normal flex-shrink-0">Custom</Badge>
-                            )}
-                          </div>
-                          <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap flex-shrink-0">
-                            Serving: {food.serving_size}{food.serving_unit || 'g'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <p className="text-[10px] text-muted-foreground font-medium font-mono tabular-nums">
-                            {Math.round(food.calories)} kcal • P: {food.protein}g • C: {food.carbs}g • F: {food.fat}g • Fib: {food.fiber || 0}g
-                            <span className="text-[8px] text-muted-foreground/60 block font-sans">Values per 100g</span>
-                          </p>
-
-                          {/* Owner controls for custom foods */}
-                          {!food.is_verified && food.user_id === user?.id && (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={(e) => handleEditClick(e, food)}
-                                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-primary transition-colors"
-                                title="Edit custom food"
-                              >
-                                <Edit3 className="w-3.5 h-3.5 animate-in" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteClick(e, food.id, food.name)}
-                                className="p-1 hover:bg-accent rounded text-muted-foreground hover:text-primary transition-colors"
-                                title="Delete custom food"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 animate-in" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="py-8 text-center text-xs text-muted-foreground space-y-3">
-                    <p>No items found matching "{indianSearchQuery}"</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        resetCustomFoodForm();
-                        setCustomFoodForm((prev) => ({ ...prev, name: indianSearchQuery }));
-                        setIsCustomDialogOpen(true);
-                      }}
-                      className="border-primary/20 text-primary hover:bg-primary/10 text-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" />
-                      Add as Custom Food
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="describe">
-            <DescribeMealLog defaultMealTime={mealData.mealTime} />
-          </TabsContent>
 
           <TabsContent value="chat">
             <ChatMealLog defaultMealTime={mealData.mealTime} />
@@ -1059,8 +570,21 @@ const AddMeal = () => {
                   }
                 />
 
+                {/* Save as reusable food */}
+                {mealData.name.trim().length >= 3 && mealData.calories && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={openSaveAsCustomFood}
+                    className="w-full h-11 border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 rounded-xl gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Save as reusable food
+                  </Button>
+                )}
+
                 {/* Submit Button */}
-                <div className="pt-8">
+                <div className="pt-2">
                   <Button
                     type="submit"
                     className="w-full h-14 text-lg font-medium rounded-xl"
@@ -1074,19 +598,13 @@ const AddMeal = () => {
           </TabsContent>
         </Tabs>
 
-      <BarcodeScanner
-        open={isScannerOpen} 
-        onOpenChange={setIsScannerOpen} 
-        onScanSuccess={handleFoodSelect} 
-      />
-
-      {/* Custom Food Creation & Edit Dialog */}
+      {/* Save as Custom Food Dialog */}
       <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isEditingCustom ? 'Edit Custom Food' : 'Create Custom Food'}</DialogTitle>
+            <DialogTitle>Save as Reusable Food</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateOrUpdateCustomFood} className="space-y-4 pt-2">
+          <form onSubmit={handleCreateCustomFood} className="space-y-4 pt-2">
             <div className="space-y-1">
               <Label htmlFor="custom-name" className="text-xs">Food Name</Label>
               <Input
@@ -1219,18 +737,16 @@ const AddMeal = () => {
               </div>
             </div>
 
-            {!isEditingCustom && (
-              <div className="space-y-1">
-                <Label htmlFor="custom-aliases" className="text-xs">Aliases (Comma separated)</Label>
-                <Input
-                  id="custom-aliases"
-                  value={customFoodForm.aliases}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, aliases: e.target.value })}
-                  placeholder="e.g. Chapathi, Roti, Phulka"
-                  className="h-10 text-sm bg-background/40"
-                />
-              </div>
-            )}
+            <div className="space-y-1">
+              <Label htmlFor="custom-aliases" className="text-xs">Aliases (Comma separated)</Label>
+              <Input
+                id="custom-aliases"
+                value={customFoodForm.aliases}
+                onChange={(e) => setCustomFoodForm({ ...customFoodForm, aliases: e.target.value })}
+                placeholder="e.g. Chapathi, Roti, Phulka"
+                className="h-10 text-sm bg-background/40"
+              />
+            </div>
 
             <DialogFooter className="pt-2 gap-2 flex-row justify-end">
               <Button

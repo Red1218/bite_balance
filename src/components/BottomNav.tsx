@@ -1,9 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Search, Plus, Calendar, User } from 'lucide-react';
+import { Home, BookmarkPlus, Plus, Calendar, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
-const tabs = [{ path: '/', icon: Home, label: 'Today' }] as const;
+const tabs = [
+  { path: '/', icon: Home, label: 'Today' },
+  { path: '/saved-meals', icon: BookmarkPlus, label: 'Saved' },
+] as const;
 
 const trailingTabs = [
   { path: '/history', icon: Calendar, label: 'History' },
@@ -47,14 +50,6 @@ const BottomNav = () => {
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
     >
       {tabs.map(renderTab)}
-      <button
-        type="button"
-        onClick={openAddMeal}
-        className="flex flex-1 flex-col items-center justify-center gap-1 min-h-12"
-      >
-        <Search className="w-5 h-5 text-muted-foreground" />
-        <span className="text-[10px] leading-none font-medium text-muted-foreground">Add</span>
-      </button>
       <div className="flex flex-1 justify-center">
         <button
           onClick={openAddMeal}
