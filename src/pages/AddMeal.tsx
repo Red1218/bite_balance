@@ -16,6 +16,8 @@ import {
   Sparkles,
   Loader2,
   Plus,
+  RefreshCw,
+  X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,6 +56,7 @@ const AddMeal = () => {
   const [autoFilling, setAutoFilling] = useState(false);
 
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState('');
   const [customFoodForm, setCustomFoodForm] = useState({
     name: '',
     category: 'south_indian',
@@ -66,6 +69,7 @@ const AddMeal = () => {
     fiber: '',
     aliases: '',
   });
+  const aliasChips = customFoodForm.aliases.split(',').map((a) => a.trim()).filter(Boolean);
 
   const handleCreateCustomFood = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,13 +102,12 @@ const AddMeal = () => {
           .filter((a) => a.length > 0);
 
         for (const alias of aliasList) {
-          try {
-            await supabase.from('food_aliases').insert({
-              food_id: created.id,
-              alias: alias,
-            });
-          } catch (err) {
-            console.warn('Failed to insert alias:', alias, err);
+          const { error: aliasError } = await supabase.from('food_aliases').insert({
+            food_id: created.id,
+            alias: alias,
+          });
+          if (aliasError) {
+            console.warn('Failed to insert alias:', alias, aliasError);
           }
         }
       }
@@ -125,19 +128,43 @@ const AddMeal = () => {
   };
 
   const openSaveAsCustomFood = () => {
+    // Manual's fields hold totals for the entered portion, but custom foods
+    // are stored per-100g (matching how every other food in indian_foods
+    // works) -- normalize before prefilling, or a >100g portion gets saved
+    // that many times too rich.
+    const weight = Number(portionWeight) || 100;
+    const ratio = 100 / weight;
     setCustomFoodForm({
       name: mealData.name,
       category: 'south_indian',
       serving_size: portionWeight || '100',
       serving_unit: 'g',
-      calories: mealData.calories,
-      protein: mealData.protein,
-      carbs: mealData.carbs,
-      fat: mealData.fat,
-      fiber: mealData.fiber,
+      calories: String(Math.round((Number(mealData.calories) || 0) * ratio)),
+      protein: String(Math.round((Number(mealData.protein) || 0) * ratio * 10) / 10),
+      carbs: String(Math.round((Number(mealData.carbs) || 0) * ratio * 10) / 10),
+      fat: String(Math.round((Number(mealData.fat) || 0) * ratio * 10) / 10),
+      fiber: String(Math.round((Number(mealData.fiber) || 0) * ratio * 10) / 10),
       aliases: '',
     });
+    setAliasDraft('');
     setIsCustomDialogOpen(true);
+  };
+
+  const commitAliasDraft = () => {
+    const val = aliasDraft.trim();
+    if (!val) return;
+    setCustomFoodForm((prev) => ({
+      ...prev,
+      aliases: [...aliasChips, val].join(', '),
+    }));
+    setAliasDraft('');
+  };
+
+  const removeAliasChip = (idx: number) => {
+    setCustomFoodForm((prev) => ({
+      ...prev,
+      aliases: aliasChips.filter((_, i) => i !== idx).join(', '),
+    }));
   };
 
   const [baseNutrition, setBaseNutrition] = useState<{
@@ -338,6 +365,28 @@ const AddMeal = () => {
     }
   };
 
+  const autoFillState: 'empty' | 'offered' | 'calculating' | 'filled' = autoFilling
+    ? 'calculating'
+    : baseNutrition
+      ? 'filled'
+      : mealData.name.trim().length >= 3
+        ? 'offered'
+        : 'empty';
+
+  const macroFields = [
+    { key: 'protein' as const, label: 'Protein', dot: 'bg-chart-protein', text: 'text-chart-protein', bg: 'bg-chart-protein/10', border: 'border-chart-protein/25', kcalPerGram: 4 },
+    { key: 'carbs' as const, label: 'Carbs', dot: 'bg-chart-carbs', text: 'text-chart-carbs', bg: 'bg-chart-carbs/10', border: 'border-chart-carbs/25', kcalPerGram: 4 },
+    { key: 'fat' as const, label: 'Fats', dot: 'bg-chart-fat', text: 'text-chart-fat', bg: 'bg-chart-fat/10', border: 'border-chart-fat/25', kcalPerGram: 9 },
+    { key: 'fiber' as const, label: 'Fiber', dot: 'bg-chart-fiber', text: 'text-chart-fiber', bg: 'bg-chart-fiber/10', border: 'border-chart-fiber/25', kcalPerGram: 0 },
+  ];
+
+  const proteinKcal = (Number(mealData.protein) || 0) * 4;
+  const carbsKcal = (Number(mealData.carbs) || 0) * 4;
+  const fatKcal = (Number(mealData.fat) || 0) * 9;
+  const macroKcalTotal = proteinKcal + carbsKcal + fatKcal;
+
+  const canSaveAsFood = mealData.name.trim().length >= 3 && !!mealData.calories;
+
   return (
     <div className="px-4 pb-6 pt-2">
       {/* Meal slot chips */}
@@ -379,185 +428,193 @@ const AddMeal = () => {
           </TabsContent>
 
           <TabsContent value="manual">
-            <div className="elevation-card p-6">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Meal Name */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="name" className="text-foreground text-base">
-                      Meal Name
-                    </Label>
-                    {mealData.name.trim().length >= 3 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleAutoFill}
-                        disabled={autoFilling}
-                        className="text-primary hover:text-primary/80 text-xs flex items-center gap-1 h-auto p-1 font-normal"
-                      >
-                        {autoFilling ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Calculating...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3 h-3" />
-                            <span>Auto-fill Macros</span>
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                  <Input
+            <div className="elevation-card space-y-4 p-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Meal name card */}
+                <div
+                  className={`space-y-3 rounded-2xl border p-4 transition-colors ${
+                    autoFillState === 'offered' || autoFillState === 'calculating'
+                      ? 'border-primary/45 bg-muted shadow-[0_0_0_3px_hsl(var(--primary)/0.1)]'
+                      : 'border-border bg-muted'
+                  }`}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    Meal name
+                  </span>
+                  <input
                     id="name"
                     value={mealData.name}
-                    onChange={(e) =>
-                      setMealData({ ...mealData, name: e.target.value })
-                    }
+                    onChange={(e) => setMealData({ ...mealData, name: e.target.value })}
                     placeholder="e.g., 150g Chicken Breast"
-                    className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-14 text-base backdrop-blur-sm"
+                    className="block w-full bg-transparent text-lg font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
                     required
                   />
+
+                  {autoFillState !== 'empty' && <div className="h-px bg-border" />}
+
+                  {autoFillState === 'offered' && (
+                    <div className="flex items-center gap-3">
+                      <p className="flex-1 text-[11px] text-muted-foreground">
+                        Let AI estimate the portion and macros
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleAutoFill}
+                        className="h-10 flex-none gap-1.5 rounded-[11px] border border-primary/38 bg-primary/14 px-3.5 text-xs font-semibold text-primary hover:bg-primary/20"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Auto-fill Macros
+                      </Button>
+                    </div>
+                  )}
+
+                  {autoFillState === 'calculating' && (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <p className="flex-1 text-[11px] text-muted-foreground">
+                          parse-meal is estimating the macros
+                        </p>
+                        <div className="flex h-10 flex-none items-center gap-2 rounded-[11px] border border-primary/24 bg-primary/10 px-3.5 text-xs font-semibold text-primary">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Calculating...
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} className="h-[52px] rounded-[10px] bg-muted-foreground/10" />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {autoFillState === 'filled' && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 flex-none text-chart-fiber" />
+                        <p className="truncate text-[11px] text-chart-fiber">Filled by AI · edit anything</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleAutoFill}
+                        disabled={autoFilling}
+                        className="h-10 flex-none gap-1.5 rounded-[11px] text-xs font-semibold"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Redo
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Portion Weight */}
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label htmlFor="portionWeight" className="text-foreground text-base">
-                      Portion Weight (g)
-                    </Label>
+                {/* Portion + Calories */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-2 rounded-2xl border border-border bg-muted/60 p-3.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                      Portion
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <input
+                        id="portionWeight"
+                        type="number"
+                        value={portionWeight}
+                        onChange={(e) => handlePortionWeightChange(e.target.value)}
+                        placeholder="—"
+                        className="w-full min-w-0 bg-transparent font-mono text-2xl font-semibold tabular-nums text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                      />
+                      <span className="flex-none text-xs text-muted-foreground">g</span>
+                    </div>
                     {baseNutrition && (
-                      <span className="text-xs text-muted-foreground">
+                      <p className="font-mono text-[10px] text-muted-foreground">
                         Base serving: {baseNutrition.servingSizeWeight}g
-                      </span>
+                      </p>
                     )}
                   </div>
-                  <Input
-                    id="portionWeight"
-                    type="number"
-                    value={portionWeight}
-                    onChange={(e) => handlePortionWeightChange(e.target.value)}
-                    placeholder="e.g., 100"
-                    className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-14 text-base font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                  />
-                </div>
 
-                {/* Calories */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="calories"
-                    className="text-foreground text-base"
+                  <div
+                    className={`space-y-2 rounded-2xl border p-3.5 ${
+                      mealData.calories ? 'border-primary/25 bg-primary/[0.07]' : 'border-border bg-muted/60'
+                    }`}
                   >
-                    Calories
-                  </Label>
-                  <Input
-                    id="calories"
-                    type="number"
-                    value={mealData.calories}
-                    onChange={(e) => {
-                      setMealData({ ...mealData, calories: e.target.value });
-                      updateBaseNutritionFromForm('calories', e.target.value);
-                    }}
-                    placeholder="Enter total calories"
-                    className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-14 text-base font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                    required
-                  />
+                    <span
+                      className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                        mealData.calories ? 'text-primary/75' : 'text-muted-foreground'
+                      }`}
+                    >
+                      Calories
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <input
+                        id="calories"
+                        type="number"
+                        value={mealData.calories}
+                        onChange={(e) => {
+                          setMealData({ ...mealData, calories: e.target.value });
+                          updateBaseNutritionFromForm('calories', e.target.value);
+                        }}
+                        placeholder="—"
+                        className="w-full min-w-0 bg-transparent font-mono text-2xl font-semibold tabular-nums text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                        required
+                      />
+                      <span className={`flex-none text-xs ${mealData.calories ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                        kcal
+                      </span>
+                    </div>
+                    {Number(mealData.calories) > 0 && (
+                      <p className="font-mono text-[10px] text-primary/60">
+                        {((Number(mealData.calories) / (Number(portionWeight) || 100)) * 100).toFixed(1)} per 100g
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Macronutrients */}
-                <div className="space-y-4">
-                  <h3 className="text-foreground text-base font-medium">
-                    Macronutrients
-                  </h3>
-
-                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="protein"
-                        className="text-chart-protein text-sm"
-                      >
-                        Protein (g)
-                      </Label>
-                      <Input
-                        id="protein"
-                        type="number"
-                        step="0.1"
-                        value={mealData.protein}
-                        onChange={(e) => {
-                          setMealData({ ...mealData, protein: e.target.value });
-                          updateBaseNutritionFromForm('protein', e.target.value);
-                        }}
-                        placeholder="g"
-                        className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="carbs"
-                        className="text-chart-carbs text-sm"
-                      >
-                        Carbs (g)
-                      </Label>
-                      <Input
-                        id="carbs"
-                        type="number"
-                        step="0.1"
-                        value={mealData.carbs}
-                        onChange={(e) => {
-                          setMealData({ ...mealData, carbs: e.target.value });
-                          updateBaseNutritionFromForm('carbs', e.target.value);
-                        }}
-                        placeholder="g"
-                        className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Macronutrients
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground">grams</span>
                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="fat"
-                        className="text-chart-fat text-sm"
-                      >
-                        Fats (g)
-                      </Label>
-                      <Input
-                        id="fat"
-                        type="number"
-                        step="0.1"
-                        value={mealData.fat}
-                        onChange={(e) => {
-                          setMealData({ ...mealData, fat: e.target.value });
-                          updateBaseNutritionFromForm('fat', e.target.value);
-                        }}
-                        placeholder="g"
-                        className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="fiber"
-                        className="text-chart-fiber text-sm"
-                      >
-                        Fiber (g)
-                      </Label>
-                      <Input
-                        id="fiber"
-                        type="number"
-                        step="0.1"
-                        value={mealData.fiber}
-                        onChange={(e) => {
-                          setMealData({ ...mealData, fiber: e.target.value });
-                          updateBaseNutritionFromForm('fiber', e.target.value);
-                        }}
-                        placeholder="g"
-                        className="bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 font-mono tabular-nums backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-                      />
-                    </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {macroFields.map((m) => {
+                      const value = mealData[m.key];
+                      const hasValue = Number(value) > 0;
+                      return (
+                        <div
+                          key={m.key}
+                          className={`flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-xl border p-2 ${
+                            hasValue ? `${m.bg} ${m.border}` : 'border-border bg-muted/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+                            <span className={`text-[10px] ${hasValue ? m.text : 'text-muted-foreground'}`}>{m.label}</span>
+                          </div>
+                          <input
+                            id={m.key}
+                            type="number"
+                            step="0.1"
+                            value={value}
+                            onChange={(e) => {
+                              setMealData({ ...mealData, [m.key]: e.target.value });
+                              updateBaseNutritionFromForm(m.key, e.target.value);
+                            }}
+                            placeholder="—"
+                            className="w-full bg-transparent text-center font-mono text-lg font-semibold tabular-nums text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex h-[5px] overflow-hidden rounded-full bg-muted">
+                    {macroKcalTotal > 0 && (
+                      <>
+                        <div className="bg-chart-protein" style={{ width: `${(proteinKcal / macroKcalTotal) * 100}%` }} />
+                        <div className="bg-chart-carbs" style={{ width: `${(carbsKcal / macroKcalTotal) * 100}%` }} />
+                        <div className="bg-chart-fat" style={{ width: `${(fatKcal / macroKcalTotal) * 100}%` }} />
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -570,29 +627,42 @@ const AddMeal = () => {
                   }
                 />
 
-                {/* Save as reusable food */}
-                {mealData.name.trim().length >= 3 && mealData.calories && (
-                  <Button
+                {/* Save as reusable food, or a hint while the meal isn't ready to save */}
+                {canSaveAsFood ? (
+                  <button
                     type="button"
-                    variant="outline"
                     onClick={openSaveAsCustomFood}
-                    className="w-full h-11 border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 rounded-xl gap-2"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/10 text-sm font-medium text-primary hover:bg-primary/15"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="h-4 w-4" />
                     Save as reusable food
-                  </Button>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Fill what you know. Anything left blank stays out of your totals.
+                  </p>
                 )}
 
                 {/* Submit Button */}
-                <div className="pt-2">
-                  <Button
-                    type="submit"
-                    className="w-full h-14 text-lg font-medium rounded-xl"
-                    disabled={loading}
-                  >
-                    {loading ? 'Adding...' : 'Add Meal'}
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className={`flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-base font-semibold ${
+                    mealData.calories ? '' : 'bg-muted text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {loading ? (
+                    'Adding...'
+                  ) : mealData.calories ? (
+                    <>
+                      Add to {mealData.mealTime.charAt(0).toUpperCase() + mealData.mealTime.slice(1)}
+                      <span className="h-4 w-px bg-primary-foreground/30" />
+                      <span className="font-mono tabular-nums">{mealData.calories} kcal</span>
+                    </>
+                  ) : (
+                    'Add meal'
+                  )}
+                </Button>
               </form>
             </div>
           </TabsContent>
@@ -600,31 +670,35 @@ const AddMeal = () => {
 
       {/* Save as Custom Food Dialog */}
       <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
-        <DialogContent className="bg-card border-border text-foreground max-w-sm rounded-xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Save as Reusable Food</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateCustomFood} className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <Label htmlFor="custom-name" className="text-xs">Food Name</Label>
+        <DialogContent className="max-h-[90vh] max-w-sm overflow-y-auto rounded-xl border-border bg-card p-5 text-foreground">
+          <form onSubmit={handleCreateCustomFood} className="space-y-4">
+            <DialogHeader className="space-y-1.5 pr-6 text-left">
+              <DialogTitle className="font-display text-lg">Save as food</DialogTitle>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Every field is editable. Prefilled from the meal you just entered — name, portion and the four macros.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="custom-name" className="text-[10px] uppercase tracking-wide text-muted-foreground">Food Name</Label>
               <Input
                 id="custom-name"
                 value={customFoodForm.name}
                 onChange={(e) => setCustomFoodForm({ ...customFoodForm, name: e.target.value })}
                 placeholder="e.g. Homemade Chicken Curry"
-                className="h-10 text-sm bg-background/40"
+                className="h-[42px] rounded-[11px] bg-background/60 text-sm"
                 required
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="custom-category" className="text-xs">Category</Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-category" className="text-[10px] uppercase tracking-wide text-muted-foreground">Category</Label>
                 <Select
                   value={customFoodForm.category}
                   onValueChange={(val) => setCustomFoodForm({ ...customFoodForm, category: val })}
                 >
-                  <SelectTrigger className="h-10 text-sm bg-background/40">
+                  <SelectTrigger className="h-[42px] rounded-[11px] bg-background/60 text-sm">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
@@ -637,132 +711,182 @@ const AddMeal = () => {
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="custom-serving" className="text-xs">Portion Size</Label>
-                <Input
-                  id="custom-serving"
-                  type="number"
-                  value={customFoodForm.serving_size}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, serving_size: e.target.value })}
-                  placeholder="100"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                  required
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-serving" className="text-[10px] uppercase tracking-wide text-muted-foreground">Portion Size</Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-serving"
+                    type="number"
+                    value={customFoodForm.serving_size}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, serving_size: e.target.value })}
+                    placeholder="100"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                    required
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="custom-unit" className="text-xs">Serving Unit</Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-unit" className="text-[10px] uppercase tracking-wide text-muted-foreground">Serving Unit</Label>
                 <Input
                   id="custom-unit"
                   value={customFoodForm.serving_unit}
                   onChange={(e) => setCustomFoodForm({ ...customFoodForm, serving_unit: e.target.value })}
                   placeholder="piece, glass, g, ml"
-                  className="h-10 text-sm bg-background/40"
+                  className="h-[42px] rounded-[11px] bg-background/60 text-sm"
                   required
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="custom-calories" className="text-xs">Calories per 100g</Label>
-                <Input
-                  id="custom-calories"
-                  type="number"
-                  value={customFoodForm.calories}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, calories: e.target.value })}
-                  placeholder="kcal"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                  required
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-calories" className="text-[10px] uppercase tracking-wide text-muted-foreground">Calories per 100g</Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-calories"
+                    type="number"
+                    value={customFoodForm.calories}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, calories: e.target.value })}
+                    placeholder="0"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                    required
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">kcal</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-px bg-border" />
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-protein" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-protein">
+                  <span className="h-1.5 w-1.5 rounded-full bg-chart-protein" />
+                  Protein / 100g
+                </Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-protein"
+                    type="number"
+                    step="0.1"
+                    value={customFoodForm.protein}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, protein: e.target.value })}
+                    placeholder="0"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                    required
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-carbs" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-carbs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-chart-carbs" />
+                  Carbs / 100g
+                </Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-carbs"
+                    type="number"
+                    step="0.1"
+                    value={customFoodForm.carbs}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, carbs: e.target.value })}
+                    placeholder="0"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                    required
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-fat" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-fat">
+                  <span className="h-1.5 w-1.5 rounded-full bg-chart-fat" />
+                  Fat / 100g
+                </Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-fat"
+                    type="number"
+                    step="0.1"
+                    value={customFoodForm.fat}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, fat: e.target.value })}
+                    placeholder="0"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                    required
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-fiber" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-fiber">
+                  <span className="h-1.5 w-1.5 rounded-full bg-chart-fiber" />
+                  Fiber / 100g
+                </Label>
+                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                  <input
+                    id="custom-fiber"
+                    type="number"
+                    step="0.1"
+                    value={customFoodForm.fiber}
+                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, fiber: e.target.value })}
+                    placeholder="0"
+                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                  />
+                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor="custom-alias-draft" className="text-[10px] uppercase tracking-wide text-muted-foreground">Aliases</Label>
+                <span className="text-[10px] text-muted-foreground">optional</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 rounded-[11px] border border-input bg-background/60 p-2">
+                {aliasChips.map((chip, i) => (
+                  <span
+                    key={`${chip}-${i}`}
+                    className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground"
+                  >
+                    {chip}
+                    <button type="button" onClick={() => removeAliasChip(i)} aria-label={`Remove ${chip}`}>
+                      <X className="h-2.5 w-2.5 text-muted-foreground" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id="custom-alias-draft"
+                  value={aliasDraft}
+                  onChange={(e) => setAliasDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === ',' || e.key === 'Enter') {
+                      e.preventDefault();
+                      commitAliasDraft();
+                    }
+                  }}
+                  onBlur={commitAliasDraft}
+                  placeholder="Type and press comma"
+                  className="min-w-[110px] flex-1 bg-transparent px-1 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 border-t border-border/10 pt-2">
-              <div className="space-y-1">
-                <Label htmlFor="custom-protein" className="text-xs text-chart-protein">Protein (g) / 100g</Label>
-                <Input
-                  id="custom-protein"
-                  type="number"
-                  step="0.1"
-                  value={customFoodForm.protein}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, protein: e.target.value })}
-                  placeholder="g"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="custom-carbs" className="text-xs text-chart-carbs">Carbs (g) / 100g</Label>
-                <Input
-                  id="custom-carbs"
-                  type="number"
-                  step="0.1"
-                  value={customFoodForm.carbs}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, carbs: e.target.value })}
-                  placeholder="g"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="custom-fat" className="text-xs text-chart-fat">Fat (g) / 100g</Label>
-                <Input
-                  id="custom-fat"
-                  type="number"
-                  step="0.1"
-                  value={customFoodForm.fat}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, fat: e.target.value })}
-                  placeholder="g"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="custom-fiber" className="text-xs text-chart-fiber">Fiber (g) / 100g</Label>
-                <Input
-                  id="custom-fiber"
-                  type="number"
-                  step="0.1"
-                  value={customFoodForm.fiber}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, fiber: e.target.value })}
-                  placeholder="g"
-                  className="h-10 text-sm bg-background/40 font-mono tabular-nums"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="custom-aliases" className="text-xs">Aliases (Comma separated)</Label>
-              <Input
-                id="custom-aliases"
-                value={customFoodForm.aliases}
-                onChange={(e) => setCustomFoodForm({ ...customFoodForm, aliases: e.target.value })}
-                placeholder="e.g. Chapathi, Roti, Phulka"
-                className="h-10 text-sm bg-background/40"
-              />
-            </div>
-
-            <DialogFooter className="pt-2 gap-2 flex-row justify-end">
+            <DialogFooter className="flex-row gap-2.5 pt-1">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 onClick={() => setIsCustomDialogOpen(false)}
-                className="h-10"
+                className="h-[52px] w-[106px] flex-none rounded-[14px]"
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                size="sm"
-                className="h-10"
-              >
+              <Button type="submit" className="h-[52px] flex-1 rounded-[14px]">
                 Save Food
               </Button>
             </DialogFooter>
