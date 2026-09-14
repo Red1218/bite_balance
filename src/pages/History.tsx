@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import EditMealDialog from '@/components/EditMealDialog';
 
 interface MealInfo {
+  id: string;
   name: string;
   calories: number;
   time: string;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  meal_time: string;
 }
 
 interface DaySummary {
@@ -45,10 +53,13 @@ interface MonthDay {
 
 const History = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
   const [historyDays, setHistoryDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [editingMeal, setEditingMeal] = useState<MealInfo | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Calendar month grid state — fetched independently of the 7-day view above
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -113,9 +124,15 @@ const History = () => {
           };
         }
         acc[dateKey].meals.push({
+          id: meal.id,
           name: meal.name,
           calories: Number(meal.calories),
           time: meal.meal_time ? meal.meal_time.charAt(0).toUpperCase() + meal.meal_time.slice(1) : 'Snack',
+          protein: Number(meal.protein || 0),
+          carbs: Number(meal.carbs || 0),
+          fat: Number(meal.fat || 0),
+          fiber: Number(meal.fiber || 0),
+          meal_time: meal.meal_time || 'snack',
         });
         acc[dateKey].totalCalories += Number(meal.calories);
         acc[dateKey].totalProtein += Number(meal.protein || 0);
@@ -223,6 +240,39 @@ const History = () => {
   useEffect(() => {
     fetchMonthData();
   }, [user, calendarMonth]);
+
+  const handleEditMeal = (meal: MealInfo) => {
+    setEditingMeal(meal);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteMeal = async (mealId: string, mealName: string) => {
+    if (!user || !window.confirm(`Delete "${mealName}"?`)) return;
+    const { error } = await supabase.from('daily_meals').delete().eq('id', mealId).eq('user_id', user.id);
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to delete meal', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Meal deleted', description: `"${mealName}" has been removed.` });
+    fetchHistory();
+    fetchMonthData();
+  };
+
+  const handleSaveMeal = async (updates: any) => {
+    if (!user || !editingMeal) return;
+    const { error } = await supabase
+      .from('daily_meals')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', editingMeal.id)
+      .eq('user_id', user.id);
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to update meal', variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Meal updated', description: `"${updates.name || editingMeal.name}" has been updated.` });
+    fetchHistory();
+    fetchMonthData();
+  };
 
   // Find summary for selected date
   const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
@@ -536,14 +586,32 @@ const History = () => {
                   <div className="elevation-card divide-y divide-border overflow-hidden p-0">
                     {selectedDayMeals.map((meal, index) => (
                       <div key={index} className="flex items-center justify-between px-[15px] py-[13px]">
-                        <div>
-                          <h4 className="font-sans text-sm font-medium text-foreground">{meal.name}</h4>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="truncate font-sans text-sm font-medium text-foreground">{meal.name}</h4>
                           <p className="mt-0.5 font-sans text-[11px] text-muted-foreground">{meal.time}</p>
                         </div>
-                        <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                        <span className="flex-none font-mono text-sm font-semibold tabular-nums text-foreground">
                           {meal.calories}
                           <span className="font-sans text-[10px] font-normal text-muted-foreground"> cal</span>
                         </span>
+                        <div className="ml-3 flex flex-none gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleEditMeal(meal)}
+                            aria-label={`Edit ${meal.name}`}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 text-primary transition-colors hover:bg-primary/14"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMeal(meal.id, meal.name)}
+                            aria-label={`Delete ${meal.name}`}
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 text-primary transition-colors hover:bg-primary/14"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -622,6 +690,14 @@ const History = () => {
           </div>
         </>
       )}
+
+      <EditMealDialog
+        meal={editingMeal}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onSave={handleSaveMeal}
+        isDailyMeal={true}
+      />
     </div>
   );
 };
