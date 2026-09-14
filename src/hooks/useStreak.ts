@@ -1,18 +1,18 @@
  import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 export const useStreak = () => {
   const { user } = useAuth();
+  const { mealsLoggedAt } = useAddMealSheet();
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const calculateStreak = async () => {
     if (!user) return;
-
-    const calculateStreak = async () => {
-      setLoading(true);
-      try {
+    setLoading(true);
+    try {
         // Fetch distinct logged_dates for the last 60 days (enough to capture long streaks)
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
@@ -54,15 +54,21 @@ export const useStreak = () => {
         }
 
         setStreak(count);
-      } catch (err) {
-        console.error('Error calculating streak:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    } catch (err) {
+      console.error('Error calculating streak:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    if (!user) return;
     calculateStreak();
   }, [user]);
+
+  useEffect(() => {
+    if (mealsLoggedAt > 0) calculateStreak();
+  }, [mealsLoggedAt]);
 
   return { streak, loading };
 };

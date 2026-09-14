@@ -113,6 +113,7 @@ const DescribeMealLog = ({ defaultMealTime }: DescribeMealLogProps) => {
   };
 
   const handleBannerOption = async (option: string) => {
+    if (sending) return;
     setSending(true);
     const nextHistory: ChatTurn[] = [...history, { role: 'user', content: option }];
     try {
@@ -268,7 +269,7 @@ const DescribeMealLog = ({ defaultMealTime }: DescribeMealLogProps) => {
           setBanner(null);
         }}
         backLabel="Edit description"
-        saving={saving}
+        saving={saving || sending}
         banner={banner ? { text: banner.text, options: banner.options, onSelect: handleBannerOption } : undefined}
       />
     );

@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import AppDrawer from './AppDrawer';
 import BottomNav from './BottomNav';
-import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const AddMeal = lazy(() => import('../pages/AddMeal'));
@@ -43,6 +43,7 @@ const AppLayout = () => {
 
       <Drawer open={addMealOpen} onOpenChange={(next) => { if (!next) closeAddMeal(); }}>
         <DrawerContent className="max-h-[92vh]">
+          <DrawerTitle className="sr-only">Add meal</DrawerTitle>
           <div className="overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]">
             <Suspense
               fallback={
