@@ -12,7 +12,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import {
-  ChevronLeft,
   Search,
   Edit3,
   ScanBarcode,
@@ -24,7 +23,6 @@ import {
   CheckCircle,
   Flame
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { FoodSearch } from '@/components/FoodSearch';
@@ -45,6 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import ChatMealLog from '@/components/ChatMealLog';
+import DescribeMealLog from '@/components/DescribeMealLog';
+import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const categories = [
   { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
@@ -78,7 +78,7 @@ const popularFoods = [
 const AddMeal = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const { closeAddMeal } = useAddMealSheet();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('search');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -543,7 +543,7 @@ const AddMeal = () => {
         notes: '',
       });
 
-      navigate('/');
+      closeAddMeal();
     } catch (error) {
       console.error('Error adding meal:', error);
       toast({
@@ -557,24 +557,9 @@ const AddMeal = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-md mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link to="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-xl bg-card border border-border text-muted-foreground hover:bg-accent"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <h1 className="text-xl font-display font-semibold text-foreground flex-1">Add meal</h1>
-        </div>
-
-        {/* Meal slot chips */}
-        <div className="flex gap-2 mb-6">
+    <div className="px-4 pb-6 pt-2">
+      {/* Meal slot chips */}
+      <div className="flex gap-2 mb-6">
           {(['breakfast', 'lunch', 'snack', 'dinner'] as const).map((slot) => {
             const isActive = mealData.mealTime === slot;
             return (
@@ -596,20 +581,24 @@ const AddMeal = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="search" className="flex items-center gap-1.5 px-2 text-xs sm:text-sm">
+          <TabsList className="grid w-full grid-cols-5 mb-6">
+            <TabsTrigger value="search" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
               <Search className="w-3.5 h-3.5" />
               Search
             </TabsTrigger>
-            <TabsTrigger value="indian" className="flex items-center gap-1.5 px-2 text-xs sm:text-sm">
+            <TabsTrigger value="indian" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
               <Sparkles className="w-3.5 h-3.5 text-chart-carbs" />
               Indian
             </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-1.5 px-2 text-xs sm:text-sm">
+            <TabsTrigger value="describe" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
               <Sparkles className="w-3.5 h-3.5" />
-              AI Log
+              Describe
             </TabsTrigger>
-            <TabsTrigger value="manual" className="flex items-center gap-1.5 px-2 text-xs sm:text-sm">
+            <TabsTrigger value="chat" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
+              <Sparkles className="w-3.5 h-3.5" />
+              Chat
+            </TabsTrigger>
+            <TabsTrigger value="manual" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
               <Edit3 className="w-3.5 h-3.5" />
               Manual
             </TabsTrigger>
@@ -869,7 +858,11 @@ const AddMeal = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="ai">
+          <TabsContent value="describe">
+            <DescribeMealLog defaultMealTime={mealData.mealTime} />
+          </TabsContent>
+
+          <TabsContent value="chat">
             <ChatMealLog defaultMealTime={mealData.mealTime} />
           </TabsContent>
 
@@ -1079,9 +1072,8 @@ const AddMeal = () => {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
-      
-      <BarcodeScanner 
+
+      <BarcodeScanner
         open={isScannerOpen} 
         onOpenChange={setIsScannerOpen} 
         onScanSuccess={handleFoodSelect} 
