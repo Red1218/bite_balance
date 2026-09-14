@@ -11,6 +11,15 @@ export interface DailyMeal {
   carbs: number;
   fat: number;
   fiber?: number;
+  vitamin_c?: number;
+  vitamin_d?: number;
+  vitamin_b12?: number;
+  iron?: number;
+  calcium?: number;
+  potassium?: number;
+  sodium?: number;
+  magnesium?: number;
+  zinc?: number;
   meal_time: string;
   logged_date: string;
   logged_at: string;
