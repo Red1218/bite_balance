@@ -8,6 +8,7 @@ import { X, Plus, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { findExistingSavedItemByName } from '@/services/foodService';
 
 interface AddSavedMealFormProps {
   onMealAdded: () => void;
@@ -63,6 +64,14 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
         variant: 'destructive',
       });
       return;
+    }
+
+    const existing = await findExistingSavedItemByName(formData.name);
+    if (existing) {
+      const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
+      if (!window.confirm(`You already have a ${kind} named "${formData.name}". Save this anyway?`)) {
+        return;
+      }
     }
 
     setLoading(true);

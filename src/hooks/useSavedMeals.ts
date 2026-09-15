@@ -22,6 +22,7 @@ export interface SavedMeal {
   zinc?: number;
   tags: string[];
   notes: string;
+  created_at: string;
 }
 
 export const useSavedMeals = () => {

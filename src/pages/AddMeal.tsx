@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createCustomFood } from '@/services/foodService';
+import { createCustomFood, findExistingSavedItemByName } from '@/services/foodService';
 import {
   Dialog,
   DialogContent,
@@ -81,6 +81,14 @@ const AddMeal = () => {
         variant: 'destructive',
       });
       return;
+    }
+
+    const existing = await findExistingSavedItemByName(customFoodForm.name);
+    if (existing) {
+      const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
+      if (!window.confirm(`You already have a ${kind} named "${customFoodForm.name}". Save this anyway?`)) {
+        return;
+      }
     }
 
     try {
