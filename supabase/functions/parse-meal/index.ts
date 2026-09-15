@@ -1,11 +1,16 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { FoodDbEntry, indianFoodDb } from '../_shared/indianFoodDb.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
     'authorization, x-client-info, apikey, content-type',
 };
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_ANON_KEY')!
+);
 
 interface ParseResponse {
   name: string;
@@ -14,23 +19,57 @@ interface ParseResponse {
   carbs: number;
   fat: number;
   fiber: number;
+  vitaminC: number;
+  vitaminD: number;
+  vitaminB12: number;
+  iron: number;
+  calcium: number;
+  potassium: number;
+  sodium: number;
+  magnesium: number;
+  zinc: number;
 }
 
+// Small per-item nutrition entry used only by the tiny generic fallback table
+// below (when neither the real DB nor Gemini can answer).
+interface FoodDbEntry {
+  cal: number;
+  pro: number;
+  carb: number;
+  fat: number;
+  fib: number;
+  defaultGrams: number;
+  isCountable?: boolean;
+}
+
+const ZERO_MICROS = {
+  vitaminC: 0, vitaminD: 0, vitaminB12: 0, iron: 0, calcium: 0,
+  potassium: 0, sodium: 0, magnesium: 0, zinc: 0,
+};
+
+// Strips a weight/count phrase (e.g. "150g", "2 ") from free text so what's left is
+// just the food name -- search_foods does `name ILIKE '%query%'`, so the query needs
+// to be a short phrase that could appear IN a food name, not a sentence containing one.
+const extractFoodQuery = (text: string): string => {
+  const numberWords = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  let cleaned = text.replace(/\d+(?:\.\d+)?\s*(g|grams|gram|oz|ounces|ounce)\b/gi, ' ');
+  cleaned = cleaned.replace(new RegExp(`\\b(\\d+|${numberWords.join('|')})\\b`, 'gi'), ' ');
+  return cleaned.replace(/\s+/g, ' ').trim();
+};
+
+const parseWeightGrams = (text: string): number | null => {
+  const match = text.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(g|grams|gram|oz|ounces|ounce)/i);
+  if (!match) return null;
+  const val = parseFloat(match[1]);
+  return match[2].toLowerCase().startsWith('oz') ? val * 28.35 : val;
+};
+
 // Matches food names from `db` in `text`, parsing an explicit weight ("150g") or
-// count ("2 eggs") per match and summing across every matched item. Shared by the
-// curated Indian dish lookup and the generic rule-based fallback below.
+// count ("2 eggs") per match and summing across every matched item. Used by the
+// generic rule-based fallback below.
 const matchFoodDatabase = (text: string, db: Record<string, FoodDbEntry>): ParseResponse | null => {
   const lower = text.toLowerCase();
-
-  // Try to parse weight (e.g., "150g", "200 grams", "3 ounces", "2.5 oz")
-  const weightRegex = /(\d+(?:\.\d+)?)\s*(g|grams|gram|oz|ounces|ounce)/gi;
-  let parsedWeightGrams: number | null = null;
-  const weightMatch = weightRegex.exec(lower);
-  if (weightMatch) {
-    const val = parseFloat(weightMatch[1]);
-    const unit = weightMatch[2].toLowerCase();
-    parsedWeightGrams = unit.startsWith('oz') ? val * 28.35 : val;
-  }
+  const parsedWeightGrams = parseWeightGrams(text);
 
   // Try to parse count (e.g., "2 eggs", "3 bananas", "1 slice of bread")
   const getCount = (itemName: string): number => {
@@ -86,10 +125,11 @@ const matchFoodDatabase = (text: string, db: Record<string, FoodDbEntry>): Parse
     carbs: Math.round(carbs * 10) / 10,
     fat: Math.round(fat * 10) / 10,
     fiber: Math.round(fiber * 10) / 10,
+    ...ZERO_MICROS,
   };
 };
 
-// Simple rule-based parser fallback when both the Indian dish DB and Gemini miss
+// Simple rule-based parser fallback when both the food database and Gemini miss
 const parseTextFallback = (text: string): ParseResponse => {
   // Database of standard foods per 100g
   const foodDatabase: Record<string, FoodDbEntry> = {
@@ -141,6 +181,7 @@ const parseTextFallback = (text: string): ParseResponse => {
     carbs: 45,
     fat: 10,
     fiber: 2,
+    ...ZERO_MICROS,
   };
 };
 
@@ -158,13 +199,43 @@ serve(async (req) => {
     );
   }
 
-  // Check the curated Indian dish database first — a fixed, consistent answer for
-  // known dishes beats a fresh Gemini estimate that can drift between requests.
-  const indianMatch = matchFoodDatabase(text, indianFoodDb);
-  if (indianMatch) {
-    return new Response(JSON.stringify(indianMatch), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  // Check the real food database first — a real, verified value beats a fresh
+  // Gemini estimate that can drift between requests. search_foods does a substring
+  // match against the food name, so strip the weight/count phrase first.
+  const foodQuery = extractFoodQuery(text);
+  if (foodQuery.length >= 3) {
+    const { data: matches, error: searchError } = await supabase.rpc('search_foods', {
+      search_query: foodQuery,
     });
+    if (searchError) console.warn('search_foods failed:', searchError.message);
+
+    const dbMatch = matches?.[0];
+    if (dbMatch) {
+      const weightGrams = parseWeightGrams(text) ?? (Number(dbMatch.serving_size) || 100);
+      const factor = weightGrams / 100;
+      const scale = (n: number | null) => Math.round((Number(n) || 0) * factor * 10) / 10;
+
+      const result: ParseResponse = {
+        name: dbMatch.name,
+        calories: Math.round((Number(dbMatch.calories) || 0) * factor),
+        protein: scale(dbMatch.protein),
+        carbs: scale(dbMatch.carbs),
+        fat: scale(dbMatch.fat),
+        fiber: scale(dbMatch.fiber),
+        vitaminC: scale(dbMatch.vitamin_c),
+        vitaminD: scale(dbMatch.vitamin_d),
+        vitaminB12: scale(dbMatch.vitamin_b12),
+        iron: scale(dbMatch.iron),
+        calcium: scale(dbMatch.calcium),
+        potassium: scale(dbMatch.potassium),
+        sodium: scale(dbMatch.sodium),
+        magnesium: scale(dbMatch.magnesium),
+        zinc: scale(dbMatch.zinc),
+      };
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   const geminiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GEMINI_KEY');
@@ -191,7 +262,16 @@ Format:
   "protein": number (grams),
   "carbs": number (grams),
   "fat": number (grams),
-  "fiber": number (grams)
+  "fiber": number (grams),
+  "vitaminC": number (mg),
+  "vitaminD": number (mcg),
+  "vitaminB12": number (mcg),
+  "iron": number (mg),
+  "calcium": number (mg),
+  "potassium": number (mg),
+  "sodium": number (mg),
+  "magnesium": number (mg),
+  "zinc": number (mg)
 }
 Estimate values accurately based on average food tables. Return ONLY the JSON object, do not explain your response.`;
 
@@ -241,13 +321,23 @@ Estimate values accurately based on average food tables. Return ONLY the JSON ob
     const parsedJson: ParseResponse = JSON.parse(candidateText.trim());
 
     // Validate fields and ensure numbers are rounded
+    const scaleField = (n: unknown) => Math.round((Number(n) || 0) * 10) / 10;
     const result: ParseResponse = {
       name: parsedJson.name || text,
       calories: Math.round(Number(parsedJson.calories) || 0),
-      protein: Math.round((Number(parsedJson.protein) || 0) * 10) / 10,
-      carbs: Math.round((Number(parsedJson.carbs) || 0) * 10) / 10,
-      fat: Math.round((Number(parsedJson.fat) || 0) * 10) / 10,
-      fiber: Math.round((Number(parsedJson.fiber) || 0) * 10) / 10,
+      protein: scaleField(parsedJson.protein),
+      carbs: scaleField(parsedJson.carbs),
+      fat: scaleField(parsedJson.fat),
+      fiber: scaleField(parsedJson.fiber),
+      vitaminC: scaleField(parsedJson.vitaminC),
+      vitaminD: scaleField(parsedJson.vitaminD),
+      vitaminB12: scaleField(parsedJson.vitaminB12),
+      iron: scaleField(parsedJson.iron),
+      calcium: scaleField(parsedJson.calcium),
+      potassium: scaleField(parsedJson.potassium),
+      sodium: scaleField(parsedJson.sodium),
+      magnesium: scaleField(parsedJson.magnesium),
+      zinc: scaleField(parsedJson.zinc),
     };
 
     return new Response(JSON.stringify(result), {

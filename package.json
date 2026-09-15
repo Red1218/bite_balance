@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts"
   },
   "dependencies": {
     "@capacitor/android": "^7.3.0",

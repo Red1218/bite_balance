@@ -42,6 +42,7 @@ const categories = [
   { id: 'dairy', name: 'Dairy', icon: '🧀' },
   { id: 'eggs', name: 'Eggs', icon: '🥚' },
   { id: 'chicken', name: 'Chicken', icon: '🍗' },
+  { id: 'meat', name: 'Meat', icon: '🥩' },
   { id: 'seafood', name: 'Seafood', icon: '🐟' },
   { id: 'snacks', name: 'Snacks', icon: '🥟' },
   { id: 'beverages', name: 'Beverages', icon: '☕' },
@@ -173,6 +174,15 @@ const AddMeal = () => {
     carbs: number;
     fat: number;
     fiber: number;
+    vitaminC: number;
+    vitaminD: number;
+    vitaminB12: number;
+    iron: number;
+    calcium: number;
+    potassium: number;
+    sodium: number;
+    magnesium: number;
+    zinc: number;
     servingSizeWeight: number;
   } | null>(null);
   const [portionWeight, setPortionWeight] = useState<string>('100');
@@ -193,6 +203,15 @@ const AddMeal = () => {
     carbs: '',
     fat: '',
     fiber: '',
+    vitaminC: '',
+    vitaminD: '',
+    vitaminB12: '',
+    iron: '',
+    calcium: '',
+    potassium: '',
+    sodium: '',
+    magnesium: '',
+    zinc: '',
     date: new Date().toISOString().split('T')[0],
     notes: '',
   });
@@ -203,13 +222,23 @@ const AddMeal = () => {
 
     if (baseNutrition && !isNaN(newWeight) && newWeight > 0) {
       const ratio = newWeight / baseNutrition.servingSizeWeight;
+      const scale = (n: number) => String(Math.round(n * ratio * 10) / 10);
       setMealData((prev) => ({
         ...prev,
         calories: String(Math.round(baseNutrition.calories * ratio)),
-        protein: String(Math.round(baseNutrition.protein * ratio * 10) / 10),
-        carbs: String(Math.round(baseNutrition.carbs * ratio * 10) / 10),
-        fat: String(Math.round(baseNutrition.fat * ratio * 10) / 10),
-        fiber: String(Math.round(baseNutrition.fiber * ratio * 10) / 10),
+        protein: scale(baseNutrition.protein),
+        carbs: scale(baseNutrition.carbs),
+        fat: scale(baseNutrition.fat),
+        fiber: scale(baseNutrition.fiber),
+        vitaminC: scale(baseNutrition.vitaminC),
+        vitaminD: scale(baseNutrition.vitaminD),
+        vitaminB12: scale(baseNutrition.vitaminB12),
+        iron: scale(baseNutrition.iron),
+        calcium: scale(baseNutrition.calcium),
+        potassium: scale(baseNutrition.potassium),
+        sodium: scale(baseNutrition.sodium),
+        magnesium: scale(baseNutrition.magnesium),
+        zinc: scale(baseNutrition.zinc),
       }));
     }
   };
@@ -265,6 +294,15 @@ const AddMeal = () => {
           carbs: data.carbs,
           fat: data.fat,
           fiber: data.fiber,
+          vitaminC: data.vitaminC ?? 0,
+          vitaminD: data.vitaminD ?? 0,
+          vitaminB12: data.vitaminB12 ?? 0,
+          iron: data.iron ?? 0,
+          calcium: data.calcium ?? 0,
+          potassium: data.potassium ?? 0,
+          sodium: data.sodium ?? 0,
+          magnesium: data.magnesium ?? 0,
+          zinc: data.zinc ?? 0,
           servingSizeWeight: parsedWeight,
         });
         setPortionWeight(String(parsedWeight));
@@ -277,6 +315,15 @@ const AddMeal = () => {
           carbs: String(data.carbs),
           fat: String(data.fat),
           fiber: String(data.fiber),
+          vitaminC: String(data.vitaminC ?? 0),
+          vitaminD: String(data.vitaminD ?? 0),
+          vitaminB12: String(data.vitaminB12 ?? 0),
+          iron: String(data.iron ?? 0),
+          calcium: String(data.calcium ?? 0),
+          potassium: String(data.potassium ?? 0),
+          sodium: String(data.sodium ?? 0),
+          magnesium: String(data.magnesium ?? 0),
+          zinc: String(data.zinc ?? 0),
         });
 
         toast({
@@ -328,6 +375,15 @@ const AddMeal = () => {
         carbs: Number(mealData.carbs) || 0,
         fat: Number(mealData.fat) || 0,
         fiber: Number(mealData.fiber) || 0,
+        vitamin_c: Number(mealData.vitaminC) || 0,
+        vitamin_d: Number(mealData.vitaminD) || 0,
+        vitamin_b12: Number(mealData.vitaminB12) || 0,
+        iron: Number(mealData.iron) || 0,
+        calcium: Number(mealData.calcium) || 0,
+        potassium: Number(mealData.potassium) || 0,
+        sodium: Number(mealData.sodium) || 0,
+        magnesium: Number(mealData.magnesium) || 0,
+        zinc: Number(mealData.zinc) || 0,
         meal_time: mealData.mealTime,
         logged_date: mealData.date,
       });
@@ -347,9 +403,19 @@ const AddMeal = () => {
         carbs: '',
         fat: '',
         fiber: '',
+        vitaminC: '',
+        vitaminD: '',
+        vitaminB12: '',
+        iron: '',
+        calcium: '',
+        potassium: '',
+        sodium: '',
+        magnesium: '',
+        zinc: '',
         date: new Date().toISOString().split('T')[0],
         notes: '',
       });
+      setBaseNutrition(null);
 
       notifyMealsLogged();
       closeAddMeal();
