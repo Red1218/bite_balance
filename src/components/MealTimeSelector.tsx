@@ -1,63 +1,97 @@
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Clock, Coffee, Sun, Sunset, Moon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
+import { Coffee, Sun, Sunset, Moon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface MealTimeSelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (mealTime: string) => void;
   mealName: string;
+  kcal?: number;
 }
+
+const mealTimes = [
+  { value: 'breakfast', label: 'Breakfast', icon: Coffee },
+  { value: 'lunch', label: 'Lunch', icon: Sun },
+  { value: 'dinner', label: 'Dinner', icon: Sunset },
+  { value: 'snack', label: 'Snack', icon: Moon },
+] as const;
+
+const defaultSlotForNow = () => {
+  const hour = new Date().getHours();
+  if (hour < 11) return 'breakfast';
+  if (hour < 16) return 'lunch';
+  if (hour < 21) return 'dinner';
+  return 'snack';
+};
 
 const MealTimeSelector: React.FC<MealTimeSelectorProps> = ({
   open,
   onOpenChange,
   onSelect,
   mealName,
+  kcal,
 }) => {
-  const mealTimes = [
-    { value: 'breakfast', label: 'Breakfast', icon: Coffee },
-    { value: 'lunch', label: 'Lunch', icon: Sun },
-    { value: 'dinner', label: 'Dinner', icon: Sunset },
-    { value: 'snack', label: 'Snack', icon: Moon },
-  ];
+  const [selected, setSelected] = useState(defaultSlotForNow);
+
+  useEffect(() => {
+    if (open) setSelected(defaultSlotForNow());
+  }, [open]);
+
+  const selectedLabel = mealTimes.find((m) => m.value === selected)?.label ?? 'Snack';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-xl">
-        <DialogHeader>
-          <DialogTitle className="text-center font-display">
-            <Clock className="w-5 h-5 inline mr-2 text-primary" />
-            Which meal is this for?
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground text-center mt-2">
-            Adding "<strong className="text-foreground">{mealName}</strong>" to today
-          </p>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {mealTimes.map((mealTime) => {
-            const IconComponent = mealTime.icon;
-            return (
-              <Button
-                key={mealTime.value}
-                variant="outline"
-                className="h-16 flex flex-col gap-1 rounded-xl hover:bg-primary/10 hover:border-primary/30"
-                onClick={() => onSelect(mealTime.value)}
-              >
-                <IconComponent className="w-5 h-5 text-primary" />
-                <span className="text-sm">{mealTime.label}</span>
-              </Button>
-            );
-          })}
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="rounded-t-3xl">
+        <DrawerTitle className="sr-only">Add to today</DrawerTitle>
+        <div className="px-5 pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-3 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 font-display font-semibold text-lg text-foreground truncate">
+              {mealName}
+            </div>
+            {typeof kcal === 'number' && (
+              <div className="font-mono font-semibold text-base tabular-nums text-foreground flex-none">
+                {Math.round(kcal)}
+                <span className="text-[10px] font-normal text-muted-foreground ml-1">kcal</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            {mealTimes.map((mealTime) => {
+              const Icon = mealTime.icon;
+              const active = selected === mealTime.value;
+              return (
+                <button
+                  key={mealTime.value}
+                  type="button"
+                  onClick={() => setSelected(mealTime.value)}
+                  className={cn(
+                    'flex-1 h-14 rounded-xl border flex flex-col items-center justify-center gap-1 transition-colors',
+                    active
+                      ? 'bg-primary/12 border-primary/40 text-primary'
+                      : 'bg-muted border-border text-muted-foreground'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[11px] font-medium">{mealTime.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onSelect(selected)}
+            className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-semibold text-sm"
+          >
+            Add to {selectedLabel.toLowerCase()}
+            {typeof kcal === 'number' ? ` · ${Math.round(kcal)} kcal` : ''}
+          </button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 };
 

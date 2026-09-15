@@ -2,14 +2,44 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Plus, Search, Pencil, Trash2, UtensilsCrossed, Apple } from 'lucide-react';
+import { ChevronLeft, Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { useSavedMeals, SavedMeal } from '@/hooks/useSavedMeals';
 import { useDailyMeals } from '@/hooks/useDailyMeals';
 import { getMyCustomFoods, deleteCustomFood, IndianFood } from '@/services/foodService';
 import EditMealDialog from '@/components/EditMealDialog';
 import AddSavedMealForm from '@/components/AddSavedMealForm';
 import MealTimeSelector from '@/components/MealTimeSelector';
+
+// Merge saved meals and custom foods into one chronological list -- both are
+// "things I saved to reuse later", just with different shapes and actions.
+type SavedItem =
+  | { kind: 'meal'; created_at: string; meal: SavedMeal }
+  | { kind: 'food'; created_at: string; food: IndianFood };
+
+type TypeFilter = 'all' | 'meal' | 'food';
+
+// Visual proportion of a segmented macro bar -- fiber is weighted at 2 kcal/g
+// here purely so all four segments read clearly at a glance; it is not a
+// real calorie count and is never shown as one.
+const macroWidths = (p: number, c: number, f: number, fb: number) => {
+  const energy = p * 4 + c * 4 + f * 9 + fb * 2;
+  if (!energy) return { pw: '0%', cw: '0%', fw: '0%', bw: '0%' };
+  const w = (v: number) => `${Math.round((v / energy) * 1000) / 10}%`;
+  return { pw: w(p * 4), cw: w(c * 4), fw: w(f * 9), bw: w(fb * 2) };
+};
+
+const bucketLabel = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffDays = (now.getTime() - d.getTime()) / 86400000;
+  if (diffDays < 7) return 'This week';
+  const month = d.toLocaleDateString('en-US', { month: 'long' });
+  const sameMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  if (sameMonth) return `Earlier in ${month}`;
+  return d.getFullYear() === now.getFullYear() ? month : `${month} ${d.getFullYear()}`;
+};
 
 const SavedMeals = () => {
   const {
@@ -19,12 +49,13 @@ const SavedMeals = () => {
     deleteMeal,
     refetch,
   } = useSavedMeals();
-  const { addMealFromSaved } = useDailyMeals();
+  const { addMealFromSaved, addFoodFromSaved } = useDailyMeals();
   const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedMealForToday, setSelectedMealForToday] = useState<SavedMeal | null>(null);
+  const [selectedItemForToday, setSelectedItemForToday] = useState<SavedItem | null>(null);
   const [isMealTimeSelectorOpen, setIsMealTimeSelectorOpen] = useState(false);
 
   const [customFoods, setCustomFoods] = useState<IndianFood[]>([]);
@@ -47,19 +78,15 @@ const SavedMeals = () => {
     }
   };
 
-  // Merge saved meals and custom foods into one chronological list -- both are
-  // "things I saved to reuse later", just with different shapes and actions.
-  type SavedItem =
-    | { kind: 'meal'; created_at: string; meal: SavedMeal }
-    | { kind: 'food'; created_at: string; food: IndianFood };
-
   const savedItems: SavedItem[] = [
     ...savedMeals.map((meal): SavedItem => ({ kind: 'meal', created_at: meal.created_at, meal })),
     ...customFoods.map((food): SavedItem => ({ kind: 'food', created_at: food.created_at, food })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const filteredItems = savedItems.filter((item) => {
+    if (typeFilter !== 'all' && item.kind !== typeFilter) return false;
     const term = searchTerm.toLowerCase();
+    if (!term) return true;
     if (item.kind === 'meal') {
       return (
         item.meal.name.toLowerCase().includes(term) ||
@@ -69,17 +96,31 @@ const SavedMeals = () => {
     return item.food.name.toLowerCase().includes(term);
   });
 
-  const handleQuickAdd = async (meal: SavedMeal) => {
-    setSelectedMealForToday(meal);
+  const groups = (() => {
+    const map = new Map<string, SavedItem[]>();
+    for (const item of filteredItems) {
+      const label = bucketLabel(item.created_at);
+      if (!map.has(label)) map.set(label, []);
+      map.get(label)!.push(item);
+    }
+    return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
+  })();
+
+  const handleQuickAdd = (item: SavedItem) => {
+    setSelectedItemForToday(item);
     setIsMealTimeSelectorOpen(true);
   };
 
   const handleMealTimeSelect = async (mealTime: string) => {
-    if (selectedMealForToday) {
-      await addMealFromSaved(selectedMealForToday, mealTime);
+    if (selectedItemForToday) {
+      if (selectedItemForToday.kind === 'meal') {
+        await addMealFromSaved(selectedItemForToday.meal, mealTime);
+      } else {
+        await addFoodFromSaved(selectedItemForToday.food, mealTime);
+      }
     }
     setIsMealTimeSelectorOpen(false);
-    setSelectedMealForToday(null);
+    setSelectedItemForToday(null);
   };
 
   const handleEditMeal = (meal: SavedMeal) => {
@@ -104,6 +145,12 @@ const SavedMeals = () => {
     refetch();
   };
 
+  const typeFilters: { value: TypeFilter; label: string; count: number }[] = [
+    { value: 'all', label: 'All', count: savedItems.length },
+    { value: 'meal', label: 'Meals', count: savedMeals.length },
+    { value: 'food', label: 'Foods', count: customFoods.length },
+  ];
+
   if (loading || foodsLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -121,9 +168,9 @@ const SavedMeals = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-md mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-md mx-auto px-4 py-6 space-y-5">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3">
           <Link to="/">
             <Button
               variant="ghost"
@@ -133,11 +180,12 @@ const SavedMeals = () => {
               <ChevronLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <div className="flex-1">
-            <h1 className="text-xl font-display font-semibold text-foreground">Saved</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {savedMeals.length} meal{savedMeals.length === 1 ? '' : 's'} · {customFoods.length} food{customFoods.length === 1 ? '' : 's'}
-            </p>
+          <h1 className="flex-1 text-xl font-display font-semibold text-foreground">Saved</h1>
+          <div className="flex items-baseline gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
+            <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
+              {savedItems.length}
+            </span>
+            <span className="text-[10px] text-muted-foreground">items saved</span>
           </div>
           <Button
             onClick={() => setShowAddForm(true)}
@@ -150,16 +198,34 @@ const SavedMeals = () => {
         </div>
 
         {/* Search */}
-        <div className="elevation-card p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search saved meals or foods..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-background/50 border-border text-foreground placeholder:text-muted-foreground rounded-xl h-12 backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
-            />
-          </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search meals and foods..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground rounded-xl h-11 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
+          />
+        </div>
+
+        {/* Type filter chips */}
+        <div className="flex gap-1.5">
+          {typeFilters.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setTypeFilter(f.value)}
+              className={cn(
+                'h-8 rounded-full px-3 flex items-center gap-1.5 text-xs font-medium border transition-colors',
+                typeFilter === f.value
+                  ? 'bg-primary/12 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground'
+              )}
+            >
+              {f.label}
+              <span className="font-mono text-[11px] opacity-70 tabular-nums">{f.count}</span>
+            </button>
+          ))}
         </div>
 
         {/* Add New Meal Form */}
@@ -170,131 +236,182 @@ const SavedMeals = () => {
           />
         )}
 
-        {/* Saved Meals + Foods List */}
-        <div className="space-y-4">
-          {filteredItems.map((item) =>
-            item.kind === 'meal' ? (
-              <div key={`meal-${item.meal.id}`} className="elevation-card p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/12 border border-primary/24 flex-none flex items-center justify-center font-mono text-xs font-semibold text-primary">
-                    {item.meal.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <UtensilsCrossed className="w-3 h-3 text-muted-foreground flex-none" />
-                      <h3 className="font-medium text-foreground leading-tight truncate">
-                        {item.meal.name}
-                      </h3>
-                    </div>
-                    {item.meal.tags && item.meal.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {item.meal.tags.map((tag, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="text-[10px] bg-background/50 text-muted-foreground border-border font-normal"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
+        {/* Saved Meals + Foods, grouped by recency */}
+        <div className="space-y-5">
+          {groups.map((group) => (
+            <div key={group.label} className="space-y-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="font-mono text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/70 whitespace-nowrap">
+                  {group.label}
+                </div>
+                <div className="flex-1 h-px bg-border" />
+                <div className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">
+                  {group.items.length}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {group.items.map((item) =>
+                  item.kind === 'meal' ? (
+                    <div
+                      key={`meal-${item.meal.id}`}
+                      className="elevation-card border-l-[3px] border-l-primary p-3.5 flex flex-col gap-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="min-w-0 flex flex-col gap-1">
+                          <div className="font-display font-semibold text-base leading-tight text-foreground truncate">
+                            {item.meal.name}
+                          </div>
+                          <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Saved meal
+                          </div>
+                        </div>
+                        <div className="text-right flex-none">
+                          <div className="font-mono font-semibold text-lg tabular-nums text-foreground">
+                            {Math.round(item.meal.calories)}
+                          </div>
+                          <div className="text-[9px] tracking-wider text-muted-foreground uppercase">kcal</div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="text-right flex-none">
-                    <div className="font-mono font-semibold text-lg tabular-nums text-foreground">
-                      {item.meal.calories}
-                    </div>
-                    <div className="text-[9px] tracking-wider text-muted-foreground uppercase">kcal</div>
-                  </div>
-                  <div className="flex flex-none gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditMeal(item.meal)}
-                      className="text-muted-foreground hover:text-primary h-8 w-8"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteMeal(item.meal)}
-                      className="text-muted-foreground hover:text-primary h-8 w-8"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
 
-                {item.meal.notes && (
-                  <p className="text-sm text-muted-foreground italic bg-background/50 p-2 rounded-lg border border-border">
-                    {item.meal.notes}
-                  </p>
+                      {item.meal.tags && item.meal.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {item.meal.tags.map((tag, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="text-[10px] bg-muted text-muted-foreground border-border font-normal"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      {(() => {
+                        const { pw, cw, fw, bw } = macroWidths(
+                          item.meal.protein || 0,
+                          item.meal.carbs || 0,
+                          item.meal.fat || 0,
+                          item.meal.fiber || 0
+                        );
+                        return (
+                          <div className="flex flex-col gap-1.5">
+                            <div className="h-1.5 rounded-full overflow-hidden flex gap-px bg-muted">
+                              <div style={{ width: pw }} className="bg-chart-protein" />
+                              <div style={{ width: cw }} className="bg-chart-carbs" />
+                              <div style={{ width: fw }} className="bg-chart-fat" />
+                              <div style={{ width: bw }} className="bg-chart-fiber" />
+                            </div>
+                            <div className="flex gap-3 font-mono text-[10px] font-medium tabular-nums">
+                              <span className="flex items-center gap-1 text-chart-protein">
+                                <span className="w-1.5 h-1.5 rounded-full bg-chart-protein" />
+                                P {Math.round(item.meal.protein || 0)}
+                              </span>
+                              <span className="flex items-center gap-1 text-chart-carbs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-chart-carbs" />
+                                C {Math.round(item.meal.carbs || 0)}
+                              </span>
+                              <span className="flex items-center gap-1 text-chart-fat">
+                                <span className="w-1.5 h-1.5 rounded-full bg-chart-fat" />
+                                F {Math.round(item.meal.fat || 0)}
+                              </span>
+                              <span className="flex items-center gap-1 text-chart-fiber">
+                                <span className="w-1.5 h-1.5 rounded-full bg-chart-fiber" />
+                                Fib {Math.round(item.meal.fiber || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {item.meal.notes && (
+                        <div className="border-l-2 border-border pl-2.5">
+                          <p className="text-xs text-muted-foreground italic leading-relaxed">
+                            {item.meal.notes}
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAdd(item)}
+                          className="flex-1 h-10 rounded-[11px] bg-primary/10 border border-primary/30 text-primary flex items-center justify-center gap-1.5 font-semibold text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Quick add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEditMeal(item.meal)}
+                          className="w-10 h-10 rounded-[11px] border border-border text-muted-foreground flex items-center justify-center flex-none"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMeal(item.meal)}
+                          className="w-10 h-10 rounded-[11px] border border-border text-muted-foreground flex items-center justify-center flex-none"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key={`food-${item.food.id}`}
+                      className="rounded-xl bg-muted/60 border border-border p-2.5 flex items-center gap-2.5"
+                    >
+                      <div className="w-[38px] h-[38px] rounded-[10px] bg-card border border-border flex flex-col items-center justify-center flex-none">
+                        <div className="font-mono text-[11px] font-semibold text-foreground/80 tabular-nums">
+                          {item.food.serving_size}
+                        </div>
+                        <div className="font-mono text-[8px] tracking-wide text-muted-foreground">
+                          {item.food.serving_unit}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <div className="text-sm font-medium text-foreground truncate">{item.food.name}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          P {Math.round(item.food.protein || 0)}g · C {Math.round(item.food.carbs || 0)}g · F{' '}
+                          {Math.round(item.food.fat || 0)}g · Fb {Math.round(item.food.fiber || 0)}g
+                        </div>
+                      </div>
+                      <div className="text-right flex-none pr-0.5">
+                        <div className="font-mono font-medium text-sm tabular-nums text-foreground/80">
+                          {Math.round(item.food.calories)}
+                        </div>
+                        <div className="text-[8px] tracking-wider text-muted-foreground uppercase">kcal</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAdd(item)}
+                        aria-label={`Add ${item.food.name} to today`}
+                        className="w-10 h-10 rounded-full border border-primary/30 bg-primary/10 text-primary flex items-center justify-center flex-none"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFood(item.food)}
+                        aria-label={`Delete ${item.food.name}`}
+                        className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center flex-none"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )
                 )}
-
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 flex gap-3 font-mono text-xs font-medium tabular-nums">
-                    <span className="text-chart-protein">P {Math.round(item.meal.protein || 0)}</span>
-                    <span className="text-chart-carbs">C {Math.round(item.meal.carbs || 0)}</span>
-                    <span className="text-chart-fat">F {Math.round(item.meal.fat || 0)}</span>
-                    <span className="text-chart-fiber">Fib {Math.round(item.meal.fiber || 0)}</span>
-                  </div>
-                  <Button
-                    onClick={() => handleQuickAdd(item.meal)}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 flex-none"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1" />
-                    Quick add
-                  </Button>
-                </div>
               </div>
-            ) : (
-              <div key={`food-${item.food.id}`} className="elevation-card p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-muted flex-none flex items-center justify-center text-base">
-                    <Apple className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-foreground leading-tight truncate">
-                      {item.food.name}
-                    </h3>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
-                      Food · per {item.food.serving_size}{item.food.serving_unit}
-                    </p>
-                  </div>
-                  <div className="text-right flex-none">
-                    <div className="font-mono font-semibold text-lg tabular-nums text-foreground">
-                      {item.food.calories}
-                    </div>
-                    <div className="text-[9px] tracking-wider text-muted-foreground uppercase">kcal</div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteFood(item.food)}
-                    className="text-muted-foreground hover:text-primary h-8 w-8 flex-none"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-
-                <div className="flex gap-3 font-mono text-xs font-medium tabular-nums">
-                  <span className="text-chart-protein">P {Math.round(item.food.protein || 0)}</span>
-                  <span className="text-chart-carbs">C {Math.round(item.food.carbs || 0)}</span>
-                  <span className="text-chart-fat">F {Math.round(item.food.fat || 0)}</span>
-                  <span className="text-chart-fiber">Fib {Math.round(item.food.fiber || 0)}</span>
-                </div>
-              </div>
-            )
-          )}
+            </div>
+          ))}
         </div>
 
         {filteredItems.length === 0 && !showAddForm && (
           <div className="elevation-card p-8 text-center">
             <p className="text-muted-foreground mb-4">
-              {searchTerm
+              {searchTerm || typeFilter !== 'all'
                 ? 'Nothing saved matches your search.'
                 : 'Nothing saved yet.'}
             </p>
@@ -320,7 +437,20 @@ const SavedMeals = () => {
           open={isMealTimeSelectorOpen}
           onOpenChange={setIsMealTimeSelectorOpen}
           onSelect={handleMealTimeSelect}
-          mealName={selectedMealForToday?.name || ''}
+          mealName={
+            selectedItemForToday?.kind === 'meal'
+              ? selectedItemForToday.meal.name
+              : selectedItemForToday?.kind === 'food'
+              ? selectedItemForToday.food.name
+              : ''
+          }
+          kcal={
+            selectedItemForToday?.kind === 'meal'
+              ? selectedItemForToday.meal.calories
+              : selectedItemForToday?.kind === 'food'
+              ? selectedItemForToday.food.calories
+              : undefined
+          }
         />
       </div>
     </div>
