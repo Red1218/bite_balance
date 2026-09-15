@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import {
   Edit3,
@@ -29,7 +28,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import ChatMealLog from '@/components/ChatMealLog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const categories = [
@@ -53,7 +51,6 @@ const AddMeal = () => {
   const { user } = useAuth();
   const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat');
   const [autoFilling, setAutoFilling] = useState(false);
 
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
@@ -484,24 +481,6 @@ const AddMeal = () => {
           })}
         </div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="chat" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
-              <Sparkles className="w-3.5 h-3.5" />
-              Chat
-            </TabsTrigger>
-            <TabsTrigger value="manual" className="flex items-center gap-1.5 px-1.5 text-[11px] sm:text-sm">
-              <Edit3 className="w-3.5 h-3.5" />
-              Manual
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="chat">
-            <ChatMealLog defaultMealTime={mealData.mealTime} />
-          </TabsContent>
-
-          <TabsContent value="manual">
             <div className="elevation-card space-y-4 p-4">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Meal name card */}
@@ -739,8 +718,6 @@ const AddMeal = () => {
                 </Button>
               </form>
             </div>
-          </TabsContent>
-        </Tabs>
 
       {/* Save as Custom Food Dialog */}
       <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>

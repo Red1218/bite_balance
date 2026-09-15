@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Coffee, Sun, Sunset, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { defaultSlotForNow } from '@/lib/mealTime';
 
 interface MealTimeSelectorProps {
   open: boolean;
@@ -17,14 +18,6 @@ const mealTimes = [
   { value: 'dinner', label: 'Dinner', icon: Sunset },
   { value: 'snack', label: 'Snack', icon: Moon },
 ] as const;
-
-const defaultSlotForNow = () => {
-  const hour = new Date().getHours();
-  if (hour < 11) return 'breakfast';
-  if (hour < 16) return 'lunch';
-  if (hour < 21) return 'dinner';
-  return 'snack';
-};
 
 const MealTimeSelector: React.FC<MealTimeSelectorProps> = ({
   open,

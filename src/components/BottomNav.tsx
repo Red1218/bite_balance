@@ -1,11 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, BookmarkPlus, Plus, Calendar, User } from 'lucide-react';
+import { Home, Sparkles, Plus, Calendar, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const tabs = [
   { path: '/', icon: Home, label: 'Today' },
-  { path: '/saved-meals', icon: BookmarkPlus, label: 'Saved' },
+  { path: '/chat', icon: Sparkles, label: 'Chat' },
 ] as const;
 
 const trailingTabs = [

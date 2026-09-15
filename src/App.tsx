@@ -16,6 +16,7 @@ const SavedMeals = lazy(() => import('./pages/SavedMeals'));
 const History = lazy(() => import('./pages/History'));
 const Steps = lazy(() => import('./pages/Steps'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Chat = lazy(() => import('./pages/Chat'));
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -49,6 +50,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Dashboard />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/saved-meals" element={<SavedMeals />} />
           <Route path="/history" element={<History />} />
           <Route path="/steps" element={<Steps />} />

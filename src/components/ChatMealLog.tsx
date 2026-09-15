@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { useSavedMeals, type SavedMeal } from '@/hooks/useSavedMeals';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
+import { defaultSlotForNow } from '@/lib/mealTime';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -24,6 +25,11 @@ interface ChatMsg {
 }
 
 const GREETING = 'Tell me what you ate -- any meals, any order. I keep a tally and you tell me when you\'re done.';
+
+// ponytail: naive recency cap, not real context summarization -- revisit if
+// conversations regularly need older context than the last ~30 messages.
+const CHAT_CONTEXT_LIMIT = 30;
+const HISTORY_LOAD_LIMIT = 200;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -67,14 +73,10 @@ const savedMealToItem = (meal: SavedMeal, mealTime: MealTime): ChatMealItem => (
   zinc: meal.zinc ?? 0,
 });
 
-interface ChatMealLogProps {
-  defaultMealTime: MealTime;
-}
-
-const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
+const ChatMealLog = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
+  const { notifyMealsLogged } = useAddMealSheet();
   const { meals: savedMeals } = useSavedMeals();
 
   const [messages, setMessages] = useState<ChatMsg[]>([{ id: 'm0', who: 'bot', text: GREETING }]);
@@ -92,6 +94,39 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, sending]);
 
+  // Load persisted conversation history once, on mount -- an empty history
+  // keeps the local GREETING (never persisted, it's just a canned opener).
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(HISTORY_LOAD_LIMIT);
+      if (error) {
+        console.error('Error loading chat history:', error);
+        return;
+      }
+      if (data && data.length > 0) {
+        setMessages(
+          data.map((row) => ({
+            id: row.id,
+            who: row.role === 'user' ? 'user' : 'bot',
+            text: row.content,
+          }))
+        );
+      }
+    })();
+  }, [user]);
+
+  const persistMessage = async (role: 'user' | 'assistant', content: string) => {
+    if (!user) return;
+    const { error } = await supabase.from('chat_messages').insert({ user_id: user.id, role, content });
+    if (error) console.error('Error persisting chat message:', error);
+  };
+
   const send = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
@@ -99,6 +134,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
     const nextMessages: ChatMsg[] = [...messages, { id: uid(), who: 'user', text: trimmed }];
     setMessages(nextMessages);
     setDraft('');
+    void persistMessage('user', trimmed);
 
     if ((trimmed.toLowerCase() === 'done' || trimmed.toLowerCase() === 'finish') && items.length > 0) {
       setScreen('review');
@@ -107,10 +143,11 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
 
     setSending(true);
     try {
+      const contextMessages = nextMessages.slice(-CHAT_CONTEXT_LIMIT);
       const { data, error } = await supabase.functions.invoke('chat-meal', {
         body: {
-          messages: nextMessages.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
-          defaultMealTime,
+          messages: contextMessages.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+          defaultMealTime: defaultSlotForNow(),
         },
       });
 
@@ -124,6 +161,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
           ? { id: uid(), who: 'q', text: data.reply, replies: data.replyOptions }
           : { id: uid(), who: 'bot', text: data.reply },
       ]);
+      void persistMessage('assistant', data.reply);
       if (Array.isArray(data.items)) setItems(data.items);
     } catch (err) {
       console.error('chat-meal error:', err);
@@ -184,7 +222,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
       }
       const lastDate = (data as DailyMeal[])[0].logged_date;
       const rows = (data as DailyMeal[]).filter((r) => r.logged_date === lastDate);
-      setItems(rows.map((r) => ({ ...rowToItem(r), mealTime: defaultMealTime })));
+      setItems(rows.map((r) => ({ ...rowToItem(r), mealTime: defaultSlotForNow() })));
       setScreen('review');
     } catch (err) {
       console.error('Failed to load last dinner:', err);
@@ -221,7 +259,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
         }
       });
       const mostRecent = rows.find((r) => r.name === topName)!;
-      setItems([{ ...rowToItem(mostRecent), mealTime: defaultMealTime }]);
+      setItems([{ ...rowToItem(mostRecent), mealTime: defaultSlotForNow() }]);
       setScreen('review');
     } catch (err) {
       console.error('Failed to load most logged meal:', err);
@@ -232,8 +270,12 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
   };
 
   const handlePickSavedMeal = (meal: SavedMeal) => {
-    setItems([savedMealToItem(meal, defaultMealTime)]);
+    setItems([savedMealToItem(meal, defaultSlotForNow())]);
     setScreen('review');
+  };
+
+  const handleChangeMealTime = (idx: number, mealTime: MealTime) => {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, mealTime } : it)));
   };
 
   const dayCalories = Math.round(items.reduce((s, it) => s + it.calories, 0));
@@ -253,12 +295,14 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
       if (error) throw error;
 
       const mealTimeCount = countMealTimes(items);
-      toast({
-        title: 'Logged',
-        description: `${items.length} item${items.length === 1 ? '' : 's'} across ${mealTimeCount} meal-time${mealTimeCount === 1 ? '' : 's'} added to today.`,
-      });
+      const confirmationText = `Logged ${items.length} item${items.length === 1 ? '' : 's'} across ${mealTimeCount} meal-time${mealTimeCount === 1 ? '' : 's'}. Anything else?`;
+      toast({ title: 'Logged', description: confirmationText });
       notifyMealsLogged();
-      closeAddMeal();
+
+      setItems([]);
+      setScreen('chat');
+      setMessages((prev) => [...prev, { id: uid(), who: 'bot', text: confirmationText }]);
+      void persistMessage('assistant', confirmationText);
     } catch (err) {
       console.error('Error logging chat meals:', err);
       toast({ title: 'Error', description: 'Failed to log meals. Please try again.', variant: 'destructive' });
@@ -273,6 +317,7 @@ const ChatMealLog = ({ defaultMealTime }: ChatMealLogProps) => {
         items={items}
         onAccept={handleAccept}
         onBack={() => setScreen('chat')}
+        onChangeMealTime={handleChangeMealTime}
         backLabel="Something's off -- keep chatting"
         saving={saving}
       />

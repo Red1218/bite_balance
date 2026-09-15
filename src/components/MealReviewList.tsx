@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export type MealTime = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -74,12 +75,13 @@ export interface MealReviewListProps {
   items: ChatMealItem[];
   onAccept: () => void;
   onBack: () => void;
+  onChangeMealTime: (idx: number, mealTime: MealTime) => void;
   backLabel: string;
   saving: boolean;
   banner?: { text: string; options: string[]; onSelect: (option: string) => void };
 }
 
-const MealReviewList = ({ items, onAccept, onBack, backLabel, saving, banner }: MealReviewListProps) => {
+const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, saving, banner }: MealReviewListProps) => {
   const [openMicros, setOpenMicros] = useState<Record<number, boolean>>({});
   const toggleMicros = (idx: number) => setOpenMicros((p) => ({ ...p, [idx]: !p[idx] }));
 
@@ -151,6 +153,23 @@ const MealReviewList = ({ items, onAccept, onBack, backLabel, saving, banner }: 
                   <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
                     P {fmt(it.protein)} · C {fmt(it.carbs)} · F {fmt(it.fat)} · Fib {fmt(it.fiber)}
                   </p>
+                  <div className="flex gap-1.5">
+                    {MEAL_ORDER.map((mt) => (
+                      <button
+                        key={mt}
+                        type="button"
+                        onClick={() => onChangeMealTime(it.idx, mt)}
+                        className={cn(
+                          'flex-1 h-7 rounded-full text-[10px] font-medium border transition-colors',
+                          it.mealTime === mt
+                            ? 'bg-primary/12 border-primary/40 text-primary'
+                            : 'bg-muted border-border text-muted-foreground'
+                        )}
+                      >
+                        {MEAL_LABEL[mt]}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     onClick={() => toggleMicros(it.idx)}

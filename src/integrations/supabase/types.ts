@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_meals: {
         Row: {
           calcium: number | null
@@ -114,6 +138,7 @@ export type Database = {
       }
       indian_foods: {
         Row: {
+          calcium: number | null
           calories: number
           carbs: number
           category: string
@@ -122,14 +147,23 @@ export type Database = {
           fiber: number
           id: string
           image_url: string | null
+          iron: number | null
           is_verified: boolean
+          magnesium: number | null
           name: string
+          potassium: number | null
           protein: number
           serving_size: number
           serving_unit: string
+          sodium: number | null
           user_id: string | null
+          vitamin_b12: number | null
+          vitamin_c: number | null
+          vitamin_d: number | null
+          zinc: number | null
         }
         Insert: {
+          calcium?: number | null
           calories: number
           carbs: number
           category: string
@@ -138,14 +172,23 @@ export type Database = {
           fiber?: number
           id?: string
           image_url?: string | null
+          iron?: number | null
           is_verified?: boolean
+          magnesium?: number | null
           name: string
+          potassium?: number | null
           protein: number
           serving_size?: number
           serving_unit?: string
+          sodium?: number | null
           user_id?: string | null
+          vitamin_b12?: number | null
+          vitamin_c?: number | null
+          vitamin_d?: number | null
+          zinc?: number | null
         }
         Update: {
+          calcium?: number | null
           calories?: number
           carbs?: number
           category?: string
@@ -154,12 +197,20 @@ export type Database = {
           fiber?: number
           id?: string
           image_url?: string | null
+          iron?: number | null
           is_verified?: boolean
+          magnesium?: number | null
           name?: string
+          potassium?: number | null
           protein?: number
           serving_size?: number
           serving_unit?: string
+          sodium?: number | null
           user_id?: string | null
+          vitamin_b12?: number | null
+          vitamin_c?: number | null
+          vitamin_d?: number | null
+          zinc?: number | null
         }
         Relationships: []
       }
@@ -300,6 +351,7 @@ export type Database = {
       search_foods: {
         Args: { search_query: string }
         Returns: {
+          calcium: number | null
           calories: number
           carbs: number
           category: string
@@ -308,12 +360,20 @@ export type Database = {
           fiber: number
           id: string
           image_url: string | null
+          iron: number | null
           is_verified: boolean
+          magnesium: number | null
           name: string
+          potassium: number | null
           protein: number
           serving_size: number
           serving_unit: string
+          sodium: number | null
           user_id: string | null
+          vitamin_b12: number | null
+          vitamin_c: number | null
+          vitamin_d: number | null
+          zinc: number | null
         }[]
         SetofOptions: {
           from: "*"
