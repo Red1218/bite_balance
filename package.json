@@ -14,6 +14,7 @@
     "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts"
   },
   "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
     "@capacitor/android": "^7.3.0",
     "@capacitor/app": "^7.1.2",
     "@capacitor/cli": "^7.3.0",

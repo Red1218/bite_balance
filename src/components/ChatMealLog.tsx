@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp, Mic } from 'lucide-react';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +9,7 @@ import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { useSavedMeals, type SavedMeal } from '@/hooks/useSavedMeals';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { defaultSlotForNow } from '@/lib/mealTime';
+import { cn } from '@/lib/utils';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -88,11 +90,56 @@ const ChatMealLog = () => {
   const [saving, setSaving] = useState(false);
   const [chipLoading, setChipLoading] = useState<'yesterday' | 'dinner' | 'most' | null>(null);
   const [showSavedMeals, setShowSavedMeals] = useState(false);
+  const [listening, setListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, sending]);
+
+  useEffect(() => {
+    const partialHandle = SpeechRecognition.addListener('partialResults', (data) => {
+      if (data.matches && data.matches.length > 0) setDraft(data.matches[0]);
+    });
+    const listeningHandle = SpeechRecognition.addListener('listeningState', (data) => {
+      setListening(data.status === 'started');
+    });
+    return () => {
+      void partialHandle.then((h) => h.remove());
+      void listeningHandle.then((h) => h.remove());
+    };
+  }, []);
+
+  const handleMicToggle = async () => {
+    if (listening) {
+      await SpeechRecognition.stop();
+      setListening(false);
+      return;
+    }
+
+    const { available } = await SpeechRecognition.available();
+    if (!available) {
+      toast({ title: 'Not available', description: 'Speech recognition is not available on this device.', variant: 'destructive' });
+      return;
+    }
+
+    let { speechRecognition } = await SpeechRecognition.checkPermissions();
+    if (speechRecognition !== 'granted') {
+      ({ speechRecognition } = await SpeechRecognition.requestPermissions());
+    }
+    if (speechRecognition !== 'granted') {
+      toast({ title: 'Microphone permission needed', description: 'Allow microphone access to use speech-to-text.', variant: 'destructive' });
+      return;
+    }
+
+    setListening(true);
+    try {
+      await SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' });
+    } catch (err) {
+      console.error('Speech recognition error:', err);
+      setListening(false);
+    }
+  };
 
   // Load persisted conversation history once, on mount -- an empty history
   // keeps the local GREETING (never persisted, it's just a canned opener).
@@ -463,10 +510,23 @@ const ChatMealLog = () => {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="e.g. 2 chapati and dal for dinner"
+          placeholder={listening ? 'Listening...' : 'e.g. 2 chapati and dal for dinner'}
           disabled={sending}
           className="h-11 flex-1 rounded-xl border border-border bg-background/50 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          onClick={handleMicToggle}
+          disabled={sending}
+          className={cn(
+            'h-11 w-11 flex-none rounded-xl',
+            listening && 'border-primary/40 bg-primary/10 text-primary animate-pulse'
+          )}
+        >
+          <Mic className="h-4 w-4" />
+        </Button>
         <Button type="submit" size="icon" disabled={sending || !draft.trim()} className="h-11 w-11 flex-none rounded-xl">
           <Send className="h-4 w-4" />
         </Button>
