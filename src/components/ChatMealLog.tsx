@@ -38,7 +38,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const rowToItem = (row: DailyMeal): ChatMealItem => ({
   name: row.name,
   mealTime: row.meal_time as MealTime,
-  grams: 0,
+  grams: row.grams ?? 0,
   calories: row.calories,
   protein: row.protein,
   carbs: row.carbs,
