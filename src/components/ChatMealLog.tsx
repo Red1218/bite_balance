@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, ChevronDown, ChevronUp, Mic } from 'lucide-react';
+import { Send, Sparkles, Mic, Plus, Loader2 } from 'lucide-react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +16,6 @@ import MealReviewList, {
   MEAL_ORDER,
   MEAL_LABEL,
   chatMealItemToRow,
-  countMealTimes,
 } from './MealReviewList';
 
 interface ChatMsg {
@@ -24,9 +23,13 @@ interface ChatMsg {
   who: 'bot' | 'user' | 'q';
   text: string;
   replies?: string[];
+  /** A clean single-item correction ("Rice -> 200g -> 260g, +97 kcal") --
+   * when set, this renders instead of `text`, matching the ledger's diff
+   * line instead of a repetitive prose paragraph. */
+  diff?: string;
 }
 
-const GREETING = 'Tell me what you ate -- any meals, any order. I keep a tally and you tell me when you\'re done.';
+const GREETING = "Tell me what you ate -- I'll tally it up, and you can log each meal right from here.";
 
 // ponytail: naive recency cap, not real context summarization -- revisit if
 // conversations regularly need older context than the last ~30 messages.
@@ -34,15 +37,6 @@ const CHAT_CONTEXT_LIMIT = 30;
 const HISTORY_LOAD_LIMIT = 200;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-
-// ponytail: fixed phrase list, not real intent detection -- add phrases here
-// if people keep saying "finish" in ways this still misses.
-const FINISH_PHRASES = new Set([
-  'done', 'finish', 'finished', 'complete',
-  "that's it", 'thats it', "that's all", 'thats all',
-  'im done', "i'm done", 'log it', 'save it', 'log them', 'save them',
-]);
-const isFinishPhrase = (text: string) => FINISH_PHRASES.has(text.trim().toLowerCase().replace(/[.!]+$/, ''));
 
 const rowToItem = (row: DailyMeal): ChatMealItem => ({
   name: row.name,
@@ -84,6 +78,28 @@ const savedMealToItem = (meal: SavedMeal, mealTime: MealTime): ChatMealItem => (
   zinc: meal.zinc ?? 0,
 });
 
+// If exactly one item changed grams/calories between turns and nothing else
+// about the list's shape moved, render it as a diff line instead of prose.
+// ponytail: order+name+mealTime match is a naive correction heuristic, not
+// real diffing -- any bigger change (added/removed/reordered items) just
+// falls back to the model's own text, which is always safe.
+const computeSingleDiff = (prev: ChatMealItem[], next: ChatMealItem[]): string | null => {
+  if (prev.length !== next.length || prev.length === 0) return null;
+  const changed: { name: string; prevGrams: number; nextGrams: number; deltaKcal: number }[] = [];
+  for (let i = 0; i < next.length; i++) {
+    const p = prev[i];
+    const n = next[i];
+    if (p.name.toLowerCase() !== n.name.toLowerCase() || p.mealTime !== n.mealTime) return null;
+    if (p.grams !== n.grams || Math.round(p.calories) !== Math.round(n.calories)) {
+      changed.push({ name: n.name, prevGrams: p.grams, nextGrams: n.grams, deltaKcal: Math.round(n.calories - p.calories) });
+    }
+  }
+  if (changed.length !== 1) return null;
+  const c = changed[0];
+  const sign = c.deltaKcal >= 0 ? '+' : '';
+  return `${c.name} → ${c.prevGrams}g → ${c.nextGrams}g, ${sign}${c.deltaKcal} kcal`;
+};
+
 const ChatMealLog = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -92,11 +108,10 @@ const ChatMealLog = () => {
 
   const [messages, setMessages] = useState<ChatMsg[]>([{ id: 'm0', who: 'bot', text: GREETING }]);
   const [items, setItems] = useState<ChatMealItem[]>([]);
-  const [screen, setScreen] = useState<'chat' | 'review'>('chat');
+  const [editingMealTime, setEditingMealTime] = useState<MealTime | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
-  const [summaryOpen, setSummaryOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loggingMealTime, setLoggingMealTime] = useState<MealTime | null>(null);
   const [chipLoading, setChipLoading] = useState<'yesterday' | 'dinner' | 'most' | null>(null);
   const [showSavedMeals, setShowSavedMeals] = useState(false);
   const [listening, setListening] = useState(false);
@@ -233,11 +248,6 @@ const ChatMealLog = () => {
     setDraft('');
     void persistMessage('user', trimmed);
 
-    if (isFinishPhrase(trimmed) && items.length > 0) {
-      setScreen('review');
-      return;
-    }
-
     setSending(true);
     try {
       const contextMessages = nextMessages.slice(-CHAT_CONTEXT_LIMIT);
@@ -252,11 +262,12 @@ const ChatMealLog = () => {
       if (data?.error) throw new Error(data.error);
 
       const hasOptions = Array.isArray(data.replyOptions) && data.replyOptions.length > 0;
+      const diff = Array.isArray(data.items) ? computeSingleDiff(items, data.items) : null;
       setMessages((prev) => [
         ...prev,
         hasOptions
           ? { id: uid(), who: 'q', text: data.reply, replies: data.replyOptions }
-          : { id: uid(), who: 'bot', text: data.reply },
+          : { id: uid(), who: 'bot', text: data.reply, diff: diff || undefined },
       ]);
       void persistMessage('assistant', data.reply);
       if (Array.isArray(data.items)) setItems(data.items);
@@ -288,8 +299,7 @@ const ChatMealLog = () => {
         toast({ title: 'Nothing found', description: 'No meals logged yesterday.' });
         return;
       }
-      setItems((data as DailyMeal[]).map(rowToItem));
-      setScreen('review');
+      setItems((prev) => [...prev, ...(data as DailyMeal[]).map(rowToItem)]);
     } catch (err) {
       console.error("Failed to load yesterday's meals:", err);
       toast({ title: 'Error', description: "Failed to load yesterday's meals", variant: 'destructive' });
@@ -319,8 +329,7 @@ const ChatMealLog = () => {
       }
       const lastDate = (data as DailyMeal[])[0].logged_date;
       const rows = (data as DailyMeal[]).filter((r) => r.logged_date === lastDate);
-      setItems(rows.map((r) => ({ ...rowToItem(r), mealTime: defaultSlotForNow() })));
-      setScreen('review');
+      setItems((prev) => [...prev, ...rows.map((r) => ({ ...rowToItem(r), mealTime: defaultSlotForNow() }))]);
     } catch (err) {
       console.error('Failed to load last dinner:', err);
       toast({ title: 'Error', description: 'Failed to load last dinner', variant: 'destructive' });
@@ -356,8 +365,7 @@ const ChatMealLog = () => {
         }
       });
       const mostRecent = rows.find((r) => r.name === topName)!;
-      setItems([{ ...rowToItem(mostRecent), mealTime: defaultSlotForNow() }]);
-      setScreen('review');
+      setItems((prev) => [...prev, { ...rowToItem(mostRecent), mealTime: defaultSlotForNow() }]);
     } catch (err) {
       console.error('Failed to load most logged meal:', err);
       toast({ title: 'Error', description: 'Failed to load most logged meal', variant: 'destructive' });
@@ -367,105 +375,118 @@ const ChatMealLog = () => {
   };
 
   const handlePickSavedMeal = (meal: SavedMeal) => {
-    setItems([savedMealToItem(meal, defaultSlotForNow())]);
-    setScreen('review');
+    setItems((prev) => [...prev, savedMealToItem(meal, defaultSlotForNow())]);
   };
 
   const handleChangeMealTime = (idx: number, mealTime: MealTime) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, mealTime } : it)));
   };
 
-  const dayCalories = Math.round(items.reduce((s, it) => s + it.calories, 0));
-  const groupedForTally = MEAL_ORDER.map((mt) => ({
-    mealTime: mt,
-    calories: items.filter((it) => it.mealTime === mt).reduce((s, it) => s + it.calories, 0),
-  })).filter((g) => g.calories > 0);
+  const handleLogGroup = async (mealTime: MealTime) => {
+    if (!user) return;
+    const groupItems = items.filter((it) => it.mealTime === mealTime);
+    if (groupItems.length === 0) return;
 
-  const handleAccept = async () => {
-    if (!user || items.length === 0) return;
-    setSaving(true);
+    setLoggingMealTime(mealTime);
     try {
       const today = new Date().toISOString().split('T')[0];
-      const rows = items.map((it) => chatMealItemToRow(it, user.id, today));
+      const rows = groupItems.map((it) => chatMealItemToRow(it, user.id, today));
 
       const { error } = await supabase.from('daily_meals').insert(rows);
       if (error) throw error;
 
-      const mealTimeCount = countMealTimes(items);
-      const confirmationText = `Logged ${items.length} item${items.length === 1 ? '' : 's'} across ${mealTimeCount} meal-time${mealTimeCount === 1 ? '' : 's'}. Anything else?`;
+      const totalKcal = Math.round(groupItems.reduce((s, it) => s + it.calories, 0));
+      const confirmationText = `Logged ${MEAL_LABEL[mealTime].toLowerCase()} · ${groupItems.length} item${groupItems.length === 1 ? '' : 's'} · ${totalKcal} kcal.`;
       toast({ title: 'Logged', description: confirmationText });
       notifyMealsLogged();
 
-      setItems([]);
-      setScreen('chat');
+      setItems((prev) => prev.filter((it) => it.mealTime !== mealTime));
+      setEditingMealTime((cur) => (cur === mealTime ? null : cur));
       setMessages((prev) => [...prev, { id: uid(), who: 'bot', text: confirmationText }]);
       void persistMessage('assistant', confirmationText);
     } catch (err) {
-      console.error('Error logging chat meals:', err);
-      toast({ title: 'Error', description: 'Failed to log meals. Please try again.', variant: 'destructive' });
+      console.error('Error logging meal group:', err);
+      toast({ title: 'Error', description: 'Failed to log meal. Please try again.', variant: 'destructive' });
     } finally {
-      setSaving(false);
+      setLoggingMealTime(null);
     }
   };
 
-  if (screen === 'review') {
+  if (editingMealTime) {
     return (
       <MealReviewList
         items={items}
-        onAccept={handleAccept}
-        onBack={() => setScreen('chat')}
+        onlyMealTime={editingMealTime}
+        onAccept={() => handleLogGroup(editingMealTime)}
+        onBack={() => setEditingMealTime(null)}
         onChangeMealTime={handleChangeMealTime}
-        backLabel="Something's off -- keep chatting"
-        saving={saving}
+        backLabel="Back to chat"
+        saving={loggingMealTime === editingMealTime}
       />
     );
   }
 
   const isFreshConversation = messages.length === 1;
+  const pendingMealTimes = MEAL_ORDER.filter((mt) => items.some((it) => it.mealTime === mt));
 
   return (
-    <div className="elevation-card flex flex-col gap-3 p-4">
-      <div ref={scrollRef} className="flex max-h-[420px] flex-col gap-2.5 overflow-y-auto pr-1">
-        {messages.map((m) => (
-          <div key={m.id} className={`flex ${m.who === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className="max-w-[85%] space-y-2">
-              <div
-                className={
-                  m.who === 'user'
-                    ? 'rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2.5 text-sm text-primary-foreground'
-                    : m.who === 'q'
-                      ? 'rounded-2xl rounded-tl-sm border border-primary/30 bg-primary/10 px-3.5 py-2.5 text-sm text-foreground'
-                      : 'rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm text-foreground'
-                }
-              >
-                {m.text}
+    <div className="flex flex-col gap-4">
+      <div ref={scrollRef} className="relative max-h-[55vh] overflow-y-auto pr-1">
+        <div className="pointer-events-none absolute bottom-0 left-[13px] top-0 w-px bg-gradient-to-b from-border to-transparent" />
+        <div className="flex flex-col gap-3.5">
+          {messages.map((m) => (
+            <div key={m.id} className="flex items-start gap-3">
+              <div className="flex w-[26px] flex-none justify-center pt-1">
+                {m.who === 'user' ? (
+                  <span className="h-[7px] w-[7px] rounded-full border border-border bg-muted-foreground/30" />
+                ) : (
+                  <span className="flex h-[15px] w-[15px] flex-none items-center justify-center rounded-full border border-primary/50 bg-background">
+                    <Sparkles className="h-2.5 w-2.5 text-primary" />
+                  </span>
+                )}
               </div>
-              {m.who === 'q' && m.replies && (
-                <div className="flex flex-wrap gap-1.5">
-                  {m.replies.map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => send(r)}
-                      className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-foreground hover:bg-accent"
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="min-w-0 flex-1 space-y-2">
+                {m.diff ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2.5">
+                    <span className="flex-1 font-mono text-xs text-muted-foreground">{m.diff.split(/(→)/).map((part, i) => part === '→' ? <span key={i} className="mx-1 text-muted-foreground/60">{part}</span> : part)}</span>
+                  </div>
+                ) : (
+                  <p className={cn('text-sm leading-relaxed', m.who === 'user' ? 'text-muted-foreground' : 'text-foreground')}>
+                    {m.text}
+                  </p>
+                )}
+                {m.who === 'q' && m.replies && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {m.replies.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => send(r)}
+                        className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground hover:bg-accent"
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+          ))}
+          {sending && (
+            <div className="flex items-start gap-3">
+              <div className="flex w-[26px] flex-none justify-center pt-1">
+                <span className="flex h-[15px] w-[15px] flex-none items-center justify-center rounded-full border border-primary/50 bg-background">
+                  <Sparkles className="h-2.5 w-2.5 text-primary" />
+                </span>
+              </div>
+              <div className="flex items-center gap-1 pt-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {isFreshConversation && (
@@ -523,32 +544,61 @@ const ChatMealLog = () => {
         </div>
       )}
 
-      {items.length > 0 && (
-        <div className="rounded-xl border border-border">
-          <button
-            type="button"
-            onClick={() => setSummaryOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-3.5 py-2.5"
-          >
-            <span className="text-xs font-semibold text-foreground">
-              Running tally · {dayCalories} kcal
-            </span>
-            {summaryOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-          </button>
-          {summaryOpen && (
-            <div className="space-y-1.5 border-t border-border px-3.5 py-2.5">
-              {groupedForTally.map((g) => (
-                <div key={g.mealTime} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{MEAL_LABEL[g.mealTime]}</span>
-                  <span className="font-mono tabular-nums text-foreground">
-                    {Math.round(g.calories)} kcal
-                  </span>
+      {pendingMealTimes.map((mt) => {
+        const groupItems = items.filter((it) => it.mealTime === mt);
+        const totalKcal = Math.round(groupItems.reduce((s, it) => s + it.calories, 0));
+        const totalGrams = Math.round(groupItems.reduce((s, it) => s + (it.grams || 0), 0));
+        const isLogging = loggingMealTime === mt;
+        return (
+          <div key={mt} className="ml-[38px] overflow-hidden rounded-2xl border border-border bg-muted/30">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-3.5 py-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex-none rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-primary">
+                  {MEAL_LABEL[mt]}
+                </span>
+                <span className="truncate font-mono text-[11px] text-muted-foreground">
+                  {groupItems.length} item{groupItems.length === 1 ? '' : 's'}{totalGrams > 0 ? ` · ${totalGrams} g` : ''}
+                </span>
+              </div>
+              <div className="flex flex-none items-baseline gap-1">
+                <span className="font-mono text-lg font-semibold tabular-nums text-foreground">{totalKcal}</span>
+                <span className="font-mono text-[10px] text-muted-foreground">kcal</span>
+              </div>
+            </div>
+            <div className="divide-y divide-border">
+              {groupItems.map((it, i) => (
+                <div key={i} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <div className="flex min-w-[46px] flex-none items-center justify-center gap-0.5 rounded-lg border border-border bg-background px-1.5 py-1">
+                    <span className="font-mono text-xs font-semibold tabular-nums text-foreground">{Math.round(it.grams)}</span>
+                    <span className="font-mono text-[9px] text-muted-foreground">g</span>
+                  </div>
+                  <span className="flex-1 truncate text-sm text-foreground">{it.name}</span>
+                  <span className="flex-none font-mono text-xs tabular-nums text-muted-foreground">{Math.round(it.calories)}</span>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
+            <div className="flex gap-2 p-3">
+              <button
+                type="button"
+                onClick={() => handleLogGroup(mt)}
+                disabled={loggingMealTime !== null}
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary text-xs font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {isLogging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {isLogging ? 'Logging...' : `Log ${MEAL_LABEL[mt].toLowerCase()}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingMealTime(mt)}
+                disabled={loggingMealTime !== null}
+                className="h-10 flex-none rounded-xl border border-border px-4 text-xs font-medium text-foreground disabled:opacity-60"
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+        );
+      })}
 
       <form
         onSubmit={(e) => {
@@ -560,9 +610,9 @@ const ChatMealLog = () => {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={listening ? 'Listening...' : 'e.g. 2 chapati and dal for dinner'}
+          placeholder={listening ? 'Listening...' : 'Tell me what you ate...'}
           disabled={sending}
-          className="h-11 flex-1 rounded-xl border border-border bg-background/50 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="h-12 flex-1 rounded-2xl border border-border bg-muted/40 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
         <Button
           type="button"
@@ -571,27 +621,16 @@ const ChatMealLog = () => {
           onClick={handleMicToggle}
           disabled={sending}
           className={cn(
-            'h-11 w-11 flex-none rounded-xl',
+            'h-12 w-12 flex-none rounded-2xl border-border bg-muted/40',
             listening && 'border-primary/40 bg-primary/10 text-primary animate-pulse'
           )}
         >
           <Mic className="h-4 w-4" />
         </Button>
-        <Button type="submit" size="icon" disabled={sending || !draft.trim()} className="h-11 w-11 flex-none rounded-xl">
+        <Button type="submit" size="icon" disabled={sending || !draft.trim()} className="h-12 w-12 flex-none rounded-2xl">
           <Send className="h-4 w-4" />
         </Button>
       </form>
-
-      {items.length > 0 && (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setScreen('review')}
-          className="h-10 w-full rounded-xl text-sm"
-        >
-          Finish -- review {items.length} item{items.length === 1 ? '' : 's'}
-        </Button>
-      )}
     </div>
   );
 };

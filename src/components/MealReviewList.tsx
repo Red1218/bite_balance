@@ -75,6 +75,9 @@ export const countMealTimes = (items: ChatMealItem[]) => new Set(items.map((it) 
 
 export interface MealReviewListProps {
   items: ChatMealItem[];
+  /** When set, only this meal-time's group renders (and totals/labels scope
+   * to it) -- lets the same list double as a single-group editor. */
+  onlyMealTime?: MealTime;
   onAccept: () => void;
   onBack: () => void;
   onChangeMealTime: (idx: number, mealTime: MealTime) => void;
@@ -83,16 +86,19 @@ export interface MealReviewListProps {
   banner?: { text: string; options: string[]; onSelect: (option: string) => void };
 }
 
-const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, saving, banner }: MealReviewListProps) => {
+const MealReviewList = ({ items, onlyMealTime, onAccept, onBack, onChangeMealTime, backLabel, saving, banner }: MealReviewListProps) => {
   const [openMicros, setOpenMicros] = useState<Record<number, boolean>>({});
   const toggleMicros = (idx: number) => setOpenMicros((p) => ({ ...p, [idx]: !p[idx] }));
 
-  const grouped = MEAL_ORDER.map((mt) => ({
-    mealTime: mt,
-    items: items.map((it, idx) => ({ ...it, idx })).filter((it) => it.mealTime === mt),
-  })).filter((g) => g.items.length > 0);
+  const grouped = MEAL_ORDER.filter((mt) => !onlyMealTime || mt === onlyMealTime)
+    .map((mt) => ({
+      mealTime: mt,
+      items: items.map((it, idx) => ({ ...it, idx })).filter((it) => it.mealTime === mt),
+    })).filter((g) => g.items.length > 0);
 
-  const dayTotals = items.reduce(
+  const scopedItems = onlyMealTime ? items.filter((it) => it.mealTime === onlyMealTime) : items;
+
+  const dayTotals = scopedItems.reduce(
     (acc, it) => {
       acc.calories += it.calories;
       acc.protein += it.protein;
@@ -110,9 +116,11 @@ const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, 
   return (
     <div className="elevation-card space-y-4 p-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-display text-base font-semibold text-foreground">Review before logging</h2>
+        <h2 className="font-display text-base font-semibold text-foreground">
+          {onlyMealTime ? `Review ${MEAL_LABEL[onlyMealTime]}` : 'Review before logging'}
+        </h2>
         <span className="text-[11px] text-muted-foreground">
-          {grouped.length} meal-time{grouped.length === 1 ? '' : 's'} · {items.length} item{items.length === 1 ? '' : 's'}
+          {scopedItems.length} item{scopedItems.length === 1 ? '' : 's'}
         </span>
       </div>
 
@@ -208,7 +216,9 @@ const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, 
 
       <div className="elevation-card space-y-2 p-3.5">
         <div className="flex items-baseline justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Day totals</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            {onlyMealTime ? `${MEAL_LABEL[onlyMealTime]} totals` : 'Day totals'}
+          </span>
           <span className="font-mono text-lg font-bold tabular-nums text-foreground">{Math.round(dayTotals.calories)} kcal</span>
         </div>
         <div className="grid grid-cols-4 gap-2 border-b border-border pb-3">
@@ -245,7 +255,11 @@ const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, 
       <div className="space-y-2 pt-1">
         <Button onClick={onAccept} disabled={saving} className="h-12 w-full gap-2 rounded-xl">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {saving ? 'Logging...' : `Accept & log ${items.length} item${items.length === 1 ? '' : 's'} across ${grouped.length} meal-time${grouped.length === 1 ? '' : 's'}`}
+          {saving
+            ? 'Logging...'
+            : onlyMealTime
+              ? `Log ${MEAL_LABEL[onlyMealTime].toLowerCase()} · ${scopedItems.length} item${scopedItems.length === 1 ? '' : 's'}`
+              : `Accept & log ${scopedItems.length} item${scopedItems.length === 1 ? '' : 's'} across ${grouped.length} meal-time${grouped.length === 1 ? '' : 's'}`}
         </Button>
         <Button variant="outline" onClick={onBack} className="h-11 w-full rounded-xl text-sm">
           {backLabel}
