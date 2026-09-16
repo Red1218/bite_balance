@@ -51,6 +51,8 @@ export const fmt = (n: number) => (n >= 100 ? Math.round(n).toLocaleString() : M
 export const chatMealItemToRow = (item: ChatMealItem, userId: string, loggedDate: string) => ({
   user_id: userId,
   name: item.name,
+  grams: item.grams || null,
+  unit: 'g',
   calories: item.calories,
   protein: item.protein,
   carbs: item.carbs,

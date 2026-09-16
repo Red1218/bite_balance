@@ -10,6 +10,8 @@ interface MealItem {
   protein: number;
   carbs: number;
   fat: number;
+  grams?: number | null;
+  unit?: string;
   meal_time: string;
   logged_at: string;
 }

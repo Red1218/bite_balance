@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, Edit, Trash2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import EditMealDialog from '@/components/EditMealDialog';
+import AnimatedMealCard from '@/components/AnimatedMealCard';
 
 interface MealInfo {
   id: string;
@@ -15,7 +16,10 @@ interface MealInfo {
   carbs: number;
   fat: number;
   fiber: number;
+  grams: number | null;
+  unit: string;
   meal_time: string;
+  logged_at: string;
 }
 
 interface DaySummary {
@@ -132,7 +136,10 @@ const History = () => {
           carbs: Number(meal.carbs || 0),
           fat: Number(meal.fat || 0),
           fiber: Number(meal.fiber || 0),
+          grams: meal.grams ?? null,
+          unit: meal.unit || 'g',
           meal_time: meal.meal_time || 'snack',
+          logged_at: meal.logged_at,
         });
         acc[dateKey].totalCalories += Number(meal.calories);
         acc[dateKey].totalProtein += Number(meal.protein || 0);
@@ -583,36 +590,15 @@ const History = () => {
                   <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Meals
                   </div>
-                  <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-                    {selectedDayMeals.map((meal, index) => (
-                      <div key={index} className="flex items-center justify-between px-[15px] py-[13px]">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="truncate font-sans text-sm font-medium text-foreground">{meal.name}</h4>
-                          <p className="mt-0.5 font-sans text-[11px] text-muted-foreground">{meal.time}</p>
-                        </div>
-                        <span className="flex-none font-mono text-sm font-semibold tabular-nums text-foreground">
-                          {meal.calories}
-                          <span className="font-sans text-[10px] font-normal text-muted-foreground"> cal</span>
-                        </span>
-                        <div className="ml-3 flex flex-none gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleEditMeal(meal)}
-                            aria-label={`Edit ${meal.name}`}
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 text-primary transition-colors hover:bg-primary/14"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMeal(meal.id, meal.name)}
-                            aria-label={`Delete ${meal.name}`}
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 text-primary transition-colors hover:bg-primary/14"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </div>
+                  <div className="flex flex-col gap-2">
+                    {selectedDayMeals.map((meal) => (
+                      <AnimatedMealCard
+                        key={meal.id}
+                        meal={meal}
+                        onEditMeal={handleEditMeal}
+                        onDeleteMeal={handleDeleteMeal}
+                        subLabel={`${meal.time} · ${new Date(meal.logged_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+                      />
                     ))}
                   </div>
                 </div>

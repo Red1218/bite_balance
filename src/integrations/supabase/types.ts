@@ -45,6 +45,7 @@ export type Database = {
           carbs: number | null
           fat: number | null
           fiber: number | null
+          grams: number | null
           id: string
           iron: number | null
           logged_at: string
@@ -55,6 +56,7 @@ export type Database = {
           potassium: number | null
           protein: number | null
           sodium: number | null
+          unit: string
           updated_at: string
           user_id: string
           vitamin_b12: number | null
@@ -68,6 +70,7 @@ export type Database = {
           carbs?: number | null
           fat?: number | null
           fiber?: number | null
+          grams?: number | null
           id?: string
           iron?: number | null
           logged_at?: string
@@ -78,6 +81,7 @@ export type Database = {
           potassium?: number | null
           protein?: number | null
           sodium?: number | null
+          unit?: string
           updated_at?: string
           user_id: string
           vitamin_b12?: number | null
@@ -91,6 +95,7 @@ export type Database = {
           carbs?: number | null
           fat?: number | null
           fiber?: number | null
+          grams?: number | null
           id?: string
           iron?: number | null
           logged_at?: string
@@ -101,6 +106,7 @@ export type Database = {
           potassium?: number | null
           protein?: number | null
           sodium?: number | null
+          unit?: string
           updated_at?: string
           user_id?: string
           vitamin_b12?: number | null

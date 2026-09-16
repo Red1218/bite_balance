@@ -375,6 +375,8 @@ const AddMeal = () => {
       const { error } = await supabase.from('daily_meals').insert({
         user_id: user.id,
         name: mealData.name,
+        grams: Number(portionWeight) || null,
+        unit: 'g',
         calories: Number(mealData.calories),
         protein: Number(mealData.protein) || 0,
         carbs: Number(mealData.carbs) || 0,

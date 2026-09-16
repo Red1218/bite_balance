@@ -9,6 +9,8 @@ interface MealItem {
   carbs: number;
   fat: number;
   fiber?: number;
+  grams?: number | null;
+  unit?: string;
   meal_time: string;
   logged_at: string;
 }
@@ -34,6 +36,9 @@ const MealCategorySection = ({
 }: MealCategorySectionProps) => {
   if (category.meals.length === 0) return null;
 
+  const knownGrams = category.meals.filter((m) => m.grams != null);
+  const totalGrams = knownGrams.reduce((sum, m) => sum + Number(m.grams), 0);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between px-0.5">
@@ -41,6 +46,7 @@ const MealCategorySection = ({
           {category.name}
         </span>
         <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+          {knownGrams.length > 0 && `${Math.round(totalGrams)} g · `}
           {category.totalCalories} kcal
         </span>
       </div>

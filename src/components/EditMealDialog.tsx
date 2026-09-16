@@ -33,6 +33,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
     carbs: meal?.carbs || 0,
     fat: meal?.fat || 0,
     fiber: meal?.fiber || 0,
+    grams: meal?.grams ?? '',
     meal_time: meal?.meal_time || 'snack',
     tags: meal?.tags?.join(', ') || '',
     notes: meal?.notes || '',
@@ -52,7 +53,10 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
         carbs: Number(formData.carbs),
         fat: Number(formData.fat),
         fiber: Number(formData.fiber),
-        ...(isDailyMeal && { meal_time: formData.meal_time }),
+        ...(isDailyMeal && {
+          meal_time: formData.meal_time,
+          grams: formData.grams === '' ? null : Number(formData.grams),
+        }),
         ...(!isDailyMeal && {
           tags: formData.tags
             .split(',')
@@ -80,6 +84,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
         carbs: meal.carbs || 0,
         fat: meal.fat || 0,
         fiber: meal.fiber || 0,
+        grams: meal.grams ?? '',
         meal_time: meal.meal_time || 'snack',
         tags: meal.tags?.join(', ') || '',
         notes: meal.notes || '',
@@ -146,6 +151,26 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
               </div>
             )}
           </div>
+
+          {isDailyMeal && (
+            <div className="space-y-2">
+              <Label htmlFor="grams">Amount (g)</Label>
+              <Input
+                id="grams"
+                type="number"
+                step="0.1"
+                value={formData.grams}
+                placeholder="Unknown"
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    grams: e.target.value,
+                  }))
+                }
+                className="rounded-xl font-mono tabular-nums focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary/50"
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-4 gap-2">
             <div className="space-y-2">

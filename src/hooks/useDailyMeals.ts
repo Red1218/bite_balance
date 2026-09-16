@@ -22,6 +22,8 @@ export interface DailyMeal {
   sodium?: number;
   magnesium?: number;
   zinc?: number;
+  grams?: number | null;
+  unit?: string;
   meal_time: string;
   logged_date: string;
   logged_at: string;
@@ -181,6 +183,8 @@ export const useDailyMeals = () => {
       const { error } = await supabase.from('daily_meals').insert({
         user_id: user.id,
         name: food.name,
+        grams: food.serving_size ?? null,
+        unit: food.serving_unit || 'g',
         calories: food.calories,
         protein: food.protein || 0,
         carbs: food.carbs || 0,
