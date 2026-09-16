@@ -35,6 +35,15 @@ const HISTORY_LOAD_LIMIT = 200;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// ponytail: fixed phrase list, not real intent detection -- add phrases here
+// if people keep saying "finish" in ways this still misses.
+const FINISH_PHRASES = new Set([
+  'done', 'finish', 'finished', 'complete',
+  "that's it", 'thats it', "that's all", 'thats all',
+  'im done', "i'm done", 'log it', 'save it', 'log them', 'save them',
+]);
+const isFinishPhrase = (text: string) => FINISH_PHRASES.has(text.trim().toLowerCase().replace(/[.!]+$/, ''));
+
 const rowToItem = (row: DailyMeal): ChatMealItem => ({
   name: row.name,
   mealTime: row.meal_time as MealTime,
@@ -215,7 +224,7 @@ const ChatMealLog = () => {
     setDraft('');
     void persistMessage('user', trimmed);
 
-    if ((trimmed.toLowerCase() === 'done' || trimmed.toLowerCase() === 'finish') && items.length > 0) {
+    if (isFinishPhrase(trimmed) && items.length > 0) {
       setScreen('review');
       return;
     }
