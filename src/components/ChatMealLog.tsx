@@ -92,17 +92,45 @@ const ChatMealLog = () => {
   const [showSavedMeals, setShowSavedMeals] = useState(false);
   const [listening, setListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Android's native recognizer ends its listening session as soon as it
+  // detects a pause in speech (mid-sentence, not just when the user is done)
+  // -- these refs let the 'stopped' handler tell an intentional stop from a
+  // pause and, for a pause, silently start a new session so dictation reads
+  // as continuous instead of cutting off at the first breath.
+  const dictatingRef = useRef(false);
+  const draftRef = useRef('');
+  const committedTextRef = useRef('');
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, sending]);
 
   useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
     const partialHandle = SpeechRecognition.addListener('partialResults', (data) => {
-      if (data.matches && data.matches.length > 0) setDraft(data.matches[0]);
+      if (data.matches && data.matches.length > 0) {
+        const latest = data.matches[0];
+        setDraft(committedTextRef.current ? `${committedTextRef.current} ${latest}` : latest);
+      }
     });
     const listeningHandle = SpeechRecognition.addListener('listeningState', (data) => {
-      setListening(data.status === 'started');
+      if (data.status === 'started') {
+        setListening(true);
+        return;
+      }
+      if (dictatingRef.current) {
+        committedTextRef.current = draftRef.current;
+        SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
+          console.error('Speech recognition restart error:', err);
+          dictatingRef.current = false;
+          setListening(false);
+        });
+      } else {
+        setListening(false);
+      }
     });
     return () => {
       void partialHandle.then((h) => h.remove());
@@ -112,6 +140,7 @@ const ChatMealLog = () => {
 
   const handleMicToggle = async () => {
     if (listening) {
+      dictatingRef.current = false;
       await SpeechRecognition.stop();
       setListening(false);
       return;
@@ -132,11 +161,14 @@ const ChatMealLog = () => {
       return;
     }
 
+    committedTextRef.current = '';
+    dictatingRef.current = true;
     setListening(true);
     try {
       await SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' });
     } catch (err) {
       console.error('Speech recognition error:', err);
+      dictatingRef.current = false;
       setListening(false);
     }
   };
