@@ -132,11 +132,20 @@ const ChatMealLog = () => {
       }
       if (dictatingRef.current) {
         committedTextRef.current = draftRef.current;
-        SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
-          console.error('Speech recognition restart error:', err);
-          dictatingRef.current = false;
-          setListening(false);
-        });
+        // ponytail: the native recognizer is still tearing down its previous
+        // session for a beat after 'stopped' fires -- starting immediately
+        // races it (confirmed via logcat: two overlapping sessions, then a
+        // CANCELLED error) and kills the mic instead of restarting it. This
+        // delay is an empirical guess at that teardown gap; raise it if
+        // restarts still fail with "Didn't understand" on slower devices.
+        setTimeout(() => {
+          if (!dictatingRef.current) return;
+          SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
+            console.error('Speech recognition restart error:', err);
+            dictatingRef.current = false;
+            setListening(false);
+          });
+        }, 400);
       } else {
         setListening(false);
       }
