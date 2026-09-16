@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Footprints, HelpCircle, BookmarkPlus } from 'lucide-react';
+import { Footprints, BookmarkPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -62,11 +62,6 @@ const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
             More
           </div>
           {navItems.map(renderItem)}
-          <div className="my-2 h-px bg-border" />
-          <div className="flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-medium text-foreground/80">
-            <HelpCircle className="h-[18px] w-[18px] text-muted-foreground" />
-            <span className="flex-1">Help &amp; feedback</span>
-          </div>
         </nav>
         <p className="px-1 pb-1 text-center font-mono text-[11px] text-faint">Bite Balance 2.0.1 · build 214</p>
       </SheetContent>

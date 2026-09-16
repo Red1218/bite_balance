@@ -1,8 +1,5 @@
 import { lazy, Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
-import { Toaster as Sonner } from '@/components/ui/sonner';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -23,8 +20,6 @@ const RouteFallback = () => (
     <div className="h-8 w-8 animate-pulse rounded-full bg-primary" />
   </div>
 );
-
-const queryClient = new QueryClient();
 
 const AppRoutes = () => {
   const { user, loading } = useAuth();
@@ -63,21 +58,16 @@ const AppRoutes = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ThemeProvider>
-        <AuthProvider>
-          <AddMealSheetProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </AddMealSheetProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider>
+    <AuthProvider>
+      <AddMealSheetProvider>
+        <Toaster />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AddMealSheetProvider>
+    </AuthProvider>
+  </ThemeProvider>
 );
 
 export default App;

@@ -84,11 +84,9 @@ const Profile = () => {
 
   const [macroGoals, setMacroGoals] = useState({ protein: '', carbs: '', fat: '', fiber: '' });
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lb'>('kg');
-  const [portionUnits, setPortionUnits] = useState('katori, roti');
 
   const [waterReminders, setWaterReminders] = useState(false);
   const [mealLogNudges, setMealLogNudges] = useState(false);
-  const [showFibreAndSugar, setShowFibreAndSugar] = useState(true);
 
   const [savingAdvanced, setSavingAdvanced] = useState(false);
 
@@ -125,10 +123,8 @@ const Profile = () => {
           fiber: meta.fiber_goal ? String(meta.fiber_goal) : '',
         });
         setWeightUnit(meta.weight_unit === 'lb' ? 'lb' : 'kg');
-        setPortionUnits(meta.portion_units ?? 'katori, roti');
         setWaterReminders(Boolean(meta.water_reminders_enabled));
         setMealLogNudges(Boolean(meta.meal_log_nudges_enabled));
-        setShowFibreAndSugar(meta.show_fibre_and_sugar ?? true);
       }
       setProfileLoaded(true);
     };
@@ -181,11 +177,6 @@ const Profile = () => {
     updateMeta({ meal_log_nudges_enabled: checked });
   };
 
-  const handleShowFibreAndSugarChange = (checked: boolean) => {
-    setShowFibreAndSugar(checked);
-    updateMeta({ show_fibre_and_sugar: checked });
-  };
-
   const handleGoogleFitChange = async (checked: boolean) => {
     if (checked) {
       await requestPermissions();
@@ -200,10 +191,6 @@ const Profile = () => {
   const handleWeightUnitChange = (unit: 'kg' | 'lb') => {
     setWeightUnit(unit);
     updateMeta({ weight_unit: unit });
-  };
-
-  const handlePortionUnitsBlur = () => {
-    updateMeta({ portion_units: portionUnits });
   };
 
   const kgToDisplay = (kgStr: string) => {
@@ -648,11 +635,6 @@ const Profile = () => {
             <span className="text-sm font-medium text-foreground">Google Fit sync</span>
             <Switch checked={healthConnected} onCheckedChange={handleGoogleFitChange} />
           </div>
-          {/* ponytail: preference is stored/persisted but doesn't gate any view yet — sugar isn't tracked anywhere in the schema, and the dashboard macro row shows fibre unconditionally per the current design spec */}
-          <div className="flex items-center justify-between px-[15px] py-[13px]">
-            <span className="text-sm font-medium text-foreground">Show fibre and sugar</span>
-            <Switch checked={showFibreAndSugar} onCheckedChange={handleShowFibreAndSugarChange} />
-          </div>
         </div>
       </div>
 
@@ -679,15 +661,6 @@ const Profile = () => {
                 </button>
               ))}
             </div>
-          </div>
-          <div className="flex items-center gap-3 px-[15px] py-[13px]">
-            <span className="flex-1 text-sm font-medium text-foreground">Portion units</span>
-            <input
-              value={portionUnits}
-              onChange={(e) => setPortionUnits(e.target.value)}
-              onBlur={handlePortionUnitsBlur}
-              className="w-32 rounded-lg border border-transparent bg-transparent text-right font-mono text-sm text-muted-foreground focus:border-border focus:bg-background focus:outline-none"
-            />
           </div>
           <button type="button" onClick={() => signOut()} className="flex w-full items-center justify-between px-[15px] py-[13px] text-left">
             <span className="text-sm font-medium text-primary">Sign out</span>
