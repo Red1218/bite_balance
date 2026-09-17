@@ -188,7 +188,12 @@ const ChatMealLog = () => {
   const handleMicToggle = async () => {
     if (listening) {
       dictatingRef.current = false;
-      await SpeechRecognition.stop();
+      ignorePartialRef.current = true;
+      // Don't await: the plugin's native stop() never resolves its call on
+      // success (only rejects on error), so awaiting it hangs forever and
+      // the UI never leaves "listening" until the page remounts. The native
+      // mic stops immediately regardless; update our own state right away.
+      void SpeechRecognition.stop().catch(() => {});
       setListening(false);
       return;
     }
