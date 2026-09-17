@@ -52,10 +52,9 @@ const parseWeightGrams = (text: string): number | null => {
   return match[2].toLowerCase().startsWith('oz') ? val * 28.35 : val;
 };
 
-// Generic rough estimate used only when GEMINI_API_KEY is unset -- the app
+// Generic rough estimate used only when OPENAI_API_KEY is unset -- the app
 // always has one configured in practice, so this is a last-resort guard, not
-// a real parser. Replaced the ~40-food hardcoded table + name/weight matcher
-// that used to live here: it was dead weight, never reached in production.
+// a real parser.
 const parseTextFallback = (text: string): ParseResponse => ({
   name: text,
   calories: 350,
@@ -65,6 +64,34 @@ const parseTextFallback = (text: string): ParseResponse => ({
   fiber: 2,
   ...ZERO_MICROS,
 });
+
+const OPENAI_MODEL = 'gpt-5-mini';
+
+const PARSE_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    calories: { type: 'number' },
+    protein: { type: 'number' },
+    carbs: { type: 'number' },
+    fat: { type: 'number' },
+    fiber: { type: 'number' },
+    vitaminC: { type: 'number' },
+    vitaminD: { type: 'number' },
+    vitaminB12: { type: 'number' },
+    iron: { type: 'number' },
+    calcium: { type: 'number' },
+    potassium: { type: 'number' },
+    sodium: { type: 'number' },
+    magnesium: { type: 'number' },
+    zinc: { type: 'number' },
+  },
+  required: [
+    'name', 'calories', 'protein', 'carbs', 'fat', 'fiber',
+    'vitaminC', 'vitaminD', 'vitaminB12', 'iron', 'calcium', 'potassium', 'sodium', 'magnesium', 'zinc',
+  ],
+  additionalProperties: false,
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -81,7 +108,7 @@ serve(async (req) => {
   }
 
   // Check the real food database first — a real, verified value beats a fresh
-  // Gemini estimate that can drift between requests. search_foods does a substring
+  // model estimate that can drift between requests. search_foods does a substring
   // match against the food name, so strip the weight/count phrase first.
   const foodQuery = extractFoodQuery(text);
   if (foodQuery.length >= 3) {
@@ -119,84 +146,67 @@ serve(async (req) => {
     }
   }
 
-  const geminiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GEMINI_KEY');
+  const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
   try {
     console.log(`Parsing meal text: "${text}"`);
 
-    if (!geminiKey) {
-      console.warn('GEMINI_API_KEY environment variable is not set. Using rule-based fallback parser.');
+    if (!openaiKey) {
+      console.warn('OPENAI_API_KEY environment variable is not set. Using rule-based fallback parser.');
       const parsedData = parseTextFallback(text);
       return new Response(JSON.stringify(parsedData), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Call Gemini API to parse natural language meal details to JSON format
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`;
+    const systemPrompt = 'You are a nutrition expert. Parse the given meal description into a clean, accurate nutrition estimate, scaled to the portion described. Estimate values accurately based on average food tables.';
 
-    const systemPrompt = `You are a nutrition expert. Parse the given meal description into a clean JSON structure.
-Format:
-{
-  "name": "formatted name",
-  "calories": number (kcal),
-  "protein": number (grams),
-  "carbs": number (grams),
-  "fat": number (grams),
-  "fiber": number (grams),
-  "vitaminC": number (mg),
-  "vitaminD": number (mcg),
-  "vitaminB12": number (mcg),
-  "iron": number (mg),
-  "calcium": number (mg),
-  "potassium": number (mg),
-  "sodium": number (mg),
-  "magnesium": number (mg),
-  "zinc": number (mg)
-}
-Estimate values accurately based on average food tables. Return ONLY the JSON object, do not explain your response.`;
-
-    const geminiBody = JSON.stringify({
-      contents: [
-        {
-          parts: [
-            { text: `${systemPrompt}\n\nMeal description: "${text}"` }
-          ]
-        }
+    const openaiBody = JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        { role: 'developer', content: systemPrompt },
+        { role: 'user', content: `Meal description: "${text}"` },
       ],
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'parse_meal_response',
+          strict: true,
+          schema: PARSE_RESPONSE_SCHEMA,
+        },
+      },
     });
 
-    // Gemini occasionally returns 503/429 when its servers are momentarily
-    // overloaded -- both are meant to be retried, so give it one more try
+    // OpenAI occasionally returns 503/429 when momentarily overloaded or
+    // rate-limited -- both are meant to be retried, so give it one more try
     // before falling back to the rule-based parser.
-    let response = await fetch(geminiUrl, {
+    const openaiHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` };
+    let response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: geminiBody,
+      headers: openaiHeaders,
+      body: openaiBody,
     });
     if (response.status === 503 || response.status === 429) {
-      console.warn(`Gemini API returned status ${response.status}, retrying once`);
+      console.warn(`OpenAI API returned status ${response.status}, retrying once`);
       await new Promise((r) => setTimeout(r, 1000));
-      response = await fetch(geminiUrl, {
+      response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: geminiBody,
+        headers: openaiHeaders,
+        body: openaiBody,
       });
     }
 
     if (!response.ok) {
-      console.error(`Gemini API returned status ${response.status}`);
-      throw new Error(`Gemini API failed with status ${response.status}`);
+      console.error(`OpenAI API returned status ${response.status}`, await response.text());
+      throw new Error(`OpenAI API failed with status ${response.status}`);
     }
 
-    const geminiData = await response.json();
-    const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    const openaiData = await response.json();
+    const message = openaiData.output?.find((o: { type: string }) => o.type === 'message');
+    const candidateText = message?.content?.find((c: { type: string }) => c.type === 'output_text')?.text;
 
     if (!candidateText) {
-      throw new Error('No candidate response returned from Gemini.');
+      throw new Error('No candidate response returned from OpenAI.');
     }
 
     const parsedJson: ParseResponse = JSON.parse(candidateText.trim());
@@ -226,7 +236,7 @@ Estimate values accurately based on average food tables. Return ONLY the JSON ob
     });
   } catch (error) {
     console.error('AI Parse meal error:', error);
-    // Graceful fallback to rule-based parser in case of Gemini API error
+    // Graceful fallback to rule-based parser in case of OpenAI API error
     const parsedData = parseTextFallback(text);
     return new Response(JSON.stringify(parsedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

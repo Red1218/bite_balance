@@ -79,8 +79,8 @@ const findMatchedFoods = async (latestUserMessage: string): Promise<IndianFoodRo
   return [...byId.values()].slice(0, 15);
 };
 
-// Reference table of real, verified foods, fed to Gemini so it uses these exact
-// values (scaled by grams/100) instead of guessing fresh each turn.
+// Reference table of real, verified foods, fed to the model so it uses these
+// exact values (scaled by grams/100) instead of guessing fresh each turn.
 const buildReferenceTable = (foods: IndianFoodRow[]): string => {
   return foods
     .map((d) => {
@@ -111,12 +111,48 @@ Only ask a clarifying question when something would meaningfully change the esti
 
 CRITICAL -- you never save anything yourself. The items you return each turn only update a running tally the app displays as a card per meal-time (breakfast/lunch/snack/dinner), each with its own "Log breakfast" / "Log lunch" etc. button; nothing is written to the user's log until they tap that button, outside this conversation. You have no way to know whether that ever happened. So NEVER say or imply that something is "logged", "saved", "confirmed", "synced", or that the user's meals are already recorded -- even if they insist it should be, or ask you to check, re-save, or re-sync. If a message reads like they think something was already saved, just say the amounts are noted in today's tally and that tapping "Log [meal-time]" on the card is what actually saves it. Never claim to have taken an action (re-syncing, re-logging, checking their log) that you have no way to perform.
 
-Respond with ONLY a JSON object of this exact shape, no other text:
-{
-  "reply": string,
-  "replyOptions": string[] (optional),
-  "items": [ { "name": string, "mealTime": string, "grams": number, "calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "vitaminC": number, "vitaminD": number, "vitaminB12": number, "iron": number, "calcium": number, "potassium": number, "sodium": number, "magnesium": number, "zinc": number } ]
-}`;
+Respond with a JSON object matching the given schema. Use an empty array for replyOptions when there's nothing to suggest.`;
+
+const OPENAI_MODEL = 'gpt-5-mini';
+
+const CHAT_MEAL_ITEM_SCHEMA = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    mealTime: { type: 'string', enum: ['breakfast', 'lunch', 'snack', 'dinner'] },
+    grams: { type: 'number' },
+    calories: { type: 'number' },
+    protein: { type: 'number' },
+    carbs: { type: 'number' },
+    fat: { type: 'number' },
+    fiber: { type: 'number' },
+    vitaminC: { type: 'number' },
+    vitaminD: { type: 'number' },
+    vitaminB12: { type: 'number' },
+    iron: { type: 'number' },
+    calcium: { type: 'number' },
+    potassium: { type: 'number' },
+    sodium: { type: 'number' },
+    magnesium: { type: 'number' },
+    zinc: { type: 'number' },
+  },
+  required: [
+    'name', 'mealTime', 'grams', 'calories', 'protein', 'carbs', 'fat', 'fiber',
+    'vitaminC', 'vitaminD', 'vitaminB12', 'iron', 'calcium', 'potassium', 'sodium', 'magnesium', 'zinc',
+  ],
+  additionalProperties: false,
+};
+
+const CHAT_MEAL_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    reply: { type: 'string' },
+    replyOptions: { type: 'array', items: { type: 'string' } },
+    items: { type: 'array', items: CHAT_MEAL_ITEM_SCHEMA },
+  },
+  required: ['reply', 'replyOptions', 'items'],
+  additionalProperties: false,
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -138,9 +174,9 @@ serve(async (req) => {
     );
   }
 
-  const geminiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GEMINI_KEY');
+  const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
-  if (!geminiKey) {
+  if (!openaiKey) {
     return new Response(
       JSON.stringify({ error: 'Chat is unavailable right now (missing API key).' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -152,46 +188,52 @@ serve(async (req) => {
     const matchedFoods = await findMatchedFoods(latestUserMessage);
     const referenceTable = buildReferenceTable(matchedFoods);
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey}`;
-    const geminiBody = JSON.stringify({
-      systemInstruction: { parts: [{ text: buildSystemPrompt(fallbackMealTime, referenceTable) }] },
-      contents: messages.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })),
-      generationConfig: {
-        responseMimeType: 'application/json',
+    const openaiBody = JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable) },
+        ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'chat_meal_response',
+          strict: true,
+          schema: CHAT_MEAL_RESPONSE_SCHEMA,
+        },
       },
     });
 
-    // Gemini occasionally returns 503/429 when its servers are momentarily
-    // overloaded -- both are meant to be retried, so give it one more try
+    // OpenAI occasionally returns 503/429 when momentarily overloaded or
+    // rate-limited -- both are meant to be retried, so give it one more try
     // before failing the whole conversation turn.
-    let response = await fetch(geminiUrl, {
+    const openaiHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` };
+    let response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: geminiBody,
+      headers: openaiHeaders,
+      body: openaiBody,
     });
     if (response.status === 503 || response.status === 429) {
-      console.warn(`Gemini API returned status ${response.status}, retrying once`);
+      console.warn(`OpenAI API returned status ${response.status}, retrying once`);
       await new Promise((r) => setTimeout(r, 1000));
-      response = await fetch(geminiUrl, {
+      response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: geminiBody,
+        headers: openaiHeaders,
+        body: openaiBody,
       });
     }
 
     if (!response.ok) {
-      console.error(`Gemini API returned status ${response.status}`);
-      throw new Error(`Gemini API failed with status ${response.status}`);
+      console.error(`OpenAI API returned status ${response.status}`, await response.text());
+      throw new Error(`OpenAI API failed with status ${response.status}`);
     }
 
-    const geminiData = await response.json();
-    const candidateText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    const openaiData = await response.json();
+    const message = openaiData.output?.find((o: { type: string }) => o.type === 'message');
+    const candidateText = message?.content?.find((c: { type: string }) => c.type === 'output_text')?.text;
 
     if (!candidateText) {
-      throw new Error('No candidate response returned from Gemini.');
+      throw new Error('No candidate response returned from OpenAI.');
     }
 
     const parsed = JSON.parse(candidateText.trim());
