@@ -124,6 +124,14 @@ const ChatMealLog = () => {
   const dictatingRef = useRef(false);
   const draftRef = useRef('');
   const committedTextRef = useRef('');
+  // The native recognizer funnels its session-final transcript (onResults)
+  // through the SAME 'partialResults' event used for growing interim
+  // hypotheses (see SpeechRecognitionListener#onResults in the plugin's
+  // Android source) -- so after we commit draftRef into committedTextRef on
+  // 'stopped', that same session's late final result arrives right after and
+  // gets appended a second time, duplicating every word. Drop any
+  // 'partialResults' event that isn't from an actually-started session.
+  const ignorePartialRef = useRef(false);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -135,6 +143,7 @@ const ChatMealLog = () => {
 
   useEffect(() => {
     const partialHandle = SpeechRecognition.addListener('partialResults', (data) => {
+      if (ignorePartialRef.current) return;
       if (data.matches && data.matches.length > 0) {
         const latest = data.matches[0];
         setDraft(committedTextRef.current ? `${committedTextRef.current} ${latest}` : latest);
@@ -142,9 +151,14 @@ const ChatMealLog = () => {
     });
     const listeningHandle = SpeechRecognition.addListener('listeningState', (data) => {
       if (data.status === 'started') {
+        ignorePartialRef.current = false;
         setListening(true);
         return;
       }
+      // Every 'stopped' -- restart or real stop -- is followed by that
+      // session's late final result on the same event; ignore partials until
+      // the next session's own 'started' proves they're fresh.
+      ignorePartialRef.current = true;
       if (dictatingRef.current) {
         committedTextRef.current = draftRef.current;
         // ponytail: the native recognizer is still tearing down its previous
@@ -600,6 +614,13 @@ const ChatMealLog = () => {
         );
       })}
 
+      {listening && (
+        <div className="flex items-center gap-1.5 px-1">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+          <span className="text-[11px] font-medium text-destructive">Listening…</span>
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -610,7 +631,7 @@ const ChatMealLog = () => {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={listening ? 'Listening...' : 'Tell me what you ate...'}
+          placeholder="Tell me what you ate..."
           disabled={sending}
           className="h-12 flex-1 rounded-2xl border border-border bg-muted/40 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
