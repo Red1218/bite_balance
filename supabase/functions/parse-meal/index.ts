@@ -163,6 +163,7 @@ serve(async (req) => {
 
     const openaiBody = JSON.stringify({
       model: OPENAI_MODEL,
+      reasoning: { effort: 'low' },
       input: [
         { role: 'developer', content: systemPrompt },
         { role: 'user', content: `Meal description: "${text}"` },

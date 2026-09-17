@@ -190,6 +190,10 @@ serve(async (req) => {
 
     const openaiBody = JSON.stringify({
       model: OPENAI_MODEL,
+      // This is a factual lookup/formatting task, not multi-step reasoning --
+      // the default effort was taking ~35s per turn, which reads as hung in
+      // a chat UI. Low effort cuts that drastically with no quality loss here.
+      reasoning: { effort: 'low' },
       input: [
         { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable) },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
