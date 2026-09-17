@@ -161,20 +161,27 @@ const ChatMealLog = () => {
       ignorePartialRef.current = true;
       if (dictatingRef.current) {
         committedTextRef.current = draftRef.current;
-        // ponytail: the native recognizer is still tearing down its previous
-        // session for a beat after 'stopped' fires -- starting immediately
-        // races it (confirmed via logcat: two overlapping sessions, then a
-        // CANCELLED error) and kills the mic instead of restarting it. This
-        // delay is an empirical guess at that teardown gap; raise it if
-        // restarts still fail with "Didn't understand" on slower devices.
-        setTimeout(() => {
-          if (!dictatingRef.current) return;
-          SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
-            console.error('Speech recognition restart error:', err);
-            dictatingRef.current = false;
-            setListening(false);
-          });
-        }, 400);
+        // ponytail: the native recognizer's teardown of the previous session
+        // is an OS-level async race we don't control -- any fixed delay is a
+        // guess, and logcat confirms 400ms alone still loses sometimes
+        // ("Client has opened 2 sessions" -> cancel-without-start -> restart
+        // fails and the mic silently shuts off). One retry after a longer
+        // gap absorbs that instead of surfacing it as a dead mic.
+        const attemptRestart = (delayMs: number, isRetry: boolean) => {
+          setTimeout(() => {
+            if (!dictatingRef.current) return;
+            SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
+              console.error('Speech recognition restart error:', err);
+              if (!isRetry) {
+                attemptRestart(700, true);
+                return;
+              }
+              dictatingRef.current = false;
+              setListening(false);
+            });
+          }, delayMs);
+        };
+        attemptRestart(400, false);
       } else {
         setListening(false);
       }
