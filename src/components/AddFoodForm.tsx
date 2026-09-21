@@ -11,7 +11,12 @@ import {
 } from '@/components/ui/select';
 import { X, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { createCustomFood, findExistingSavedItemByName } from '@/services/foodService';
+import {
+  createCustomFood,
+  updateCustomFood,
+  findExistingSavedItemByName,
+  IndianFood,
+} from '@/services/foodService';
 
 const categories = [
   { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
@@ -32,21 +37,23 @@ const categories = [
 interface AddFoodFormProps {
   onFoodAdded: () => void;
   onCancel: () => void;
+  /** When set, the form edits this saved food instead of creating a new one. */
+  food?: IndianFood;
 }
 
-const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
+const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food }) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    category: 'south_indian',
-    serving_size: '100',
-    serving_unit: 'g',
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    fiber: '',
+    name: food?.name ?? '',
+    category: food?.category ?? 'south_indian',
+    serving_size: String(food?.serving_size ?? 100),
+    serving_unit: food?.serving_unit ?? 'g',
+    calories: food ? String(food.calories) : '',
+    protein: food ? String(food.protein ?? 0) : '',
+    carbs: food ? String(food.carbs ?? 0) : '',
+    fat: food ? String(food.fat ?? 0) : '',
+    fiber: food ? String(food.fiber ?? 0) : '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,8 +68,9 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
       return;
     }
 
+    // Editing: the food matching its own name isn't a duplicate.
     const existing = await findExistingSavedItemByName(formData.name);
-    if (existing) {
+    if (existing && existing.id !== food?.id) {
       const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
       if (!window.confirm(`You already have a ${kind} named "${formData.name}". Save this anyway?`)) {
         return;
@@ -72,7 +80,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
     setLoading(true);
 
     try {
-      await createCustomFood({
+      const values = {
         name: formData.name,
         category: formData.category,
         serving_size: Number(formData.serving_size) || 100,
@@ -82,11 +90,13 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
         carbs: Number(formData.carbs) || 0,
         fat: Number(formData.fat) || 0,
         fiber: Number(formData.fiber) || 0,
-      });
+      };
+      if (food) await updateCustomFood(food.id, values);
+      else await createCustomFood(values);
 
       toast({
         title: 'Success',
-        description: 'Food saved successfully!',
+        description: food ? 'Food updated!' : 'Food saved successfully!',
       });
 
       onFoodAdded();
@@ -105,7 +115,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
   return (
     <div className="elevation-card p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-foreground">Save a new food</h3>
+        <h3 className="font-display font-semibold text-foreground">{food ? 'Edit food' : 'Save a new food'}</h3>
         <Button
           type="button"
           variant="ghost"
@@ -238,7 +248,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel }) => {
         <div className="flex gap-2">
           <Button type="submit" disabled={loading} className="flex-1 rounded-xl h-12">
             <Save className="w-4 h-4 mr-2" />
-            {loading ? 'Saving...' : 'Save food'}
+            {loading ? 'Saving...' : food ? 'Save changes' : 'Save food'}
           </Button>
           <Button type="button" variant="outline" onClick={onCancel} className="rounded-xl h-12">
             Cancel
