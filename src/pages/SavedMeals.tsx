@@ -596,7 +596,7 @@ const SavedMeals = () => {
             >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-foreground">{selectedKeys.size} selected</div>
-                <div className="truncate text-[10px] text-muted-foreground">
+                <div className="text-[10px] leading-tight text-muted-foreground">
                   {selectedMealIds.length > 0 && selectedFoods.length > 0
                     ? 'Pick foods only to build a meal'
                     : selectedFoods.length < 2
