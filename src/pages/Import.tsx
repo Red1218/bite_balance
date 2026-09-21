@@ -68,7 +68,11 @@ const Import = () => {
       navigate('/');
     } catch (err) {
       console.error('Error importing meal log:', err);
-      toast({ title: 'Error', description: 'Failed to import. Please try again.', variant: 'destructive' });
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to import. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }

@@ -48,6 +48,14 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// SheetJS lands Date-typed cells 1ms under local midnight; format from local
+// components (never toISOString(), which shifts across the UTC boundary and
+// is off by a day in any positive UTC offset timezone).
+const fmtLocalDate = (d: Date): string => {
+  const x = new Date(d.getTime() + 1000);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
+
 // Reads the "Date" key/value row from Daily Summary regardless of whether that
 // sheet has its own header row first -- the two real sample files disagree on
 // that, so this searches for the row by its first cell instead of a fixed index.
@@ -60,14 +68,14 @@ const findDailySummaryDate = (workbook: XLSX.WorkBook): string => {
     throw new Error('No "Date" row found in the "Daily Summary" sheet.');
   }
   const value = dateRow[1];
-  if (value instanceof Date) return value.toISOString().split('T')[0];
+  if (value instanceof Date) return fmtLocalDate(value);
   const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) {
     throw new Error(`Could not read the date "${text}" from the "Daily Summary" sheet.`);
   }
-  return parsed.toISOString().split('T')[0];
+  return fmtLocalDate(parsed);
 };
 
 export const parseMealLogFile = (buffer: ArrayBuffer): ParsedImport => {
