@@ -22,6 +22,7 @@ interface ChatMsg {
   id: string;
   who: 'bot' | 'user' | 'q';
   text: string;
+  createdAt: string;
   replies?: string[];
   /** A clean single-item correction ("Rice -> 200g -> 260g, +97 kcal") --
    * when set, this renders instead of `text`, matching the ledger's diff
@@ -106,7 +107,9 @@ const ChatMealLog = () => {
   const { notifyMealsLogged } = useAddMealSheet();
   const { meals: savedMeals } = useSavedMeals();
 
-  const [messages, setMessages] = useState<ChatMsg[]>([{ id: 'm0', who: 'bot', text: GREETING }]);
+  const [messages, setMessages] = useState<ChatMsg[]>([
+    { id: 'm0', who: 'bot', text: GREETING, createdAt: new Date().toISOString() },
+  ]);
   const [items, setItems] = useState<ChatMealItem[]>([]);
   const [editingMealTime, setEditingMealTime] = useState<MealTime | null>(null);
   const [draft, setDraft] = useState('');
@@ -253,6 +256,7 @@ const ChatMealLog = () => {
             id: row.id,
             who: row.role === 'user' ? 'user' : 'bot',
             text: row.content,
+            createdAt: row.created_at,
           }))
         );
       }
@@ -269,18 +273,29 @@ const ChatMealLog = () => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
 
-    const nextMessages: ChatMsg[] = [...messages, { id: uid(), who: 'user', text: trimmed }];
+    const now = new Date().toISOString();
+    const nextMessages: ChatMsg[] = [...messages, { id: uid(), who: 'user', text: trimmed, createdAt: now }];
     setMessages(nextMessages);
     setDraft('');
     void persistMessage('user', trimmed);
 
     setSending(true);
     try {
+      const todayStr = now.split('T')[0];
       const contextMessages = nextMessages.slice(-CHAT_CONTEXT_LIMIT);
       const { data, error } = await supabase.functions.invoke('chat-meal', {
         body: {
-          messages: contextMessages.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+          // Old-day messages are tagged so the model can still recall and
+          // discuss them, without mistaking them for part of today's tally.
+          messages: contextMessages.map((m) => {
+            const msgDay = m.createdAt.split('T')[0];
+            return {
+              role: m.who === 'user' ? 'user' : 'assistant',
+              content: msgDay === todayStr ? m.text : `[${msgDay}] ${m.text}`,
+            };
+          }),
           defaultMealTime: defaultSlotForNow(),
+          today: todayStr,
         },
       });
 
@@ -292,8 +307,8 @@ const ChatMealLog = () => {
       setMessages((prev) => [
         ...prev,
         hasOptions
-          ? { id: uid(), who: 'q', text: data.reply, replies: data.replyOptions }
-          : { id: uid(), who: 'bot', text: data.reply, diff: diff || undefined },
+          ? { id: uid(), who: 'q', text: data.reply, replies: data.replyOptions, createdAt: new Date().toISOString() }
+          : { id: uid(), who: 'bot', text: data.reply, diff: diff || undefined, createdAt: new Date().toISOString() },
       ]);
       void persistMessage('assistant', data.reply);
       if (Array.isArray(data.items)) setItems(data.items);
@@ -301,7 +316,12 @@ const ChatMealLog = () => {
       console.error('chat-meal error:', err);
       setMessages((prev) => [
         ...prev,
-        { id: uid(), who: 'bot', text: 'Could not process that. Try rephrasing, or add it manually instead.' },
+        {
+          id: uid(),
+          who: 'bot',
+          text: 'Could not process that. Try rephrasing, or add it manually instead.',
+          createdAt: new Date().toISOString(),
+        },
       ]);
     } finally {
       setSending(false);
@@ -428,7 +448,10 @@ const ChatMealLog = () => {
 
       setItems((prev) => prev.filter((it) => it.mealTime !== mealTime));
       setEditingMealTime((cur) => (cur === mealTime ? null : cur));
-      setMessages((prev) => [...prev, { id: uid(), who: 'bot', text: confirmationText }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), who: 'bot', text: confirmationText, createdAt: new Date().toISOString() },
+      ]);
       void persistMessage('assistant', confirmationText);
     } catch (err) {
       console.error('Error logging meal group:', err);

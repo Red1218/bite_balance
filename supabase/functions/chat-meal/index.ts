@@ -92,9 +92,13 @@ const buildReferenceTable = (foods: IndianFoodRow[]): string => {
     .join('\n');
 };
 
-const buildSystemPrompt = (defaultMealTime: string, referenceTable: string): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
+const buildSystemPrompt = (defaultMealTime: string, referenceTable: string, today: string): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
 
-Maintain a running list of every distinct food item mentioned across the WHOLE conversation so far, not just the latest message -- merge new items into what was already understood, never drop earlier ones unless the user corrects or removes something.
+Today's date is ${today}. Some earlier messages are prefixed with "[YYYY-MM-DD]" because they're from a previous day -- that's real conversation history you can still recall and talk about, but it is NOT part of today's tally. Only unprefixed messages (today's) feed "items".
+
+For each meal-time, "items" should reflect exactly what's still open and unlogged for TODAY. Once a meal-time has already been logged today (a message like "Logged breakfast · N items · ..." appears after it), leave it out of "items" entirely -- treat it as done, not as something to keep restating -- unless the user is now describing a genuinely new, separate instance of that meal-time (e.g. a second breakfast).
+
+When the user gives a fresh, standalone description of what they ate for a meal-time that still has open (unlogged) items today -- not phrased as continuing what was just discussed (not "also add X", "plus X", or a direct answer to your own clarifying question) -- treat it as the complete, corrected statement for that meal-time and REPLACE its earlier open items rather than adding to them. When they ARE clearly continuing or refining what they just described, merge as before.
 
 For each item determine:
 - name: a short readable food name
@@ -159,13 +163,15 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const { messages, defaultMealTime } = (await req.json()) as {
+  const { messages, defaultMealTime, today } = (await req.json()) as {
     messages: ChatMessage[];
     defaultMealTime?: string;
+    today?: string;
   };
   const fallbackMealTime = (['breakfast', 'lunch', 'snack', 'dinner'].includes(defaultMealTime as string)
     ? defaultMealTime
     : 'snack') as ChatMealItem['mealTime'];
+  const todayStr = today || new Date().toISOString().split('T')[0];
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return new Response(
@@ -195,7 +201,7 @@ serve(async (req) => {
       // a chat UI. Low effort cuts that drastically with no quality loss here.
       reasoning: { effort: 'low' },
       input: [
-        { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable) },
+        { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable, todayStr) },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
       ],
       text: {
