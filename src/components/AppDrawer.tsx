@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Footprints, BookmarkPlus, MessagesSquare } from 'lucide-react';
+import { Footprints, BookmarkPlus, MessagesSquare, FileSpreadsheet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -15,6 +15,7 @@ const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
   const { isConnected, healthData } = useHealthConnect();
 
   const navItems = [
+    { path: '/import', icon: FileSpreadsheet, label: 'Import log', badge: undefined },
     { path: '/conversations', icon: MessagesSquare, label: 'Conversations', badge: undefined },
     { path: '/saved-meals', icon: BookmarkPlus, label: 'Saved', badge: undefined },
     { path: '/steps', icon: Footprints, label: 'Steps', badge: isConnected && healthData ? healthData.steps.toLocaleString() : undefined },
