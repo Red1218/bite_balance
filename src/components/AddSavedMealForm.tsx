@@ -14,11 +14,17 @@ import { findExistingSavedItemByName, getMyCustomFoods, IndianFood } from '@/ser
 interface AddSavedMealFormProps {
   onMealAdded: () => void;
   onCancel: () => void;
+  /** Start in "build from your foods" mode with these saved foods ticked (quantity 1). */
+  initialFoodIds?: string[];
+  /** The user's saved foods, when the caller already has them -- skips the refetch. */
+  foods?: IndianFood[];
 }
 
 const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
   onMealAdded,
   onCancel,
+  initialFoodIds,
+  foods,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -35,11 +41,13 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
   });
   const [tags, setTags] = useState<string[]>([]);
 
-  const [buildMode, setBuildMode] = useState<'manual' | 'foods'>('manual');
-  const [myFoods, setMyFoods] = useState<IndianFood[]>([]);
+  const [buildMode, setBuildMode] = useState<'manual' | 'foods'>(initialFoodIds?.length ? 'foods' : 'manual');
+  const [myFoods, setMyFoods] = useState<IndianFood[]>(foods ?? []);
   const [foodSearch, setFoodSearch] = useState('');
   // multiplier applied to a food's own serving -- '1' means "one serving as saved"
-  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Record<string, string>>(() =>
+    Object.fromEntries((initialFoodIds ?? []).map((id) => [id, '1']))
+  );
 
   useEffect(() => {
     if (buildMode === 'foods' && myFoods.length === 0) {
@@ -69,10 +77,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
       fat: String(Math.round(totals.fat * 10) / 10),
       fiber: String(Math.round(totals.fiber * 10) / 10),
     }));
-    // Recompute only when the selection itself changes -- formData's own
-    // fields stay independently editable afterward without fighting this sync.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, buildMode]);
+    // Recompute only when the selection (or the foods list it points into) changes --
+    // formData's own fields stay independently editable afterward without fighting this sync.
+  }, [selected, buildMode, myFoods]);
 
   const toggleFood = (food: IndianFood) => {
     setSelected((prev) => {
@@ -90,9 +97,11 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
     setSelected((prev) => ({ ...prev, [foodId]: value }));
   };
 
-  const filteredFoods = myFoods.filter((f) =>
-    f.name.toLowerCase().includes(foodSearch.toLowerCase())
-  );
+  // Foods the caller pre-selected come first, so their quantities are in reach
+  // without scrolling. Keyed on the initial ids only, so rows don't jump while ticking.
+  const filteredFoods = myFoods
+    .filter((f) => f.name.toLowerCase().includes(foodSearch.toLowerCase()))
+    .sort((a, b) => Number(initialFoodIds?.includes(b.id) ?? false) - Number(initialFoodIds?.includes(a.id) ?? false));
 
   const handleAddTag = () => {
     if (formData.tagInput.trim() && !tags.includes(formData.tagInput.trim())) {
@@ -258,13 +267,17 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
                         </div>
                       </div>
                       {isSelected && (
-                        <Input
-                          type="number"
-                          step="0.25"
-                          value={selected[food.id]}
-                          onChange={(e) => setMultiplier(food.id, e.target.value)}
-                          className="h-9 w-16 flex-none rounded-lg font-mono text-sm"
-                        />
+                        <div className="flex flex-none items-center gap-1">
+                          <span className="font-mono text-xs text-muted-foreground">×</span>
+                          <Input
+                            type="number"
+                            step="0.25"
+                            value={selected[food.id]}
+                            onChange={(e) => setMultiplier(food.id, e.target.value)}
+                            aria-label={`Servings of ${food.name}`}
+                            className="h-9 w-16 rounded-lg font-mono text-sm"
+                          />
+                        </div>
                       )}
                     </div>
                   );

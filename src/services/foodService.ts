@@ -63,6 +63,18 @@ export async function deleteCustomFood(id: string): Promise<void> {
   }
 }
 
+export async function deleteCustomFoods(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User must be authenticated');
+
+  const { error } = await supabase.from('indian_foods').delete().in('id', ids).eq('user_id', user.id);
+  if (error) {
+    console.error('Error deleting custom foods:', error);
+    throw error;
+  }
+}
+
 /**
  * Checks whether a saved meal or custom food with this name already exists for
  * the current user, across both collections -- so saving from either the Add
