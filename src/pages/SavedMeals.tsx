@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useSavedMeals, SavedMeal } from '@/hooks/useSavedMeals';
 import { useDailyMeals } from '@/hooks/useDailyMeals';
-import { getMyCustomFoods, deleteCustomFood, IndianFood } from '@/services/foodService';
+import { useToast } from '@/hooks/use-toast';
+import { getMyCustomFoods, deleteCustomFood, deleteCustomFoods, IndianFood } from '@/services/foodService';
 import EditMealDialog from '@/components/EditMealDialog';
 import AddSavedMealForm from '@/components/AddSavedMealForm';
 import AddFoodForm from '@/components/AddFoodForm';
@@ -31,6 +32,20 @@ const macroWidths = (p: number, c: number, f: number, fb: number) => {
   return { pw: w(p * 4), cw: w(c * 4), fw: w(f * 9), bw: w(fb * 2) };
 };
 
+const itemKey = (item: SavedItem) => (item.kind === 'meal' ? `meal-${item.meal.id}` : `food-${item.food.id}`);
+
+const SelectBox = ({ checked }: { checked: boolean }) => (
+  <span
+    aria-hidden
+    className={cn(
+      'flex h-6 w-6 flex-none items-center justify-center rounded-full border transition-colors',
+      checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-transparent'
+    )}
+  >
+    <Check className="h-3.5 w-3.5" />
+  </span>
+);
+
 const bucketLabel = (dateStr: string) => {
   const d = new Date(dateStr);
   const now = new Date();
@@ -48,9 +63,11 @@ const SavedMeals = () => {
     loading,
     updateMeal,
     deleteMeal,
+    deleteMeals,
     refetch,
   } = useSavedMeals();
   const { addMealFromSaved, addFoodFromSaved } = useDailyMeals();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
@@ -62,6 +79,13 @@ const SavedMeals = () => {
 
   const [customFoods, setCustomFoods] = useState<IndianFood[]>([]);
   const [foodsLoading, setFoodsLoading] = useState(true);
+
+  // Multi-select: tap cards to tick them, then build one meal from the foods or delete the lot.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  // Foods carried from the selection into the "Save a new meal" form.
+  const [seedFoodIds, setSeedFoodIds] = useState<string[] | undefined>();
 
   const fetchCustomFoods = () => {
     getMyCustomFoods()
@@ -142,14 +166,79 @@ const SavedMeals = () => {
     }
   };
 
-  const handleMealAdded = () => {
+  const closeAddForm = () => {
     setShowAddForm(false);
+    setSeedFoodIds(undefined);
+  };
+
+  const handleMealAdded = () => {
+    closeAddForm();
     refetch();
   };
 
   const handleFoodAdded = () => {
-    setShowAddForm(false);
+    closeAddForm();
     fetchCustomFoods();
+  };
+
+  const openBlankAddForm = () => {
+    setSeedFoodIds(undefined);
+    setShowAddForm(true);
+  };
+
+  const toggleSelected = (key: string) =>
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedKeys(new Set());
+  };
+
+  const selectedFoods = customFoods.filter((f) => selectedKeys.has(`food-${f.id}`));
+  const selectedMealIds = savedMeals.filter((m) => selectedKeys.has(`meal-${m.id}`)).map((m) => m.id);
+  // A new meal is built from foods only; a meal picked alongside them has no per-serving values to combine.
+  const canCreateMeal = selectedFoods.length >= 2 && selectedMealIds.length === 0;
+
+  const handleCreateMealFromSelection = () => {
+    if (!canCreateMeal) return;
+    setSeedFoodIds(selectedFoods.map((f) => f.id));
+    setAddKind('meal');
+    setShowAddForm(true);
+    exitSelectMode();
+    // The form renders above the list.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBulkDelete = async () => {
+    const count = selectedKeys.size;
+    if (count === 0) return;
+    if (!window.confirm(`Delete ${count} saved item${count === 1 ? '' : 's'}? This can't be undone.`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const foodIds = selectedFoods.map((f) => f.id);
+      const [mealsOk] = await Promise.all([
+        selectedMealIds.length > 0 ? deleteMeals(selectedMealIds) : Promise.resolve(true),
+        foodIds.length > 0
+          ? deleteCustomFoods(foodIds).then(() => setCustomFoods((prev) => prev.filter((f) => !foodIds.includes(f.id))))
+          : Promise.resolve(),
+      ]);
+      if (mealsOk) {
+        toast({ title: 'Deleted', description: `${count} item${count === 1 ? '' : 's'} removed` });
+        exitSelectMode();
+      }
+    } catch (error) {
+      console.error('Error deleting selected items:', error);
+      toast({ title: 'Error', description: 'Some items could not be deleted', variant: 'destructive' });
+      fetchCustomFoods();
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const typeFilters: { value: TypeFilter; label: string; count: number }[] = [
@@ -195,10 +284,10 @@ const SavedMeals = () => {
             <span className="text-[10px] text-muted-foreground">items saved</span>
           </div>
           <Button
-            onClick={() => setShowAddForm(true)}
+            onClick={openBlankAddForm}
             size="icon"
             className="rounded-xl h-10 w-10 flex-none"
-            disabled={showAddForm}
+            disabled={showAddForm || selectMode}
           >
             <Plus className="w-5 h-5" />
           </Button>
@@ -233,6 +322,20 @@ const SavedMeals = () => {
               <span className="font-mono text-[11px] opacity-70 tabular-nums">{f.count}</span>
             </button>
           ))}
+          {savedItems.length > 0 && (
+            <button
+              type="button"
+              onClick={selectMode ? exitSelectMode : () => setSelectMode(true)}
+              className={cn(
+                'ml-auto h-8 rounded-full px-3 text-xs font-medium border transition-colors',
+                selectMode
+                  ? 'bg-primary/12 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground'
+              )}
+            >
+              {selectMode ? 'Cancel' : 'Select'}
+            </button>
+          )}
         </div>
 
         {/* Add New Meal / Food */}
@@ -257,13 +360,16 @@ const SavedMeals = () => {
             </div>
             {addKind === 'meal' ? (
               <AddSavedMealForm
+                key={seedFoodIds?.join(',') ?? 'blank'}
                 onMealAdded={handleMealAdded}
-                onCancel={() => setShowAddForm(false)}
+                onCancel={closeAddForm}
+                initialFoodIds={seedFoodIds}
+                foods={customFoods}
               />
             ) : (
               <AddFoodForm
                 onFoodAdded={handleFoodAdded}
-                onCancel={() => setShowAddForm(false)}
+                onCancel={closeAddForm}
               />
             )}
           </div>
@@ -288,15 +394,24 @@ const SavedMeals = () => {
                   item.kind === 'meal' ? (
                     <div
                       key={`meal-${item.meal.id}`}
-                      className="elevation-card border-l-[3px] border-l-primary p-3.5 flex flex-col gap-2.5"
+                      onClick={selectMode ? () => toggleSelected(itemKey(item)) : undefined}
+                      aria-pressed={selectMode ? selectedKeys.has(itemKey(item)) : undefined}
+                      className={cn(
+                        'elevation-card border-l-[3px] border-l-primary p-3.5 flex flex-col gap-2.5',
+                        selectMode && 'cursor-pointer',
+                        selectMode && selectedKeys.has(itemKey(item)) && 'ring-2 ring-primary/50'
+                      )}
                     >
                       <div className="flex items-start justify-between gap-2.5">
-                        <div className="min-w-0 flex flex-col gap-1">
-                          <div className="font-display font-semibold text-base leading-tight text-foreground truncate">
-                            {item.meal.name}
-                          </div>
-                          <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Saved meal
+                        <div className="min-w-0 flex items-start gap-2.5">
+                          {selectMode && <SelectBox checked={selectedKeys.has(itemKey(item))} />}
+                          <div className="min-w-0 flex flex-col gap-1">
+                            <div className="font-display font-semibold text-base leading-tight text-foreground truncate">
+                              {item.meal.name}
+                            </div>
+                            <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                              Saved meal
+                            </div>
                           </div>
                         </div>
                         <div className="text-right flex-none">
@@ -366,6 +481,7 @@ const SavedMeals = () => {
                         </div>
                       )}
 
+                      {!selectMode && (
                       <div className="flex gap-2 pt-0.5">
                         <button
                           type="button"
@@ -390,12 +506,20 @@ const SavedMeals = () => {
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
+                      )}
                     </div>
                   ) : (
                     <div
                       key={`food-${item.food.id}`}
-                      className="rounded-xl bg-muted/60 border border-border p-2.5 flex items-center gap-2.5"
+                      onClick={selectMode ? () => toggleSelected(itemKey(item)) : undefined}
+                      aria-pressed={selectMode ? selectedKeys.has(itemKey(item)) : undefined}
+                      className={cn(
+                        'rounded-xl bg-muted/60 border border-border p-2.5 flex items-center gap-2.5',
+                        selectMode && 'cursor-pointer',
+                        selectMode && selectedKeys.has(itemKey(item)) && 'border-primary/50 ring-2 ring-primary/40'
+                      )}
                     >
+                      {selectMode && <SelectBox checked={selectedKeys.has(itemKey(item))} />}
                       <div className="w-[38px] h-[38px] rounded-[10px] bg-card border border-border flex flex-col items-center justify-center flex-none">
                         <div className="font-mono text-[11px] font-semibold text-foreground/80 tabular-nums">
                           {item.food.serving_size}
@@ -417,22 +541,26 @@ const SavedMeals = () => {
                         </div>
                         <div className="text-[8px] tracking-wider text-muted-foreground uppercase">kcal</div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickAdd(item)}
-                        aria-label={`Add ${item.food.name} to today`}
-                        className="w-10 h-10 rounded-full border border-primary/30 bg-primary/10 text-primary flex items-center justify-center flex-none"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteFood(item.food)}
-                        aria-label={`Delete ${item.food.name}`}
-                        className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center flex-none"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!selectMode && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAdd(item)}
+                            aria-label={`Add ${item.food.name} to today`}
+                            className="w-10 h-10 rounded-full border border-primary/30 bg-primary/10 text-primary flex items-center justify-center flex-none"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFood(item.food)}
+                            aria-label={`Delete ${item.food.name}`}
+                            className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center flex-none"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   )
                 )}
@@ -449,13 +577,54 @@ const SavedMeals = () => {
                 : 'Nothing saved yet.'}
             </p>
             <Button
-              onClick={() => setShowAddForm(true)}
+              onClick={openBlankAddForm}
               className="h-12 px-6 rounded-xl"
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Your First Meal
             </Button>
           </div>
+        )}
+
+        {selectMode && (
+          <>
+            {/* Spacer so the last card can scroll clear of the docked action bar */}
+            <div className="h-20" />
+            <div
+              className="elevation-glass fixed left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 items-center gap-2 p-3"
+              style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-foreground">{selectedKeys.size} selected</div>
+                <div className="text-[10px] leading-tight text-muted-foreground">
+                  {selectedMealIds.length > 0 && selectedFoods.length > 0
+                    ? 'Pick foods only to build a meal'
+                    : selectedFoods.length < 2
+                    ? 'Pick 2+ foods to build a meal'
+                    : 'Combine into one saved meal'}
+                </div>
+              </div>
+              <Button
+                type="button"
+                onClick={handleCreateMealFromSelection}
+                disabled={!canCreateMeal || bulkDeleting}
+                className="h-10 rounded-xl px-3.5 text-xs font-semibold"
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Create meal
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleBulkDelete}
+                disabled={selectedKeys.size === 0 || bulkDeleting}
+                className="h-10 rounded-xl px-3.5 text-xs font-semibold"
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                {bulkDeleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </>
         )}
 
         <EditMealDialog

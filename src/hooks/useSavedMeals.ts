@@ -118,6 +118,33 @@ export const useSavedMeals = () => {
     }
   };
 
+  // One query and one toast for the whole batch. Returns whether it worked so
+  // the caller can decide to keep the selection on failure.
+  const deleteMeals = async (ids: string[]): Promise<boolean> => {
+    if (!user || ids.length === 0) return false;
+
+    try {
+      const { error } = await supabase
+        .from('saved_meals')
+        .delete()
+        .in('id', ids)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setMeals((prev) => prev.filter((meal) => !ids.includes(meal.id)));
+      return true;
+    } catch (error) {
+      console.error('Error deleting meals:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete meals',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchSavedMeals();
   }, [user]);
@@ -127,6 +154,7 @@ export const useSavedMeals = () => {
     loading,
     updateMeal,
     deleteMeal,
+    deleteMeals,
     refetch: fetchSavedMeals,
   };
 };
