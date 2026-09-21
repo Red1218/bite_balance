@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, Save } from 'lucide-react';
+import { X, Plus, Save, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { findExistingSavedItemByName } from '@/services/foodService';
+import { findExistingSavedItemByName, getMyCustomFoods, IndianFood } from '@/services/foodService';
 
 interface AddSavedMealFormProps {
   onMealAdded: () => void;
@@ -33,6 +34,65 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
     tagInput: '',
   });
   const [tags, setTags] = useState<string[]>([]);
+
+  const [buildMode, setBuildMode] = useState<'manual' | 'foods'>('manual');
+  const [myFoods, setMyFoods] = useState<IndianFood[]>([]);
+  const [foodSearch, setFoodSearch] = useState('');
+  // multiplier applied to a food's own serving -- '1' means "one serving as saved"
+  const [selected, setSelected] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (buildMode === 'foods' && myFoods.length === 0) {
+      getMyCustomFoods().then(setMyFoods).catch(() => setMyFoods([]));
+    }
+  }, [buildMode, myFoods.length]);
+
+  useEffect(() => {
+    if (buildMode !== 'foods') return;
+    const totals = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
+    for (const food of myFoods) {
+      const raw = selected[food.id];
+      if (raw === undefined) continue;
+      const mult = Number(raw);
+      if (!Number.isFinite(mult)) continue;
+      totals.calories += food.calories * mult;
+      totals.protein += (food.protein || 0) * mult;
+      totals.carbs += (food.carbs || 0) * mult;
+      totals.fat += (food.fat || 0) * mult;
+      totals.fiber += (food.fiber || 0) * mult;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      calories: String(Math.round(totals.calories)),
+      protein: String(Math.round(totals.protein * 10) / 10),
+      carbs: String(Math.round(totals.carbs * 10) / 10),
+      fat: String(Math.round(totals.fat * 10) / 10),
+      fiber: String(Math.round(totals.fiber * 10) / 10),
+    }));
+    // Recompute only when the selection itself changes -- formData's own
+    // fields stay independently editable afterward without fighting this sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, buildMode]);
+
+  const toggleFood = (food: IndianFood) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      if (food.id in next) {
+        delete next[food.id];
+      } else {
+        next[food.id] = '1';
+      }
+      return next;
+    });
+  };
+
+  const setMultiplier = (foodId: string, value: string) => {
+    setSelected((prev) => ({ ...prev, [foodId]: value }));
+  };
+
+  const filteredFoods = myFoods.filter((f) =>
+    f.name.toLowerCase().includes(foodSearch.toLowerCase())
+  );
 
   const handleAddTag = () => {
     if (formData.tagInput.trim() && !tags.includes(formData.tagInput.trim())) {
@@ -138,8 +198,86 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
           />
         </div>
 
+        <div className="flex gap-1.5">
+          {(['manual', 'foods'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setBuildMode(mode)}
+              className={cn(
+                'h-8 flex-1 rounded-full text-xs font-medium border transition-colors',
+                buildMode === mode
+                  ? 'bg-primary/12 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground'
+              )}
+            >
+              {mode === 'manual' ? 'Enter totals manually' : 'Build from your foods'}
+            </button>
+          ))}
+        </div>
+
+        {buildMode === 'foods' && (
+          <div className="space-y-2">
+            <Input
+              value={foodSearch}
+              onChange={(e) => setFoodSearch(e.target.value)}
+              placeholder="Search your saved foods..."
+              className="rounded-xl h-10"
+            />
+            {filteredFoods.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-1">
+                No saved foods yet -- save some from the "Add a food" tab first.
+              </p>
+            ) : (
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5">
+                {filteredFoods.map((food) => {
+                  const isSelected = food.id in selected;
+                  return (
+                    <div
+                      key={food.id}
+                      className={cn(
+                        'flex items-center gap-2 rounded-xl border p-2 transition-colors',
+                        isSelected ? 'bg-primary/8 border-primary/30' : 'bg-card border-border'
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleFood(food)}
+                        className={cn(
+                          'flex h-7 w-7 flex-none items-center justify-center rounded-full border',
+                          isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-border text-transparent'
+                        )}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{food.name}</div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {food.serving_size}
+                          {food.serving_unit} · {Math.round(food.calories)} kcal
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <Input
+                          type="number"
+                          step="0.25"
+                          value={selected[food.id]}
+                          onChange={(e) => setMultiplier(food.id, e.target.value)}
+                          className="h-9 w-16 flex-none rounded-lg font-mono text-sm"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
-          <Label htmlFor="calories" className="text-xs uppercase tracking-wide text-muted-foreground">Calories *</Label>
+          <Label htmlFor="calories" className="text-xs uppercase tracking-wide text-muted-foreground">
+            {buildMode === 'foods' ? 'Total calories (from selected foods)' : 'Calories *'}
+          </Label>
           <Input
             id="calories"
             type="number"

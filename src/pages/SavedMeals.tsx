@@ -10,6 +10,7 @@ import { useDailyMeals } from '@/hooks/useDailyMeals';
 import { getMyCustomFoods, deleteCustomFood, IndianFood } from '@/services/foodService';
 import EditMealDialog from '@/components/EditMealDialog';
 import AddSavedMealForm from '@/components/AddSavedMealForm';
+import AddFoodForm from '@/components/AddFoodForm';
 import MealTimeSelector from '@/components/MealTimeSelector';
 
 // Merge saved meals and custom foods into one chronological list -- both are
@@ -55,6 +56,7 @@ const SavedMeals = () => {
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addKind, setAddKind] = useState<'meal' | 'food'>('meal');
   const [selectedItemForToday, setSelectedItemForToday] = useState<SavedItem | null>(null);
   const [isMealTimeSelectorOpen, setIsMealTimeSelectorOpen] = useState(false);
 
@@ -145,6 +147,11 @@ const SavedMeals = () => {
     refetch();
   };
 
+  const handleFoodAdded = () => {
+    setShowAddForm(false);
+    fetchCustomFoods();
+  };
+
   const typeFilters: { value: TypeFilter; label: string; count: number }[] = [
     { value: 'all', label: 'All', count: savedItems.length },
     { value: 'meal', label: 'Meals', count: savedMeals.length },
@@ -228,12 +235,38 @@ const SavedMeals = () => {
           ))}
         </div>
 
-        {/* Add New Meal Form */}
+        {/* Add New Meal / Food */}
         {showAddForm && (
-          <AddSavedMealForm
-            onMealAdded={handleMealAdded}
-            onCancel={() => setShowAddForm(false)}
-          />
+          <div className="space-y-2.5">
+            <div className="flex gap-1.5">
+              {(['meal', 'food'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => setAddKind(kind)}
+                  className={cn(
+                    'h-8 flex-1 rounded-full text-xs font-medium border transition-colors',
+                    addKind === kind
+                      ? 'bg-primary/12 border-primary/40 text-primary'
+                      : 'bg-card border-border text-muted-foreground'
+                  )}
+                >
+                  {kind === 'meal' ? 'Add a meal' : 'Add a food'}
+                </button>
+              ))}
+            </div>
+            {addKind === 'meal' ? (
+              <AddSavedMealForm
+                onMealAdded={handleMealAdded}
+                onCancel={() => setShowAddForm(false)}
+              />
+            ) : (
+              <AddFoodForm
+                onFoodAdded={handleFoodAdded}
+                onCancel={() => setShowAddForm(false)}
+              />
+            )}
+          </div>
         )}
 
         {/* Saved Meals + Foods, grouped by recency */}
