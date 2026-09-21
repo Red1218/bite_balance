@@ -92,7 +92,12 @@ const buildReferenceTable = (foods: IndianFoodRow[]): string => {
     .join('\n');
 };
 
-const buildSystemPrompt = (defaultMealTime: string, referenceTable: string, today: string): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
+interface DayContext {
+  calorieGoal?: number;
+  loggedKcal?: number;
+}
+
+const buildSystemPrompt = (defaultMealTime: string, referenceTable: string, today: string, day: DayContext): string => `You are the meal-logging assistant inside a nutrition tracking app's chat. The user describes what they ate over a conversation -- possibly several meals, possibly out of order, possibly with more detail added over several messages.
 
 Today's date is ${today}. Some earlier messages are prefixed with "[YYYY-MM-DD]" because they're from a previous day -- that's real conversation history you can still recall and talk about, but it is NOT part of today's tally. Only unprefixed messages (today's) feed "items".
 
@@ -111,7 +116,10 @@ ${referenceTable}
 ` : ''}
 ${referenceTable ? 'For anything not in the table, estimate' : 'Estimate'} reasonably from general nutrition knowledge.
 
-Only ask a clarifying question when something would meaningfully change the estimate -- an ambiguous portion size, a cooking method that changes fat/calories a lot (fried vs grilled), or which meal-time an item belongs to per the rule above. Don't ask about minor details. When you do ask, keep it short and put it in "reply", and optionally suggest 2-3 short quick-reply options in "replyOptions". When nothing needs asking, "reply" should just briefly acknowledge what was understood (e.g. mention the running total for the meal-time just touched).
+Only ask a clarifying question when something would meaningfully change the estimate -- an ambiguous portion size, a cooking method that changes fat/calories a lot (fried vs grilled), or which meal-time an item belongs to per the rule above. Don't ask about minor details. When you do ask, keep it short and put it in "reply", and optionally suggest 2-3 short quick-reply options in "replyOptions". When nothing needs asking, write "reply" as a short, conversational answer in plain prose -- no bullet points, headings, tables or emoji.
+${day.calorieGoal ? `The user's daily target is ${day.calorieGoal} kcal and ${day.loggedKcal ?? 0} kcal is already saved in their log for today. "What's left" means: target - already saved - the total calories of ALL open items you return this turn, rounded to the nearest 10.\n` : ''}
+If this turn added or changed items, "reply" has three parts, each separated from the next by a blank line: (1) one short opening line, e.g. "Here's roughly what that adds up to."; (2) ONE sentence per food, each on its own line (single line break between them), with the calories inline and a few words of context, e.g. "**2 idlis** are light -- about 120 kcal, mostly carbs."; (3) one closing sentence giving the total of everything open, ${day.calorieGoal ? 'what is left of the day\'s target, ' : ''}and one brief clause saying it's an estimate and what could swing it, e.g. "That's **about 1,130 kcal** in total, which leaves you **1,070** of your 2,200 for the rest of the day. Treat it as a tracking estimate -- the bonda and the mayo are where it can swing." Wrap food names and the total${day.calorieGoal ? '/remaining' : ''} figures in double asterisks (**bold**); leave the per-food numbers unbolded. Use no other markdown.
+If the user only corrected one item, or asked a question with nothing to log, answer in one or two plain sentences instead.
 
 "replyOptions" isn't only for clarifying questions -- on an ordinary reply you may also suggest 0-2 short, genuinely likely next actions as tappable options (e.g. a food that commonly accompanies what was just logged, like "Add curd" after rice and curry, or a natural follow-up like "Add oil"). Only suggest something a person would plausibly want next; when nothing fits, leave "replyOptions" empty rather than padding it.
 
@@ -165,10 +173,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const { messages, defaultMealTime, today } = (await req.json()) as {
+  const { messages, defaultMealTime, today, calorieGoal, loggedKcal } = (await req.json()) as {
     messages: ChatMessage[];
     defaultMealTime?: string;
     today?: string;
+    calorieGoal?: number;
+    loggedKcal?: number;
+  };
+  const dayContext: DayContext = {
+    calorieGoal: Number.isFinite(calorieGoal) && Number(calorieGoal) > 0 ? Math.round(Number(calorieGoal)) : undefined,
+    loggedKcal: Number.isFinite(loggedKcal) && Number(loggedKcal) >= 0 ? Math.round(Number(loggedKcal)) : undefined,
   };
   const fallbackMealTime = (['breakfast', 'lunch', 'snack', 'dinner'].includes(defaultMealTime as string)
     ? defaultMealTime
@@ -203,7 +217,7 @@ serve(async (req) => {
       // a chat UI. Low effort cuts that drastically with no quality loss here.
       reasoning: { effort: 'low' },
       input: [
-        { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable, todayStr) },
+        { role: 'developer', content: buildSystemPrompt(fallbackMealTime, referenceTable, todayStr, dayContext) },
         ...messages.map((m) => ({ role: m.role, content: m.content })),
       ],
       text: {
