@@ -537,7 +537,13 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2.5 border-b border-border pb-3">
+      {/* The page scrolls (not an inner box), so cover the status-bar strip and pin the header,
+          otherwise older messages slide up under the clock. */}
+      <div className="fixed inset-x-0 top-0 z-40 bg-background" style={{ height: 'env(safe-area-inset-top, 0px)' }} />
+      <div
+        className="sticky z-30 -mx-4 flex items-center gap-2.5 border-b border-border bg-background px-4 pb-3 pt-2"
+        style={{ top: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-primary/28 bg-primary/12">
           <Sparkles className="h-4 w-4 text-primary" />
         </div>
@@ -679,7 +685,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       )}
 
       {/* scroll-mb keeps the newest reply clear of the docked composer + bottom nav */}
-      <div ref={bottomRef} className="scroll-mb-44" />
+      <div ref={bottomRef} className="scroll-mb-56" />
 
       {viewDate ? null : (
         <form
