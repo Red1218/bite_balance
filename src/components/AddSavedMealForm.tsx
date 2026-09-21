@@ -44,9 +44,12 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
   const [buildMode, setBuildMode] = useState<'manual' | 'foods'>(initialFoodIds?.length ? 'foods' : 'manual');
   const [myFoods, setMyFoods] = useState<IndianFood[]>(foods ?? []);
   const [foodSearch, setFoodSearch] = useState('');
-  // multiplier applied to a food's own serving -- '1' means "one serving as saved"
+  // How much of each ticked food goes in the meal, as typed, in that food's own unit
+  // (e.g. '80' for 80 g). It starts at the food's saved serving; totals scale by qty / serving.
   const [selected, setSelected] = useState<Record<string, string>>(() =>
-    Object.fromEntries((initialFoodIds ?? []).map((id) => [id, '1']))
+    Object.fromEntries(
+      (initialFoodIds ?? []).map((id) => [id, String(foods?.find((f) => f.id === id)?.serving_size ?? 1)])
+    )
   );
 
   useEffect(() => {
@@ -61,8 +64,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
     for (const food of myFoods) {
       const raw = selected[food.id];
       if (raw === undefined) continue;
-      const mult = Number(raw);
-      if (!Number.isFinite(mult)) continue;
+      const qty = Number(raw);
+      if (!Number.isFinite(qty)) continue;
+      const mult = qty / (Number(food.serving_size) || 1);
       totals.calories += food.calories * mult;
       totals.protein += (food.protein || 0) * mult;
       totals.carbs += (food.carbs || 0) * mult;
@@ -87,14 +91,15 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
       if (food.id in next) {
         delete next[food.id];
       } else {
-        next[food.id] = '1';
+        next[food.id] = String(food.serving_size || 1);
       }
       return next;
     });
   };
 
-  const setMultiplier = (foodId: string, value: string) => {
-    setSelected((prev) => ({ ...prev, [foodId]: value }));
+  // Plain text field (not type="number") so decimals like "0." can be typed on Android.
+  const setQuantity = (foodId: string, value: string) => {
+    setSelected((prev) => ({ ...prev, [foodId]: value.replace(/[^0-9.]/g, '') }));
   };
 
   // Foods the caller pre-selected come first, so their quantities are in reach
@@ -263,20 +268,23 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
                         <div className="truncate text-sm font-medium text-foreground">{food.name}</div>
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {food.serving_size}
-                          {food.serving_unit} · {Math.round(food.calories)} kcal
+                          {food.serving_unit} = {Math.round(food.calories)} kcal
                         </div>
                       </div>
                       {isSelected && (
                         <div className="flex flex-none items-center gap-1">
-                          <span className="font-mono text-xs text-muted-foreground">×</span>
                           <Input
-                            type="number"
-                            step="0.25"
+                            type="text"
+                            inputMode="decimal"
                             value={selected[food.id]}
-                            onChange={(e) => setMultiplier(food.id, e.target.value)}
-                            aria-label={`Servings of ${food.name}`}
-                            className="h-9 w-16 rounded-lg font-mono text-sm"
+                            onChange={(e) => setQuantity(food.id, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            aria-label={`Amount of ${food.name} in ${food.serving_unit}`}
+                            className="h-9 w-[68px] rounded-lg text-right font-mono text-sm"
                           />
+                          <span className="w-9 truncate font-mono text-[10px] text-muted-foreground">
+                            {food.serving_unit}
+                          </span>
                         </div>
                       )}
                     </div>

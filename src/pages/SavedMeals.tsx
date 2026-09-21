@@ -74,6 +74,7 @@ const SavedMeals = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addKind, setAddKind] = useState<'meal' | 'food'>('meal');
+  const [editingFood, setEditingFood] = useState<IndianFood | null>(null);
   const [selectedItemForToday, setSelectedItemForToday] = useState<SavedItem | null>(null);
   const [isMealTimeSelectorOpen, setIsMealTimeSelectorOpen] = useState(false);
 
@@ -183,7 +184,20 @@ const SavedMeals = () => {
 
   const openBlankAddForm = () => {
     setSeedFoodIds(undefined);
+    setEditingFood(null);
     setShowAddForm(true);
+  };
+
+  const handleEditFood = (food: IndianFood) => {
+    closeAddForm();
+    setEditingFood(food);
+    // The form renders above the list.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFoodEdited = () => {
+    setEditingFood(null);
+    fetchCustomFoods();
   };
 
   const toggleSelected = (key: string) =>
@@ -339,6 +353,15 @@ const SavedMeals = () => {
         </div>
 
         {/* Add New Meal / Food */}
+        {editingFood && (
+          <AddFoodForm
+            key={editingFood.id}
+            food={editingFood}
+            onFoodAdded={handleFoodEdited}
+            onCancel={() => setEditingFood(null)}
+          />
+        )}
+
         {showAddForm && (
           <div className="space-y-2.5">
             <div className="flex gap-1.5">
@@ -529,7 +552,7 @@ const SavedMeals = () => {
                         </div>
                       </div>
                       <div className="flex-1 min-w-0 flex flex-col gap-1">
-                        <div className="text-sm font-medium text-foreground truncate">{item.food.name}</div>
+                        <div className="text-sm font-medium leading-tight text-foreground break-words">{item.food.name}</div>
                         <div className="font-mono text-[10px] text-muted-foreground">
                           P {Math.round(item.food.protein || 0)}g · C {Math.round(item.food.carbs || 0)}g · F{' '}
                           {Math.round(item.food.fat || 0)}g · Fb {Math.round(item.food.fiber || 0)}g
@@ -547,9 +570,17 @@ const SavedMeals = () => {
                             type="button"
                             onClick={() => handleQuickAdd(item)}
                             aria-label={`Add ${item.food.name} to today`}
-                            className="w-10 h-10 rounded-full border border-primary/30 bg-primary/10 text-primary flex items-center justify-center flex-none"
+                            className="w-9 h-9 rounded-full border border-primary/30 bg-primary/10 text-primary flex items-center justify-center flex-none"
                           >
                             <Plus className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEditFood(item.food)}
+                            aria-label={`Edit ${item.food.name}`}
+                            className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center flex-none"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"

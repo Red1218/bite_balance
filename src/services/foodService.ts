@@ -52,6 +52,28 @@ export async function getMyCustomFoods(): Promise<IndianFood[]> {
   return data || [];
 }
 
+export type CustomFoodUpdate = Partial<Omit<NewIndianFood, 'id' | 'is_verified' | 'user_id' | 'created_at'>>;
+
+export async function updateCustomFood(id: string, updates: CustomFoodUpdate): Promise<IndianFood> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User must be authenticated');
+
+  const { data, error } = await supabase
+    .from('indian_foods')
+    .update(updates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating custom food:', error);
+    throw error;
+  }
+
+  return data;
+}
+
 export async function deleteCustomFood(id: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('User must be authenticated');
