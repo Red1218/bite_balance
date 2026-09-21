@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Sparkles, Mic, Plus, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Send, Sparkles, Mic, Plus, Loader2, ChevronRight, ArrowLeft } from 'lucide-react';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,7 +21,7 @@ import MealReviewList, {
 
 interface ChatMsg {
   id: string;
-  who: 'bot' | 'user' | 'q';
+  who: 'bot' | 'user';
   text: string;
   createdAt: string;
   replies?: string[];
@@ -106,6 +107,10 @@ const ChatMealLog = () => {
   const { toast } = useToast();
   const { notifyMealsLogged } = useAddMealSheet();
   const { meals: savedMeals } = useSavedMeals();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Present only when opened from a Conversations row -- a read-only view
+  // of that single day's messages, with no composer and no pending tally.
+  const viewDate = searchParams.get('date');
 
   const [messages, setMessages] = useState<ChatMsg[]>([
     { id: 'm0', who: 'bot', text: GREETING, createdAt: new Date().toISOString() },
@@ -237,22 +242,24 @@ const ChatMealLog = () => {
 
   // Load persisted conversation history once, on mount -- an empty history
   // keeps the local GREETING (never persisted, it's just a canned opener).
+  // Opened with ?date=YYYY-MM-DD instead, load only that day's messages.
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(HISTORY_LOAD_LIMIT);
+      const query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
+      const { data, error } = viewDate
+        ? await query
+            .gte('created_at', `${viewDate}T00:00:00.000Z`)
+            .lt('created_at', `${viewDate}T23:59:59.999Z`)
+            .order('created_at', { ascending: true })
+        : await query.order('created_at', { ascending: true }).limit(HISTORY_LOAD_LIMIT);
       if (error) {
         console.error('Error loading chat history:', error);
         return;
       }
-      if (data && data.length > 0) {
+      if (viewDate || (data && data.length > 0)) {
         setMessages(
-          data.map((row) => ({
+          (data ?? []).map((row) => ({
             id: row.id,
             who: row.role === 'user' ? 'user' : 'bot',
             text: row.content,
@@ -261,7 +268,7 @@ const ChatMealLog = () => {
         );
       }
     })();
-  }, [user]);
+  }, [user, viewDate]);
 
   const persistMessage = async (role: 'user' | 'assistant', content: string) => {
     if (!user) return;
@@ -306,9 +313,14 @@ const ChatMealLog = () => {
       const diff = Array.isArray(data.items) ? computeSingleDiff(items, data.items) : null;
       setMessages((prev) => [
         ...prev,
-        hasOptions
-          ? { id: uid(), who: 'q', text: data.reply, replies: data.replyOptions, createdAt: new Date().toISOString() }
-          : { id: uid(), who: 'bot', text: data.reply, diff: diff || undefined, createdAt: new Date().toISOString() },
+        {
+          id: uid(),
+          who: 'bot',
+          text: data.reply,
+          diff: diff || undefined,
+          replies: hasOptions ? data.replyOptions : undefined,
+          createdAt: new Date().toISOString(),
+        },
       ]);
       void persistMessage('assistant', data.reply);
       if (Array.isArray(data.items)) setItems(data.items);
@@ -475,11 +487,22 @@ const ChatMealLog = () => {
     );
   }
 
-  const isFreshConversation = messages.length === 1;
+  const isFreshConversation = !viewDate && messages.length === 1;
   const pendingMealTimes = MEAL_ORDER.filter((mt) => items.some((it) => it.mealTime === mt));
 
   return (
     <div className="flex flex-col gap-4">
+      {viewDate && (
+        <button
+          type="button"
+          onClick={() => setSearchParams({})}
+          className="flex w-fit items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to today
+        </button>
+      )}
+
       <div ref={scrollRef} className="relative max-h-[55vh] overflow-y-auto pr-1">
         <div className="pointer-events-none absolute bottom-0 left-[13px] top-0 w-px bg-gradient-to-b from-border to-transparent" />
         <div className="flex flex-col gap-3.5">
@@ -495,6 +518,11 @@ const ChatMealLog = () => {
                 )}
               </div>
               <div className="min-w-0 flex-1 space-y-2">
+                {m.who === 'user' && (
+                  <div className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted-foreground/60">
+                    {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </div>
+                )}
                 {m.diff ? (
                   <div className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2.5">
                     <span className="flex-1 font-mono text-xs text-muted-foreground">{m.diff.split(/(→)/).map((part, i) => part === '→' ? <span key={i} className="mx-1 text-muted-foreground/60">{part}</span> : part)}</span>
@@ -504,7 +532,7 @@ const ChatMealLog = () => {
                     {m.text}
                   </p>
                 )}
-                {m.who === 'q' && m.replies && (
+                {m.replies && m.replies.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {m.replies.map((r) => (
                       <button
@@ -616,14 +644,21 @@ const ChatMealLog = () => {
             </div>
             <div className="divide-y divide-border">
               {groupItems.map((it, i) => (
-                <div key={i} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setEditingMealTime(mt)}
+                  disabled={loggingMealTime !== null}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left disabled:opacity-60"
+                >
                   <div className="flex min-w-[46px] flex-none items-center justify-center gap-0.5 rounded-lg border border-border bg-background px-1.5 py-1">
                     <span className="font-mono text-xs font-semibold tabular-nums text-foreground">{Math.round(it.grams)}</span>
                     <span className="font-mono text-[9px] text-muted-foreground">g</span>
                   </div>
                   <span className="flex-1 truncate text-sm text-foreground">{it.name}</span>
                   <span className="flex-none font-mono text-xs tabular-nums text-muted-foreground">{Math.round(it.calories)}</span>
-                </div>
+                  <ChevronRight className="h-3.5 w-3.5 flex-none text-muted-foreground/50" />
+                </button>
               ))}
             </div>
             <div className="flex gap-2 p-3">
@@ -649,44 +684,48 @@ const ChatMealLog = () => {
         );
       })}
 
-      {listening && (
-        <div className="flex items-center gap-1.5 px-1">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-          <span className="text-[11px] font-medium text-destructive">Listening…</span>
-        </div>
-      )}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          send(draft);
-        }}
-        className="flex items-center gap-2"
-      >
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Tell me what you ate..."
-          disabled={sending}
-          className="h-12 flex-1 rounded-2xl border border-border bg-muted/40 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-        />
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          onClick={handleMicToggle}
-          disabled={sending}
-          className={cn(
-            'h-12 w-12 flex-none rounded-2xl border-border bg-muted/40',
-            listening && 'border-primary/40 bg-primary/10 text-primary animate-pulse'
+      {viewDate ? null : (
+        <>
+          {listening && (
+            <div className="flex items-center gap-1.5 px-1">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+              <span className="text-[11px] font-medium text-destructive">Listening…</span>
+            </div>
           )}
-        >
-          <Mic className="h-4 w-4" />
-        </Button>
-        <Button type="submit" size="icon" disabled={sending || !draft.trim()} className="h-12 w-12 flex-none rounded-2xl">
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(draft);
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Tell me what you ate..."
+              disabled={sending}
+              className="h-12 flex-1 rounded-2xl border border-border bg-muted/40 px-3.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              onClick={handleMicToggle}
+              disabled={sending}
+              className={cn(
+                'h-12 w-12 flex-none rounded-2xl border-border bg-muted/40',
+                listening && 'border-primary/40 bg-primary/10 text-primary animate-pulse'
+              )}
+            >
+              <Mic className="h-4 w-4" />
+            </Button>
+            <Button type="submit" size="icon" disabled={sending || !draft.trim()} className="h-12 w-12 flex-none rounded-2xl">
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </>
+      )}
     </div>
   );
 };
