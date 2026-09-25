@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import MealReviewList, { ChatMealItem, MealTime, chatMealItemToRow } from '@/components/MealReviewList';
-import { parseMealLogFile } from '@/lib/importMealLog';
+import { parseMealLogFile, fmtLocalDate } from '@/lib/importMealLog';
 
 const Import = () => {
   const { user } = useAuth();
@@ -34,7 +36,9 @@ const Import = () => {
       const buffer = await file.arrayBuffer();
       const parsed = parseMealLogFile(buffer);
       setItems(parsed.items);
-      setLoggedDate(parsed.loggedDate);
+      // The file's own date is only a starting point -- editable below, so a
+      // file with no stated date (or one you want logged elsewhere) still works.
+      setLoggedDate(parsed.loggedDate ?? fmtLocalDate(new Date()));
     } catch (err) {
       console.error('Error parsing meal log file:', err);
       setError(err instanceof Error ? err.message : 'Could not read that file.');
@@ -83,8 +87,26 @@ const Import = () => {
       <div className="space-y-4">
         <div>
           <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Import log</h1>
-          <p className="text-xs text-muted-foreground">{fileName} · {loggedDate}</p>
+          <p className="text-xs text-muted-foreground">{fileName}</p>
         </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="import-date" className="text-xs uppercase tracking-wide text-muted-foreground">
+            Log to date
+          </Label>
+          {/* The file's own date (if any) is just the default -- change it to log
+              this same file to yesterday, last week, or any other past day. */}
+          <Input
+            id="import-date"
+            type="date"
+            value={loggedDate}
+            onChange={(e) => e.target.value && setLoggedDate(e.target.value)}
+            max={fmtLocalDate(new Date())}
+            disabled={saving}
+            className="h-11 w-full rounded-xl font-mono tabular-nums"
+          />
+        </div>
+
         <MealReviewList
           items={items}
           onAccept={handleImport}
