@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { cn, fmtLocalDate } from '@/lib/utils';
 import EditMealDialog from '@/components/EditMealDialog';
-import AnimatedMealCard from '@/components/AnimatedMealCard';
+import { MEAL_ORDER, MEAL_LABEL } from '@/components/MealReviewList';
 
 interface MealInfo {
   id: string;
@@ -31,41 +31,65 @@ interface DaySummary {
   totalFiber: number;
   goal: number;
   meals: MealInfo[];
-  reflection: string;
 }
-
-const glassTooltipStyle = {
-  borderRadius: 12,
-  border: '1px solid hsl(var(--border))',
-  background: 'hsl(var(--card) / 0.85)',
-  backdropFilter: 'blur(20px) saturate(1.4)',
-  color: 'hsl(var(--foreground))',
-  fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
-  fontSize: 12,
-  boxShadow: '0 1px 0 hsl(0 0% 100% / 0.07) inset, 0 24px 48px -20px hsl(0 0% 0% / 0.9)',
-};
-
-const toDateStr = (d: Date) => d.toISOString().split('T')[0];
 
 interface MonthDay {
   date: string;
   totalCalories: number;
-  totalProtein: number;
-  totalCarbs: number;
-  totalFat: number;
 }
+
+// How each day is judged against the goal -- shared by the week strip and the
+// month calendar so both read as the same three tones, per the design.
+type Tone = 'today' | 'over' | 'under' | 'within';
+const dayTone = (calories: number, goal: number, isToday: boolean): Tone => {
+  if (isToday) return 'today';
+  if (calories > goal * 1.1) return 'over';
+  if (calories < goal * 0.9) return 'under';
+  return 'within';
+};
+const TONE_BAR_CLASS: Record<Tone, string> = {
+  today: 'border border-dashed border-muted-foreground/70 bg-transparent',
+  over: 'bg-primary',
+  under: 'bg-muted-foreground/35',
+  within: 'bg-foreground',
+};
+const TONE_CELL_CLASS: Record<Tone, string> = {
+  today: 'border border-dashed border-muted-foreground/70 bg-transparent text-foreground',
+  over: 'bg-primary text-primary-foreground',
+  under: 'bg-muted-foreground/20 text-foreground',
+  within: 'bg-foreground text-background',
+};
+
+// The week strip scales bars against goal * this factor, not a hard-coded max,
+// so it stays proportional for any calorie target. ~1.2 mirrors the headroom
+// a 2,200 kcal goal gets against a typical day's peak.
+const SCALE_FACTOR = 1.2;
+const barHeightPx = (calories: number, goal: number) =>
+  Math.max(4, Math.min(72, (calories / (goal * SCALE_FACTOR)) * 72));
+const goalLinePx = () => 72 * (1 - 1 / SCALE_FACTOR);
+
+const formatPortion = (grams: number | null, unit: string) =>
+  grams ? `${Math.round(grams)}${unit === 'g' ? 'g' : ` ${unit}`}` : null;
+
+// Segmented macro bar is protein/carbs/fat only (kcal-weighted) -- fibre has
+// no calories of its own, so it stays a number in the grid below, not a slice.
+const macroBarSegments = (protein: number, carbs: number, fat: number) => {
+  const energy = protein * 4 + carbs * 4 + fat * 9;
+  if (!energy) return { p: 0, c: 0, f: 0 };
+  return { p: (protein * 4 * 100) / energy, c: (carbs * 4 * 100) / energy, f: (fat * 9 * 100) / energy };
+};
 
 const History = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
+  const [selectedDate, setSelectedDate] = useState(fmtLocalDate(new Date()));
   const [historyDays, setHistoryDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [editingMeal, setEditingMeal] = useState<MealInfo | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Calendar month grid state — fetched independently of the 7-day view above
+  // Calendar month grid state -- fetched independently of the 7-day strip above
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -74,30 +98,19 @@ const History = () => {
   const [monthData, setMonthData] = useState<Record<string, MonthDay>>({});
   const [monthLoading, setMonthLoading] = useState(true);
 
-  const getReflection = (calories: number, goal: number) => {
-    if (calories === 0) return 'No meals logged for this date. Keep track of your nutrition to maintain consistency!';
-    const pct = (calories / goal) * 100;
-    if (pct >= 90 && pct <= 110) return 'Perfect! You hit your calorie target group with excellent precision. Keep it up!';
-    if (pct > 110) return `You exceeded your calorie target by ${Math.round(calories - goal)} kcal. Focus on high-volume low-calorie foods tomorrow.`;
-    return `You are under your calorie target by ${Math.round(goal - calories)} kcal. Consider adding a protein-rich snack to hit your target.`;
-  };
-
   const fetchHistory = async () => {
     if (!user) return;
     setLoading(true);
     try {
       const today = new Date();
       const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(today.getDate() - 7);
+      sevenDaysAgo.setDate(today.getDate() - 6);
 
-      const startDateStr = sevenDaysAgo.toISOString().split('T')[0];
-      const endDateStr = today.toISOString().split('T')[0];
+      const startDateStr = fmtLocalDate(sevenDaysAgo);
+      const endDateStr = fmtLocalDate(today);
 
-      // We will load a broader range if selectedDate is older than 7 days
-      let fetchStart = startDateStr;
-      if (selectedDate < startDateStr) {
-        fetchStart = selectedDate;
-      }
+      // Load a wider range if the selected date is older than the 7-day strip.
+      const fetchStart = selectedDate < startDateStr ? selectedDate : startDateStr;
 
       const { data, error } = await supabase
         .from('daily_meals')
@@ -111,23 +124,23 @@ const History = () => {
 
       const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
 
-      // Group by date
-      const grouped = (data || []).reduce((acc: Record<string, DaySummary>, meal: any) => {
+      const grouped: Record<string, DaySummary> = {};
+      const emptyDay = (dateStr: string): DaySummary => ({
+        date: dateStr,
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        totalFiber: 0,
+        goal: calorieGoal,
+        meals: [],
+      });
+
+      for (const meal of data || []) {
         const dateKey = meal.logged_date;
-        if (!acc[dateKey]) {
-          acc[dateKey] = {
-            date: dateKey,
-            totalCalories: 0,
-            totalProtein: 0,
-            totalCarbs: 0,
-            totalFat: 0,
-            totalFiber: 0,
-            goal: calorieGoal,
-            meals: [],
-            reflection: '',
-          };
-        }
-        acc[dateKey].meals.push({
+        if (!grouped[dateKey]) grouped[dateKey] = emptyDay(dateKey);
+        const day = grouped[dateKey];
+        day.meals.push({
           id: meal.id,
           name: meal.name,
           calories: Number(meal.calories),
@@ -141,59 +154,21 @@ const History = () => {
           meal_time: meal.meal_time || 'snack',
           logged_at: meal.logged_at,
         });
-        acc[dateKey].totalCalories += Number(meal.calories);
-        acc[dateKey].totalProtein += Number(meal.protein || 0);
-        acc[dateKey].totalCarbs += Number(meal.carbs || 0);
-        acc[dateKey].totalFat += Number(meal.fat || 0);
-        acc[dateKey].totalFiber += Number(meal.fiber || 0);
-        return acc;
-      }, {});
+        day.totalCalories += Number(meal.calories);
+        day.totalProtein += Number(meal.protein || 0);
+        day.totalCarbs += Number(meal.carbs || 0);
+        day.totalFat += Number(meal.fat || 0);
+        day.totalFiber += Number(meal.fiber || 0);
+      }
 
-      // Build past 7 days representation
+      // Build the 7-day strip, oldest first.
       const historyList: DaySummary[] = [];
-      for (let i = 0; i < 7; i++) {
+      for (let i = 6; i >= 0; i--) {
         const d = new Date();
         d.setDate(today.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-
-        if (grouped[dateStr]) {
-          const day = grouped[dateStr];
-          day.reflection = getReflection(day.totalCalories, day.goal);
-          historyList.push(day);
-        } else {
-          historyList.push({
-            date: dateStr,
-            totalCalories: 0,
-            totalProtein: 0,
-            totalCarbs: 0,
-            totalFat: 0,
-            totalFiber: 0,
-            goal: calorieGoal,
-            meals: [],
-            reflection: getReflection(0, calorieGoal),
-          });
-        }
+        const dateStr = fmtLocalDate(d);
+        historyList.push(grouped[dateStr] ?? emptyDay(dateStr));
       }
-
-      // If selected date is not in historyList (e.g. selected an older date), add it to grouped matches
-      const selectedMatch = grouped[selectedDate] || {
-        date: selectedDate,
-        totalCalories: 0,
-        totalProtein: 0,
-        totalCarbs: 0,
-        totalFat: 0,
-        totalFiber: 0,
-        goal: calorieGoal,
-        meals: [],
-        reflection: getReflection(0, calorieGoal),
-      };
-
-      if (!grouped[selectedDate]) {
-        grouped[selectedDate] = selectedMatch;
-      }
-
-      // Ensure reflection is set for the selected date
-      selectedMatch.reflection = getReflection(selectedMatch.totalCalories, selectedMatch.goal);
 
       setHistoryDays(historyList);
     } catch (err) {
@@ -211,14 +186,14 @@ const History = () => {
     if (!user) return;
     setMonthLoading(true);
     try {
-      const monthStart = toDateStr(calendarMonth);
+      const monthStart = fmtLocalDate(calendarMonth);
       const nextMonth = new Date(calendarMonth);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
-      const monthEnd = toDateStr(new Date(nextMonth.getTime() - 86400000));
+      const monthEnd = fmtLocalDate(new Date(nextMonth.getTime() - 86400000));
 
       const { data, error } = await supabase
         .from('daily_meals')
-        .select('logged_date, calories, protein, carbs, fat')
+        .select('logged_date, calories')
         .eq('user_id', user.id)
         .gte('logged_date', monthStart)
         .lte('logged_date', monthEnd);
@@ -226,16 +201,11 @@ const History = () => {
       if (error) throw error;
 
       const grouped: Record<string, MonthDay> = {};
-      (data || []).forEach((meal: any) => {
+      for (const meal of data || []) {
         const key = meal.logged_date;
-        if (!grouped[key]) {
-          grouped[key] = { date: key, totalCalories: 0, totalProtein: 0, totalCarbs: 0, totalFat: 0 };
-        }
+        if (!grouped[key]) grouped[key] = { date: key, totalCalories: 0 };
         grouped[key].totalCalories += Number(meal.calories || 0);
-        grouped[key].totalProtein += Number(meal.protein || 0);
-        grouped[key].totalCarbs += Number(meal.carbs || 0);
-        grouped[key].totalFat += Number(meal.fat || 0);
-      });
+      }
       setMonthData(grouped);
     } catch (err) {
       console.error('Error loading month data:', err);
@@ -265,7 +235,7 @@ const History = () => {
     fetchMonthData();
   };
 
-  const handleSaveMeal = async (updates: any) => {
+  const handleSaveMeal = async (updates: Partial<MealInfo>) => {
     if (!user || !editingMeal) return;
     const { error } = await supabase
       .from('daily_meals')
@@ -281,8 +251,9 @@ const History = () => {
     fetchMonthData();
   };
 
-  // Find summary for selected date
   const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
+  const todayStr = fmtLocalDate(new Date());
+
   const selectedDayData = historyDays.find((day) => day.date === selectedDate) || {
     date: selectedDate,
     totalCalories: 0,
@@ -292,389 +263,291 @@ const History = () => {
     totalFiber: 0,
     goal: calorieGoal,
     meals: [],
-    reflection: getReflection(0, calorieGoal),
   };
-
-  const selectedDayMeals = selectedDayData.meals;
   const selectedDayDelta = Math.round(selectedDayData.totalCalories - selectedDayData.goal);
+  const isSelectedToday = selectedDate === todayStr;
 
-  // Week mode: last 7 days, oldest first
-  const weekChartData = [...historyDays]
-    .reverse()
-    .map((day) => ({
-      label: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
-      protein: Math.round(day.totalProtein),
-      carbs: Math.round(day.totalCarbs),
-      fat: Math.round(day.totalFat),
-      calories: day.totalCalories,
-    }));
+  const groupedMeals = MEAL_ORDER.map((mt) => ({
+    mealTime: mt,
+    items: selectedDayData.meals.filter((m) => m.meal_time === mt),
+  })).filter((g) => g.items.length > 0);
 
-  // Month mode: bucket the displayed calendar month into ~4-5 weekly bars
-  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
-  const monthChartData: { label: string; protein: number; carbs: number; fat: number; calories: number }[] = [];
-  for (let weekStart = 1; weekStart <= daysInMonth; weekStart += 7) {
-    const weekEnd = Math.min(weekStart + 6, daysInMonth);
-    let calories = 0, protein = 0, carbs = 0, fat = 0;
-    for (let day = weekStart; day <= weekEnd; day++) {
-      const dateStr = toDateStr(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day));
-      const d = monthData[dateStr];
-      if (d) {
-        calories += d.totalCalories;
-        protein += d.totalProtein;
-        carbs += d.totalCarbs;
-        fat += d.totalFat;
-      }
-    }
-    monthChartData.push({
-      label: `${weekStart}–${weekEnd}`,
-      protein: Math.round(protein),
-      carbs: Math.round(carbs),
-      fat: Math.round(fat),
-      calories,
-    });
-  }
+  const { p: macroP, c: macroC, f: macroF } = macroBarSegments(
+    selectedDayData.totalProtein,
+    selectedDayData.totalCarbs,
+    selectedDayData.totalFat
+  );
 
-  const activeChartData = viewMode === 'week' ? weekChartData : monthChartData;
-  const activeDaysLogged = viewMode === 'week'
-    ? historyDays.filter((d) => d.totalCalories > 0)
-    : Object.values(monthData).filter((d) => d.totalCalories > 0);
-  const activeAverage = activeDaysLogged.length
-    ? Math.round(activeChartData.reduce((sum, d) => sum + d.calories, 0) / activeChartData.filter((d) => d.calories > 0).length || 0)
+  // Week strip stats
+  const loggedDays = historyDays.filter((d) => d.totalCalories > 0);
+  const weekAvg = loggedDays.length
+    ? Math.round(loggedDays.reduce((sum, d) => sum + d.totalCalories, 0) / loggedDays.length)
     : 0;
-  const avgDelta = activeAverage - calorieGoal;
+  const weekRangeLabel = (() => {
+    if (historyDays.length === 0) return '';
+    const start = new Date(historyDays[0].date);
+    const end = new Date(historyDays[historyDays.length - 1].date);
+    const sameMonth = start.getMonth() === end.getMonth();
+    const mon = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' });
+    return sameMonth
+      ? `${start.getDate()} – ${end.getDate()} ${mon(end)}`
+      : `${start.getDate()} ${mon(start)} – ${end.getDate()} ${mon(end)}`;
+  })();
 
-  // Calendar grid cells for the displayed month
+  // Month calendar grid
+  const daysInMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
   const firstWeekday = (new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1).getDay() + 6) % 7; // Mon=0
   const calendarCells: { date: string | null; day: number | null }[] = [];
   for (let i = 0; i < firstWeekday; i++) calendarCells.push({ date: null, day: null });
   for (let day = 1; day <= daysInMonth; day++) {
-    calendarCells.push({ date: toDateStr(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day)), day });
+    calendarCells.push({ date: fmtLocalDate(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day)), day });
   }
-
-  const todayStr = toDateStr(new Date());
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">History</h1>
-        <div className="flex gap-1.5 rounded-full border border-border bg-card p-[3px]">
+        <div className="flex gap-[2px] rounded-full bg-muted p-[3px]">
           <button
             type="button"
             onClick={() => setViewMode('week')}
-            className={`rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors ${
-              viewMode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-            }`}
+            className={cn(
+              'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors',
+              viewMode === 'week' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            )}
           >
             Week
           </button>
           <button
             type="button"
             onClick={() => setViewMode('month')}
-            className={`rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors ${
-              viewMode === 'month' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-            }`}
+            className={cn(
+              'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors',
+              viewMode === 'month' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            )}
           >
             Month
           </button>
         </div>
       </div>
 
-      {/* Calendar month grid */}
-      <div className="elevation-card flex flex-col gap-3.5 p-[15px]">
-        <div className="flex items-center justify-between">
-          <div className="font-sans text-sm font-medium text-foreground">
-            {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+      {viewMode === 'week' ? (
+        <div className="elevation-card flex flex-col gap-2.5 p-[14px]">
+          <div className="relative grid grid-cols-7 gap-1">
+            <div
+              className="pointer-events-none absolute left-1.5 right-1.5 border-t border-dashed border-muted-foreground/50"
+              style={{ top: goalLinePx() }}
+            />
+            {historyDays.map((day) => {
+              const d = new Date(day.date);
+              const isToday = day.date === todayStr;
+              const isSelected = day.date === selectedDate;
+              const tone = dayTone(day.totalCalories, day.goal, isToday);
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => setSelectedDate(day.date)}
+                  className={cn(
+                    'flex flex-col items-center gap-[7px] rounded-2xl py-2',
+                    isSelected && 'bg-muted'
+                  )}
+                >
+                  <span className={cn('font-sans text-[10px]', isSelected ? 'text-foreground' : 'text-muted-foreground')}>
+                    {d.toLocaleDateString('en-US', { weekday: 'narrow' })}
+                  </span>
+                  <span className="flex h-[72px] w-full items-end justify-center">
+                    <span
+                      className={cn('w-3.5 rounded-[5px] box-border', TONE_BAR_CLASS[tone])}
+                      style={{ height: barHeightPx(day.totalCalories, day.goal) }}
+                    />
+                  </span>
+                  <span className={cn('font-mono text-xs font-semibold tabular-nums', isSelected ? 'text-foreground' : 'text-muted-foreground')}>
+                    {d.getDate()}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              aria-label="Previous month"
-              onClick={() => setCalendarMonth((m) => {
-                const next = new Date(m); next.setMonth(next.getMonth() - 1); return next;
-              })}
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              aria-label="Next month"
-              onClick={() => setCalendarMonth((m) => {
-                const next = new Date(m); next.setMonth(next.getMonth() + 1); return next;
-              })}
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+          <div className="flex items-center justify-between pt-1 font-sans text-[11px] text-muted-foreground">
+            <span>{weekRangeLabel}</span>
+            <span>
+              Avg <span className="font-mono text-[11px] font-semibold text-foreground">{weekAvg.toLocaleString()}</span>
+              {' '}· goal {calorieGoal.toLocaleString()}
+            </span>
           </div>
         </div>
-        <div className="grid grid-cols-7 gap-1.5 text-center font-mono text-[10px] text-muted-foreground">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {calendarCells.map((cell, i) => {
-            if (!cell.date) return <div key={i} className="aspect-square rounded-lg bg-muted/40" />;
-            const d = monthData[cell.date];
-            const intensity = d ? Math.max(0.14, Math.min(d.totalCalories / calorieGoal, 1)) : 0;
-            const isFuture = cell.date > todayStr;
-            const isToday = cell.date === todayStr;
-            const isSelected = cell.date === selectedDate;
-            return (
+      ) : (
+        <div className={cn('elevation-card flex flex-col gap-3.5 p-[15px] transition-opacity', monthLoading && 'opacity-60')}>
+          <div className="flex items-center justify-between">
+            <div className="font-sans text-sm font-medium text-foreground">
+              {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </div>
+            <div className="flex gap-1.5">
               <button
-                key={i}
                 type="button"
-                onClick={() => setSelectedDate(cell.date!)}
-                disabled={isFuture}
-                className="flex aspect-square items-center justify-center rounded-lg font-mono text-xs tabular-nums disabled:opacity-30"
-                style={{
-                  background: intensity > 0 ? `hsl(var(--primary) / ${intensity})` : 'hsl(var(--muted))',
-                  color: intensity > 0.55 ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
-                  boxShadow: isSelected
-                    ? '0 0 0 2px hsl(var(--foreground) / 0.6)'
-                    : isToday
-                      ? '0 0 0 2px hsl(var(--primary) / 0.5)'
-                      : undefined,
-                }}
+                aria-label="Previous month"
+                onClick={() => setCalendarMonth((m) => { const next = new Date(m); next.setMonth(next.getMonth() - 1); return next; })}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
               >
-                {cell.day}
+                <ChevronLeft className="h-3.5 w-3.5" />
               </button>
-            );
-          })}
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => setCalendarMonth((m) => { const next = new Date(m); next.setMonth(next.getMonth() + 1); return next; })}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1.5 text-center font-mono text-[10px] text-muted-foreground">
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <div key={i}>{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1.5">
+            {calendarCells.map((cell, i) => {
+              if (!cell.date) return <div key={i} className="aspect-square rounded-lg bg-muted/40" />;
+              const d = monthData[cell.date];
+              const isFuture = cell.date > todayStr;
+              const isToday = cell.date === todayStr;
+              const isSelected = cell.date === selectedDate;
+              const tone = dayTone(d?.totalCalories ?? 0, calorieGoal, isToday);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelectedDate(cell.date!)}
+                  disabled={isFuture}
+                  className={cn(
+                    'flex aspect-square items-center justify-center rounded-lg font-mono text-xs tabular-nums disabled:opacity-30',
+                    d || isToday ? TONE_CELL_CLASS[tone] : 'bg-muted text-muted-foreground',
+                    isSelected && 'ring-2 ring-foreground/60'
+                  )}
+                >
+                  {cell.day}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-4 pt-0.5 font-sans text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/35" /> Under</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-foreground" /> Within</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Over</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 pt-0.5">
-          <div className="font-sans text-[10px] text-muted-foreground">Under goal</div>
-          <div className="h-1.5 flex-1 rounded-full" style={{ background: 'linear-gradient(90deg, hsl(var(--primary) / 0.14), hsl(var(--primary)))' }} />
-          <div className="font-sans text-[10px] text-muted-foreground">Over</div>
-        </div>
-      </div>
+      )}
 
-      {loading || monthLoading ? (
+      {loading ? (
         <div className="elevation-card flex flex-col items-center justify-center gap-3 p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Syncing daily logs...</p>
         </div>
-      ) : (
-        <>
-          {/* Average + trend chart */}
+      ) : selectedDayData.totalCalories > 0 || selectedDayData.meals.length > 0 ? (
+        <div className="space-y-4">
           <div className="elevation-card flex flex-col gap-3 p-[15px]">
-            <div className="flex items-start justify-between">
+            <div className="font-sans text-xs text-muted-foreground">
+              {new Date(selectedDayData.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </div>
+            <div className="flex items-baseline justify-between">
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-mono text-[32px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+                  {selectedDayData.totalCalories.toLocaleString()}
+                </span>
+                <span className="font-mono text-[13px] text-muted-foreground">/ {selectedDayData.goal.toLocaleString()} kcal</span>
+              </div>
+              <span className="font-sans text-[13px] font-medium text-foreground">
+                {isSelectedToday
+                  ? 'so far'
+                  : selectedDayDelta > 0
+                    ? `${selectedDayDelta} over`
+                    : `${Math.abs(selectedDayDelta)} under`}
+              </span>
+            </div>
+            <div className="flex h-1.5 gap-[2px] overflow-hidden rounded-full bg-muted">
+              <div className="bg-chart-protein" style={{ width: `${macroP}%` }} />
+              <div className="bg-chart-carbs" style={{ width: `${macroC}%` }} />
+              <div className="bg-chart-fat" style={{ width: `${macroF}%` }} />
+            </div>
+            <div className="grid grid-cols-4 gap-2">
               <div>
-                <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {viewMode === 'week' ? 'Daily average' : 'Monthly daily average'}
-                </div>
-                <div className="mt-2 font-mono text-[28px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
-                  {activeAverage.toLocaleString()}
-                  <span className="font-sans text-xs font-medium text-muted-foreground"> kcal</span>
-                </div>
+                <div className="font-mono text-sm font-semibold tabular-nums text-chart-protein">{Math.round(selectedDayData.totalProtein)}g</div>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Protein</p>
               </div>
-              <div className="text-right">
-                <div className="font-sans text-[10px] text-muted-foreground">vs goal</div>
-                <div
-                  className={`mt-1.5 font-mono text-sm font-semibold tabular-nums ${
-                    avgDelta > 0 ? 'text-primary' : 'text-foreground'
-                  }`}
-                >
-                  {avgDelta > 0 ? '+' : ''}
-                  {avgDelta}
-                </div>
+              <div>
+                <div className="font-mono text-sm font-semibold tabular-nums text-chart-carbs">{Math.round(selectedDayData.totalCarbs)}g</div>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Carbs</p>
               </div>
-            </div>
-
-            <div className="h-32 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activeChartData} barCategoryGap={12}>
-                  <XAxis
-                    dataKey="label"
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={10}
-                    fontFamily='"IBM Plex Mono", ui-monospace, monospace'
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} contentStyle={glassTooltipStyle} />
-                  <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary) / 0.5)" strokeDasharray="3 3" />
-                  <Bar dataKey="protein" stackId="macros" fill="hsl(var(--chart-protein))" />
-                  <Bar dataKey="carbs" stackId="macros" fill="hsl(var(--chart-carbs))" />
-                  <Bar dataKey="fat" stackId="macros" fill="hsl(var(--chart-fat))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="flex gap-4 border-t border-border pt-3">
-              <div className="flex items-center gap-1.5">
-                <span className="h-[7px] w-[7px] rounded-sm bg-chart-protein" />
-                <span className="font-sans text-[11px] text-muted-foreground">Protein</span>
+              <div>
+                <div className="font-mono text-sm font-semibold tabular-nums text-chart-fat">{Math.round(selectedDayData.totalFat)}g</div>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Fat</p>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-[7px] w-[7px] rounded-sm bg-chart-carbs" />
-                <span className="font-sans text-[11px] text-muted-foreground">Carbs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-[7px] w-[7px] rounded-sm bg-chart-fat" />
-                <span className="font-sans text-[11px] text-muted-foreground">Fat</span>
+              <div>
+                <div className="font-mono text-sm font-semibold tabular-nums text-chart-fiber">{Math.round(selectedDayData.totalFiber)}g</div>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Fibre</p>
               </div>
             </div>
           </div>
 
-          {/* Selected day summary */}
-          {selectedDayData.totalCalories > 0 || selectedDayMeals.length > 0 ? (
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {new Date(selectedDayData.date).toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                  })}{' '}
-                  · selected
-                </div>
-                <div className="elevation-card flex items-center gap-3 p-[14px]">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-sans text-sm font-medium text-foreground">
-                      {selectedDayMeals.length} {selectedDayMeals.length === 1 ? 'meal' : 'meals'} logged
-                    </div>
-                    {selectedDayMeals.length > 0 && (
-                      <div className="mt-1 truncate font-sans text-[11px] text-muted-foreground">
-                        {selectedDayMeals.map((m) => m.name).join(' · ')}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-none text-right">
-                    <div className="font-mono text-lg font-semibold tabular-nums text-foreground">
-                      {selectedDayData.totalCalories.toLocaleString()}
-                    </div>
-                    <div
-                      className={`mt-1 font-sans text-[9px] font-semibold uppercase tracking-[0.08em] ${
-                        selectedDayDelta > 0 ? 'text-primary' : 'text-muted-foreground'
-                      }`}
-                    >
-                      {selectedDayDelta > 0 ? `+${selectedDayDelta} over` : `${Math.abs(selectedDayDelta)} under`}
-                    </div>
-                  </div>
-                </div>
-
-                {selectedDayData.totalCalories > 0 && (
-                  <div className="elevation-card grid grid-cols-4 gap-2 p-[14px] text-center">
-                    <div>
-                      <div className="font-mono text-sm font-semibold tabular-nums text-chart-protein">
-                        {Math.round(selectedDayData.totalProtein || 0)}g
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted-foreground">Protein</p>
-                    </div>
-                    <div>
-                      <div className="font-mono text-sm font-semibold tabular-nums text-chart-carbs">
-                        {Math.round(selectedDayData.totalCarbs || 0)}g
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted-foreground">Carbs</p>
-                    </div>
-                    <div>
-                      <div className="font-mono text-sm font-semibold tabular-nums text-chart-fat">
-                        {Math.round(selectedDayData.totalFat || 0)}g
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted-foreground">Fat</p>
-                    </div>
-                    <div>
-                      <div className="font-mono text-sm font-semibold tabular-nums text-chart-fiber">
-                        {Math.round(selectedDayData.totalFiber || 0)}g
-                      </div>
-                      <p className="mt-1 text-[10px] text-muted-foreground">Fiber</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Meals */}
-              {selectedDayMeals.length > 0 && (
-                <div className="space-y-2">
-                  <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Meals
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {selectedDayMeals.map((meal) => (
-                      <AnimatedMealCard
-                        key={meal.id}
-                        meal={meal}
-                        onEditMeal={handleEditMeal}
-                        onDeleteMeal={handleDeleteMeal}
-                        subLabel={`${meal.time} · ${new Date(meal.logged_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Daily Reflection */}
-              <div className="elevation-card p-[15px]">
-                <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  Reflection
-                </div>
-                <p className="mt-2 font-sans text-sm italic text-foreground">"{selectedDayData.reflection}"</p>
-              </div>
-            </div>
-          ) : (
-            <div className="elevation-card p-8 text-center">
-              <p className="mb-2 text-sm text-muted-foreground">
-                No data available for this date (
-                {new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                ).
-              </p>
-              <p className="text-sm text-muted-foreground">Start logging meals to see your history!</p>
-            </div>
-          )}
-
-          {/* Recent week overview */}
-          <div className="space-y-2">
-            <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Recent week
-            </div>
-            <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-              {historyDays.map((day, index) => {
-                const pct = Math.round((day.totalCalories / day.goal) * 100);
-                const over = day.totalCalories > day.goal;
+          {groupedMeals.length > 0 && (
+            <div className="elevation-card divide-y divide-border p-0">
+              {groupedMeals.map((group) => {
+                const total = Math.round(group.items.reduce((s, m) => s + m.calories, 0));
                 return (
-                  <div key={index} className="flex items-center justify-between px-[15px] py-[13px]">
-                    <div>
-                      <h4 className="font-sans text-sm font-medium text-foreground">
-                        {new Date(day.date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </h4>
-                      <p className="mt-0.5 font-sans text-[11px] text-muted-foreground">
-                        {day.meals.length} meals logged
-                      </p>
-                      {day.totalCalories > 0 && (
-                        <div className="mt-1 flex gap-2">
-                          <span className="font-mono text-[10px] font-medium tabular-nums text-chart-protein">
-                            {Math.round(day.totalProtein || 0)}g P
-                          </span>
-                          <span className="font-mono text-[10px] font-medium tabular-nums text-chart-carbs">
-                            {Math.round(day.totalCarbs || 0)}g C
-                          </span>
-                          <span className="font-mono text-[10px] font-medium tabular-nums text-chart-fat">
-                            {Math.round(day.totalFat || 0)}g F
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <span
-                        className={`font-mono text-sm font-semibold tabular-nums ${
-                          over ? 'text-primary' : 'text-foreground'
-                        }`}
-                      >
-                        {day.totalCalories} / {day.goal}
+                  <div key={group.mealTime} className="px-[15px]">
+                    <div className="flex items-baseline justify-between py-2.5">
+                      <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        {MEAL_LABEL[group.mealTime]}
                       </span>
-                      <p className="mt-0.5 font-mono text-xs tabular-nums text-muted-foreground">{pct}%</p>
+                      <span className="font-mono text-[11px] text-muted-foreground">{total} kcal</span>
                     </div>
+                    {group.items.map((meal) => {
+                      const portion = formatPortion(meal.grams, meal.unit);
+                      return (
+                        <div key={meal.id} className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-3">
+                          <button
+                            type="button"
+                            onClick={() => handleEditMeal(meal)}
+                            className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
+                          >
+                            <span className="truncate font-sans text-sm font-medium text-foreground">{meal.name}</span>
+                            {portion && <span className="font-mono text-[11px] text-muted-foreground">{portion}</span>}
+                          </button>
+                          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{Math.round(meal.calories)}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleEditMeal(meal)}
+                            aria-label={`Edit ${meal.name}`}
+                            className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-muted-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMeal(meal.id, meal.name)}
+                            aria-label={`Delete ${meal.name}`}
+                            className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-muted-foreground"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
-          </div>
-        </>
+          )}
+        </div>
+      ) : (
+        <div className="elevation-card p-8 text-center">
+          <p className="mb-2 text-sm text-muted-foreground">
+            No data available for this date (
+            {new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            ).
+          </p>
+          <p className="text-sm text-muted-foreground">Start logging meals to see your history!</p>
+        </div>
       )}
 
       <EditMealDialog

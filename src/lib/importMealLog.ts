@@ -1,5 +1,8 @@
 import * as XLSX from 'xlsx';
 import type { ChatMealItem, MealTime } from '@/components/MealReviewList';
+import { fmtLocalDate } from '@/lib/utils';
+
+export { fmtLocalDate };
 
 export interface ParsedImport {
   /** The date the file itself states, if any -- a starting point for the date
@@ -52,13 +55,9 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// SheetJS lands Date-typed cells 1ms under local midnight; format from local
-// components (never toISOString(), which shifts across the UTC boundary and
-// is off by a day in any positive UTC offset timezone).
-export const fmtLocalDate = (d: Date): string => {
-  const x = new Date(d.getTime() + 1000);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-};
+// SheetJS lands Date-typed cells 1ms under local midnight -- nudge forward a
+// second before formatting so that quirk never rounds a cell to the day before.
+const fmtCellDate = (d: Date): string => fmtLocalDate(new Date(d.getTime() + 1000));
 
 // The meal-time sheet's name and its quantity column have both drifted across
 // real ChatGPT exports ("Today's Meals" / "Quantity" one day, "Meal Log" /
@@ -76,11 +75,11 @@ const findDailySummaryDate = (workbook: XLSX.WorkBook): string | null => {
   const dateRow = rows.find((row) => String(row[0] ?? '').trim().toLowerCase() === 'date');
   const value = dateRow?.[1];
   if (value == null) return null;
-  if (value instanceof Date) return fmtLocalDate(value);
+  if (value instanceof Date) return fmtCellDate(value);
   const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : fmtLocalDate(parsed);
+  return Number.isNaN(parsed.getTime()) ? null : fmtCellDate(parsed);
 };
 
 export const parseMealLogFile = (buffer: ArrayBuffer): ParsedImport => {
