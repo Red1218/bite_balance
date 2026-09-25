@@ -2,7 +2,10 @@ import * as XLSX from 'xlsx';
 import type { ChatMealItem, MealTime } from '@/components/MealReviewList';
 
 export interface ParsedImport {
-  loggedDate: string;
+  /** The date the file itself states, if any -- a starting point for the date
+   * picker on the Import screen, never the final answer: the user can log any
+   * file to any date, and plenty of real exports don't state one at all. */
+  loggedDate: string | null;
   items: ChatMealItem[];
 }
 
@@ -36,6 +39,7 @@ interface MealRow {
   Meal?: unknown;
   Food?: unknown;
   Quantity?: unknown;
+  Amount?: unknown;
   'Calories (kcal)'?: unknown;
   'Protein (g)'?: unknown;
   'Carbs (g)'?: unknown;
@@ -51,49 +55,53 @@ const num = (v: unknown): number => {
 // SheetJS lands Date-typed cells 1ms under local midnight; format from local
 // components (never toISOString(), which shifts across the UTC boundary and
 // is off by a day in any positive UTC offset timezone).
-const fmtLocalDate = (d: Date): string => {
+export const fmtLocalDate = (d: Date): string => {
   const x = new Date(d.getTime() + 1000);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 };
 
-// Reads the "Date" key/value row from Daily Summary regardless of whether that
-// sheet has its own header row first -- the two real sample files disagree on
-// that, so this searches for the row by its first cell instead of a fixed index.
-const findDailySummaryDate = (workbook: XLSX.WorkBook): string => {
+// The meal-time sheet's name and its quantity column have both drifted across
+// real ChatGPT exports ("Today's Meals" / "Quantity" one day, "Meal Log" /
+// "Amount" the next) -- accept either rather than failing on a cosmetic rename.
+const MEAL_SHEET_NAMES = ["Today's Meals", 'Meal Log'];
+
+// Best-effort only: reads the "Date" key/value row from Daily Summary when
+// present, regardless of whether that sheet has its own header row first.
+// Never throws -- plenty of real exports have no Daily Summary sheet, or one
+// with no Date row, and the date is just a starting point the user can change.
+const findDailySummaryDate = (workbook: XLSX.WorkBook): string | null => {
   const sheet = workbook.Sheets['Daily Summary'];
-  if (!sheet) throw new Error('This file has no "Daily Summary" sheet.');
+  if (!sheet) return null;
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
   const dateRow = rows.find((row) => String(row[0] ?? '').trim().toLowerCase() === 'date');
-  if (!dateRow || dateRow[1] == null) {
-    throw new Error('No "Date" row found in the "Daily Summary" sheet.');
-  }
-  const value = dateRow[1];
+  const value = dateRow?.[1];
+  if (value == null) return null;
   if (value instanceof Date) return fmtLocalDate(value);
   const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   const parsed = new Date(text);
-  if (Number.isNaN(parsed.getTime())) {
-    throw new Error(`Could not read the date "${text}" from the "Daily Summary" sheet.`);
-  }
-  return fmtLocalDate(parsed);
+  return Number.isNaN(parsed.getTime()) ? null : fmtLocalDate(parsed);
 };
 
 export const parseMealLogFile = (buffer: ArrayBuffer): ParsedImport => {
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
 
-  const mealsSheet = workbook.Sheets["Today's Meals"];
-  if (!mealsSheet) throw new Error('This file has no "Today\'s Meals" sheet.');
-  const rows = XLSX.utils.sheet_to_json<MealRow>(mealsSheet);
+  const mealsSheetName = MEAL_SHEET_NAMES.find((name) => workbook.Sheets[name]);
+  if (!mealsSheetName) {
+    throw new Error('This file has no "Today\'s Meals" (or "Meal Log") sheet.');
+  }
+  const rows = XLSX.utils.sheet_to_json<MealRow>(workbook.Sheets[mealsSheetName]);
 
   const items: ChatMealItem[] = rows
     .filter((row) => {
       const food = String(row.Food ?? '').trim();
-      const hasQuantity = row.Quantity != null && String(row.Quantity).trim().length > 0;
+      const quantity = row.Quantity ?? row.Amount;
+      const hasQuantity = quantity != null && String(quantity).trim().length > 0;
       return food.length > 0 && food.toUpperCase() !== 'TOTAL' && hasQuantity;
     })
     .map((row) => {
       const food = String(row.Food ?? '').trim();
-      const quantityText = String(row.Quantity ?? '').trim();
+      const quantityText = String(row.Quantity ?? row.Amount ?? '').trim();
       const grams = parseGrams(quantityText);
       return {
         name: grams === null ? `${food} (${quantityText})` : food,
@@ -108,7 +116,9 @@ export const parseMealLogFile = (buffer: ArrayBuffer): ParsedImport => {
       };
     });
 
-  if (items.length === 0) throw new Error('No food rows found in "Today\'s Meals".');
+  if (items.length === 0) {
+    throw new Error(`No food rows found in "${mealsSheetName}".`);
+  }
 
   return { loggedDate: findDailySummaryDate(workbook), items };
 };
