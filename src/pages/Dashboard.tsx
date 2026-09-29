@@ -8,6 +8,7 @@ import DailySummary from '@/components/DailySummary';
 import DashboardHeader from '@/components/DashboardHeader';
 import TodaysMealsSection from '@/components/TodaysMealsSection';
 import WaterTracker from '@/components/WaterTracker';
+import ChecklistCard from '@/components/ChecklistCard';
 import StreakBanner from '@/components/StreakBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -128,6 +129,9 @@ const Dashboard = () => {
         <WaterTracker />
         <StepsSection />
       </div>
+
+      {/* Daily checklist */}
+      <ChecklistCard />
 
       {/* Today's Meals */}
       <TodaysMealsSection
