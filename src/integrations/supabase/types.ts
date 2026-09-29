@@ -38,6 +38,68 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_checks: {
+        Row: {
+          checked_date: string
+          created_at: string
+          item_id: string
+          user_id: string
+        }
+        Insert: {
+          checked_date: string
+          created_at?: string
+          item_id: string
+          user_id: string
+        }
+        Update: {
+          checked_date?: string
+          created_at?: string
+          item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_checks_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_items: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          id: string
+          name: string
+          note: string | null
+          position: number
+          user_id: string
+          weekdays: number[]
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          note?: string | null
+          position?: number
+          user_id: string
+          weekdays?: number[]
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          note?: string | null
+          position?: number
+          user_id?: string
+          weekdays?: number[]
+        }
+        Relationships: []
+      }
       daily_meals: {
         Row: {
           calcium: number | null

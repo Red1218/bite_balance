@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts"
+    "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts",
+    "check:checklist": "esbuild src/lib/checklist.check.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/checklist-check.cjs && node node_modules/.cache/checklist-check.cjs"
   },
   "dependencies": {
     "@capacitor-community/speech-recognition": "^7.0.1",

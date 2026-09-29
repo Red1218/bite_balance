@@ -16,6 +16,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Chat = lazy(() => import('./pages/Chat'));
 const Conversations = lazy(() => import('./pages/Conversations'));
 const Import = lazy(() => import('./pages/Import'));
+const Checklist = lazy(() => import('./pages/Checklist'));
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -54,6 +55,7 @@ const AppRoutes = () => {
           <Route path="/steps" element={<Steps />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/import" element={<Import />} />
+          <Route path="/checklist" element={<Checklist />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
