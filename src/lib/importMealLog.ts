@@ -2,8 +2,6 @@ import * as XLSX from 'xlsx';
 import type { ChatMealItem, MealTime } from '@/components/MealReviewList';
 import { fmtLocalDate } from '@/lib/utils';
 
-export { fmtLocalDate };
-
 export interface ParsedImport {
   /** The date the file itself states, if any -- a starting point for the date
    * picker on the Import screen, never the final answer: the user can log any
@@ -92,15 +90,13 @@ export const parseMealLogFile = (buffer: ArrayBuffer): ParsedImport => {
   const rows = XLSX.utils.sheet_to_json<MealRow>(workbook.Sheets[mealsSheetName]);
 
   const items: ChatMealItem[] = rows
-    .filter((row) => {
-      const food = String(row.Food ?? '').trim();
-      const quantity = row.Quantity ?? row.Amount;
-      const hasQuantity = quantity != null && String(quantity).trim().length > 0;
-      return food.length > 0 && food.toUpperCase() !== 'TOTAL' && hasQuantity;
-    })
-    .map((row) => {
-      const food = String(row.Food ?? '').trim();
-      const quantityText = String(row.Quantity ?? row.Amount ?? '').trim();
+    .map((row) => ({
+      row,
+      food: String(row.Food ?? '').trim(),
+      quantityText: String(row.Quantity ?? row.Amount ?? '').trim(),
+    }))
+    .filter(({ food, quantityText }) => food && food.toUpperCase() !== 'TOTAL' && quantityText)
+    .map(({ row, food, quantityText }) => {
       const grams = parseGrams(quantityText);
       return {
         name: grams === null ? `${food} (${quantityText})` : food,
