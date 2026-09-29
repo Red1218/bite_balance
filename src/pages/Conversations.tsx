@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, MessagesSquare, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { fmtLocalDate } from '@/lib/utils';
 
 interface DayThread {
   date: string;
@@ -61,7 +62,7 @@ const Conversations = () => {
 
       const byDate = new Map<string, { role: string; content: string; created_at: string }[]>();
       for (const row of messages ?? []) {
-        const d = row.created_at.split('T')[0];
+        const d = fmtLocalDate(new Date(row.created_at));
         if (!byDate.has(d)) byDate.set(d, []);
         byDate.get(d)!.push(row);
       }
@@ -94,9 +95,9 @@ const Conversations = () => {
     const weekAgo = new Date(today);
     weekAgo.setDate(today.getDate() - 7);
     return {
-      todayStr: today.toISOString().split('T')[0],
-      yesterdayStr: yesterday.toISOString().split('T')[0],
-      weekAgoStr: weekAgo.toISOString().split('T')[0],
+      todayStr: fmtLocalDate(today),
+      yesterdayStr: fmtLocalDate(yesterday),
+      weekAgoStr: fmtLocalDate(weekAgo),
     };
   }, []);
 

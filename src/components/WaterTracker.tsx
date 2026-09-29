@@ -1,6 +1,6 @@
 import React from 'react';
 import { useWaterTracker } from '@/hooks/useWaterTracker';
-import { Plus } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
 const WaterTracker = () => {
   const { glasses, goal, loading, addGlass, removeGlass } = useWaterTracker();
@@ -19,15 +19,26 @@ const WaterTracker = () => {
         <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Water
         </span>
-        <button
-          type="button"
-          onClick={addGlass}
-          disabled={glasses >= 20}
-          aria-label="Add glass"
-          className="flex h-6 w-6 items-center justify-center rounded-lg bg-chart-water/14 text-chart-water disabled:opacity-40"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={removeGlass}
+            disabled={glasses <= 0}
+            aria-label="Remove glass"
+            className="flex h-6 w-6 items-center justify-center rounded-lg bg-muted text-muted-foreground disabled:opacity-40"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={addGlass}
+            disabled={glasses >= 20}
+            aria-label="Add glass"
+            className="flex h-6 w-6 items-center justify-center rounded-lg bg-chart-water/14 text-chart-water disabled:opacity-40"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="font-mono text-[26px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">

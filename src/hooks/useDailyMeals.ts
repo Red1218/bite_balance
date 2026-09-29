@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SavedMeal } from '@/hooks/useSavedMeals';
 import { IndianFood } from '@/services/foodService';
+import { fmtLocalDate } from '@/lib/utils';
 
 export interface DailyMeal {
   id: string;
@@ -39,7 +40,7 @@ export const useDailyMeals = () => {
     if (!user) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = fmtLocalDate(new Date());
       const { data, error } = await supabase
         .from('daily_meals')
         .select('*')
@@ -131,7 +132,7 @@ export const useDailyMeals = () => {
     if (!user) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = fmtLocalDate(new Date());
       const { error } = await supabase.from('daily_meals').insert({
         user_id: user.id,
         name: savedMeal.name,
@@ -179,7 +180,7 @@ export const useDailyMeals = () => {
     if (!user) return;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = fmtLocalDate(new Date());
       const { error } = await supabase.from('daily_meals').insert({
         user_id: user.id,
         name: food.name,

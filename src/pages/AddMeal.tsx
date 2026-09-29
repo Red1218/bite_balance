@@ -29,6 +29,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { fmtLocalDate } from '@/lib/utils';
 
 const categories = [
   { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
@@ -217,7 +218,7 @@ const AddMeal = () => {
     sodium: '',
     magnesium: '',
     zinc: '',
-    date: new Date().toISOString().split('T')[0],
+    date: fmtLocalDate(new Date()),
     notes: '',
   });
 
@@ -419,7 +420,7 @@ const AddMeal = () => {
         sodium: '',
         magnesium: '',
         zinc: '',
-        date: new Date().toISOString().split('T')[0],
+        date: fmtLocalDate(new Date()),
         notes: '',
       });
       setBaseNutrition(null);
