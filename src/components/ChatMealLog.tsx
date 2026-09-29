@@ -9,7 +9,7 @@ import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { useSavedMeals, type SavedMeal } from '@/hooks/useSavedMeals';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { defaultSlotForNow } from '@/lib/mealTime';
-import { cn } from '@/lib/utils';
+import { cn, fmtLocalDate } from '@/lib/utils';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -281,8 +281,9 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       const query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
       const { data, error } = viewDate
         ? await query
-            .gte('created_at', `${viewDate}T00:00:00.000Z`)
-            .lt('created_at', `${viewDate}T23:59:59.999Z`)
+            // viewDate is a local calendar day -- query its local-midnight bounds
+            .gte('created_at', new Date(`${viewDate}T00:00:00`).toISOString())
+            .lt('created_at', new Date(new Date(`${viewDate}T00:00:00`).getTime() + 86_400_000).toISOString())
             .order('created_at', { ascending: true })
         : await query.order('created_at', { ascending: true }).limit(HISTORY_LOAD_LIMIT);
       if (error) {
@@ -320,14 +321,14 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
     setSending(true);
     try {
-      const todayStr = now.split('T')[0];
+      const todayStr = fmtLocalDate(new Date(now));
       const contextMessages = nextMessages.slice(-CHAT_CONTEXT_LIMIT);
       const { data, error } = await supabase.functions.invoke('chat-meal', {
         body: {
           // Old-day messages are tagged so the model can still recall and
           // discuss them, without mistaking them for part of today's tally.
           messages: contextMessages.map((m) => {
-            const msgDay = m.createdAt.split('T')[0];
+            const msgDay = fmtLocalDate(new Date(m.createdAt));
             return {
               role: m.who === 'user' ? 'user' : 'assistant',
               content: msgDay === todayStr ? m.text : `[${msgDay}] ${m.text}`,
@@ -380,7 +381,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     try {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const dateStr = yesterday.toISOString().split('T')[0];
+      const dateStr = fmtLocalDate(yesterday);
       const { data, error } = await supabase
         .from('daily_meals')
         .select('*')
@@ -404,7 +405,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     if (!user) return;
     setChipLoading('dinner');
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = fmtLocalDate(new Date());
       const { data, error } = await supabase
         .from('daily_meals')
         .select('*')
@@ -482,7 +483,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
     setLogging(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = fmtLocalDate(new Date());
       const rows = items.map((it) => chatMealItemToRow(it, user.id, today));
 
       const { error } = await supabase.from('daily_meals').insert(rows);
@@ -528,8 +529,8 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   }
 
   const isFreshConversation = !viewDate && messages.length === 1;
-  const threadDay = viewDate ?? new Date().toISOString().split('T')[0];
-  const firstUserMsg = messages.find((m) => m.who === 'user' && m.createdAt.split('T')[0] === threadDay);
+  const threadDay = viewDate ?? fmtLocalDate(new Date());
+  const firstUserMsg = messages.find((m) => m.who === 'user' && fmtLocalDate(new Date(m.createdAt)) === threadDay);
   const title = firstUserMsg ? truncate(firstUserMsg.text, 40) : 'New conversation';
   const subtitle = viewDate
     ? new Date(`${viewDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })

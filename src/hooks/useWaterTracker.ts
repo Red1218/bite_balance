@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { fmtLocalDate } from '@/lib/utils';
 
 const DAILY_GOAL = 8;
 
@@ -9,7 +10,7 @@ export const useWaterTracker = () => {
   const [glasses, setGlassesState] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = fmtLocalDate(new Date());
 
   const fetchWater = useCallback(async () => {
     if (!user) return;

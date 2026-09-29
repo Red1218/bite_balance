@@ -2,6 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { fmtLocalDate } from '@/lib/utils';
 
 export const useStreak = () => {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export const useStreak = () => {
         // Fetch distinct logged_dates for the last 60 days (enough to capture long streaks)
         const sixtyDaysAgo = new Date();
         sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-        const startDate = sixtyDaysAgo.toISOString().split('T')[0];
+        const startDate = fmtLocalDate(sixtyDaysAgo);
 
         const { data, error } = await supabase
           .from('daily_meals')
@@ -36,7 +37,7 @@ export const useStreak = () => {
         // (Today counts only if the user has already logged something today)
         let count = 0;
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+        const todayStr = fmtLocalDate(today);
 
         // Start from today — if today is logged, count it; otherwise start from yesterday
         const startFrom = loggedDates.has(todayStr) ? 0 : 1;
@@ -44,7 +45,7 @@ export const useStreak = () => {
         for (let i = startFrom; i <= 60; i++) {
           const d = new Date();
           d.setDate(today.getDate() - i);
-          const dateStr = d.toISOString().split('T')[0];
+          const dateStr = fmtLocalDate(d);
 
           if (loggedDates.has(dateStr)) {
             count++;

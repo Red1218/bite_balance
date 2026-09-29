@@ -1,4 +1,5 @@
 import { Health } from '@capgo/capacitor-health';
+import { fmtLocalDate } from '@/lib/utils';
 
 export interface HealthConnectPlugin {
   isAvailable(): Promise<{ available: boolean; status: number }>;
@@ -74,13 +75,13 @@ class HealthConnectWrapper implements HealthConnectPlugin {
       }
       return {
         steps: totalSteps,
-        date: new Date().toISOString().split('T')[0],
+        date: fmtLocalDate(new Date()),
       };
     } catch (error) {
       console.error('Failed to get steps:', error);
       return {
         steps: 0,
-        date: new Date().toISOString().split('T')[0],
+        date: fmtLocalDate(new Date()),
       };
     }
   }
@@ -116,14 +117,14 @@ class HealthConnectWrapper implements HealthConnectPlugin {
       return {
         activeCalories: totalCalories,
         totalCalories: totalCalories + 1500, // rough approximation of BMR for visual completeness
-        date: new Date().toISOString().split('T')[0],
+        date: fmtLocalDate(new Date()),
       };
     } catch (error) {
       console.error('Failed to get calories:', error);
       return {
         activeCalories: 0,
         totalCalories: 0,
-        date: new Date().toISOString().split('T')[0],
+        date: fmtLocalDate(new Date()),
       };
     }
   }
@@ -153,7 +154,7 @@ class HealthConnectWrapper implements HealthConnectPlugin {
         }
         results.push({
           steps: totalSteps,
-          date: startOfDay.toISOString().split('T')[0],
+          date: fmtLocalDate(startOfDay),
         });
       }
       return results.reverse();
@@ -189,7 +190,7 @@ class HealthConnectWrapper implements HealthConnectPlugin {
         results.push({
           activeCalories: totalCalories,
           totalCalories: totalCalories + 1500, // rough BMR approx
-          date: startOfDay.toISOString().split('T')[0],
+          date: fmtLocalDate(startOfDay),
         });
       }
       return results.reverse();

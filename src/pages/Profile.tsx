@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { supabase } from '@/integrations/supabase/client';
-import { cn } from '@/lib/utils';
+import { cn, fmtLocalDate } from '@/lib/utils';
 
 const WATER_GOAL_GLASSES = 8; // matches useWaterTracker's fixed daily goal
 const STEP_GOAL = 10000; // matches Steps.tsx
@@ -763,7 +763,7 @@ const Profile = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="targetDate" className="text-sm text-foreground">Target date</Label>
-              <Input id="targetDate" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className={inputClass} />
+              <Input id="targetDate" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} min={fmtLocalDate(new Date())} className={inputClass} />
             </div>
           </div>
         </div>
