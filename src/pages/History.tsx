@@ -11,7 +11,6 @@ interface MealInfo {
   id: string;
   name: string;
   calories: number;
-  time: string;
   protein: number;
   carbs: number;
   fat: number;
@@ -19,7 +18,6 @@ interface MealInfo {
   grams: number | null;
   unit: string;
   meal_time: string;
-  logged_at: string;
 }
 
 interface DaySummary {
@@ -29,9 +27,18 @@ interface DaySummary {
   totalCarbs: number;
   totalFat: number;
   totalFiber: number;
-  goal: number;
   meals: MealInfo[];
 }
+
+const emptyDay = (date: string): DaySummary => ({
+  date,
+  totalCalories: 0,
+  totalProtein: 0,
+  totalCarbs: 0,
+  totalFat: 0,
+  totalFiber: 0,
+  meals: [],
+});
 
 interface MonthDay {
   date: string;
@@ -66,7 +73,7 @@ const TONE_CELL_CLASS: Record<Tone, string> = {
 const SCALE_FACTOR = 1.2;
 const barHeightPx = (calories: number, goal: number) =>
   Math.max(4, Math.min(72, (calories / (goal * SCALE_FACTOR)) * 72));
-const goalLinePx = () => 72 * (1 - 1 / SCALE_FACTOR);
+const GOAL_LINE_PX = 72 * (1 - 1 / SCALE_FACTOR);
 
 const formatPortion = (grams: number | null, unit: string) =>
   grams ? `${Math.round(grams)}${unit === 'g' ? 'g' : ` ${unit}`}` : null;
@@ -82,12 +89,12 @@ const macroBarSegments = (protein: number, carbs: number, fat: number) => {
 const History = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
   const [selectedDate, setSelectedDate] = useState(fmtLocalDate(new Date()));
   const [historyDays, setHistoryDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [editingMeal, setEditingMeal] = useState<MealInfo | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Calendar month grid state -- fetched independently of the 7-day strip above
   const [calendarMonth, setCalendarMonth] = useState(() => {
@@ -122,29 +129,15 @@ const History = () => {
 
       if (error) throw error;
 
-      const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
-
       const grouped: Record<string, DaySummary> = {};
-      const emptyDay = (dateStr: string): DaySummary => ({
-        date: dateStr,
-        totalCalories: 0,
-        totalProtein: 0,
-        totalCarbs: 0,
-        totalFat: 0,
-        totalFiber: 0,
-        goal: calorieGoal,
-        meals: [],
-      });
-
       for (const meal of data || []) {
         const dateKey = meal.logged_date;
         if (!grouped[dateKey]) grouped[dateKey] = emptyDay(dateKey);
         const day = grouped[dateKey];
-        day.meals.push({
+        const m: MealInfo = {
           id: meal.id,
           name: meal.name,
           calories: Number(meal.calories),
-          time: meal.meal_time ? meal.meal_time.charAt(0).toUpperCase() + meal.meal_time.slice(1) : 'Snack',
           protein: Number(meal.protein || 0),
           carbs: Number(meal.carbs || 0),
           fat: Number(meal.fat || 0),
@@ -152,13 +145,13 @@ const History = () => {
           grams: meal.grams ?? null,
           unit: meal.unit || 'g',
           meal_time: meal.meal_time || 'snack',
-          logged_at: meal.logged_at,
-        });
-        day.totalCalories += Number(meal.calories);
-        day.totalProtein += Number(meal.protein || 0);
-        day.totalCarbs += Number(meal.carbs || 0);
-        day.totalFat += Number(meal.fat || 0);
-        day.totalFiber += Number(meal.fiber || 0);
+        };
+        day.meals.push(m);
+        day.totalCalories += m.calories;
+        day.totalProtein += m.protein;
+        day.totalCarbs += m.carbs;
+        day.totalFat += m.fat;
+        day.totalFiber += m.fiber;
       }
 
       // Build the 7-day strip, oldest first.
@@ -218,11 +211,6 @@ const History = () => {
     fetchMonthData();
   }, [user, calendarMonth]);
 
-  const handleEditMeal = (meal: MealInfo) => {
-    setEditingMeal(meal);
-    setIsEditDialogOpen(true);
-  };
-
   const handleDeleteMeal = async (mealId: string, mealName: string) => {
     if (!user || !window.confirm(`Delete "${mealName}"?`)) return;
     const { error } = await supabase.from('daily_meals').delete().eq('id', mealId).eq('user_id', user.id);
@@ -251,20 +239,10 @@ const History = () => {
     fetchMonthData();
   };
 
-  const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
   const todayStr = fmtLocalDate(new Date());
 
-  const selectedDayData = historyDays.find((day) => day.date === selectedDate) || {
-    date: selectedDate,
-    totalCalories: 0,
-    totalProtein: 0,
-    totalCarbs: 0,
-    totalFat: 0,
-    totalFiber: 0,
-    goal: calorieGoal,
-    meals: [],
-  };
-  const selectedDayDelta = Math.round(selectedDayData.totalCalories - selectedDayData.goal);
+  const selectedDayData = historyDays.find((day) => day.date === selectedDate) ?? emptyDay(selectedDate);
+  const selectedDayDelta = Math.round(selectedDayData.totalCalories - calorieGoal);
   const isSelectedToday = selectedDate === todayStr;
 
   const groupedMeals = MEAL_ORDER.map((mt) => ({
@@ -308,26 +286,19 @@ const History = () => {
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">History</h1>
         <div className="flex gap-[2px] rounded-full bg-muted p-[3px]">
-          <button
-            type="button"
-            onClick={() => setViewMode('week')}
-            className={cn(
-              'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors',
-              viewMode === 'week' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            )}
-          >
-            Week
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('month')}
-            className={cn(
-              'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold transition-colors',
-              viewMode === 'month' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            )}
-          >
-            Month
-          </button>
+          {(['week', 'month'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold capitalize transition-colors',
+                viewMode === mode ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+              )}
+            >
+              {mode}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -336,13 +307,13 @@ const History = () => {
           <div className="relative grid grid-cols-7 gap-1">
             <div
               className="pointer-events-none absolute left-1.5 right-1.5 border-t border-dashed border-muted-foreground/50"
-              style={{ top: goalLinePx() }}
+              style={{ top: GOAL_LINE_PX }}
             />
             {historyDays.map((day) => {
               const d = new Date(day.date);
               const isToday = day.date === todayStr;
               const isSelected = day.date === selectedDate;
-              const tone = dayTone(day.totalCalories, day.goal, isToday);
+              const tone = dayTone(day.totalCalories, calorieGoal, isToday);
               return (
                 <button
                   key={day.date}
@@ -359,7 +330,7 @@ const History = () => {
                   <span className="flex h-[72px] w-full items-end justify-center">
                     <span
                       className={cn('w-3.5 rounded-[5px] box-border', TONE_BAR_CLASS[tone])}
-                      style={{ height: barHeightPx(day.totalCalories, day.goal) }}
+                      style={{ height: barHeightPx(day.totalCalories, calorieGoal) }}
                     />
                   </span>
                   <span className={cn('font-mono text-xs font-semibold tabular-nums', isSelected ? 'text-foreground' : 'text-muted-foreground')}>
@@ -431,9 +402,9 @@ const History = () => {
             })}
           </div>
           <div className="flex items-center gap-4 pt-0.5 font-sans text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground/35" /> Under</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-foreground" /> Within</span>
-            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-primary" /> Over</span>
+            {[['Under', 'bg-muted-foreground/35'], ['Within', 'bg-foreground'], ['Over', 'bg-primary']].map(([label, swatch]) => (
+              <span key={label} className="flex items-center gap-1.5"><span className={cn('h-2.5 w-2.5 rounded-sm', swatch)} /> {label}</span>
+            ))}
           </div>
         </div>
       )}
@@ -443,7 +414,7 @@ const History = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-sm text-muted-foreground">Syncing daily logs...</p>
         </div>
-      ) : selectedDayData.totalCalories > 0 || selectedDayData.meals.length > 0 ? (
+      ) : selectedDayData.meals.length > 0 ? (
         <div className="space-y-4">
           <div className="elevation-card flex flex-col gap-3 p-[15px]">
             <div className="font-sans text-xs text-muted-foreground">
@@ -454,7 +425,7 @@ const History = () => {
                 <span className="font-mono text-[32px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
                   {selectedDayData.totalCalories.toLocaleString()}
                 </span>
-                <span className="font-mono text-[13px] text-muted-foreground">/ {selectedDayData.goal.toLocaleString()} kcal</span>
+                <span className="font-mono text-[13px] text-muted-foreground">/ {calorieGoal.toLocaleString()} kcal</span>
               </div>
               <span className="font-sans text-[13px] font-medium text-foreground">
                 {isSelectedToday
@@ -470,22 +441,17 @@ const History = () => {
               <div className="bg-chart-fat" style={{ width: `${macroF}%` }} />
             </div>
             <div className="grid grid-cols-4 gap-2">
-              <div>
-                <div className="font-mono text-sm font-semibold tabular-nums text-chart-protein">{Math.round(selectedDayData.totalProtein)}g</div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Protein</p>
-              </div>
-              <div>
-                <div className="font-mono text-sm font-semibold tabular-nums text-chart-carbs">{Math.round(selectedDayData.totalCarbs)}g</div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Carbs</p>
-              </div>
-              <div>
-                <div className="font-mono text-sm font-semibold tabular-nums text-chart-fat">{Math.round(selectedDayData.totalFat)}g</div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Fat</p>
-              </div>
-              <div>
-                <div className="font-mono text-sm font-semibold tabular-nums text-chart-fiber">{Math.round(selectedDayData.totalFiber)}g</div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Fibre</p>
-              </div>
+              {([
+                ['Protein', selectedDayData.totalProtein, 'text-chart-protein'],
+                ['Carbs', selectedDayData.totalCarbs, 'text-chart-carbs'],
+                ['Fat', selectedDayData.totalFat, 'text-chart-fat'],
+                ['Fibre', selectedDayData.totalFiber, 'text-chart-fiber'],
+              ] as const).map(([label, grams, color]) => (
+                <div key={label}>
+                  <div className={cn('font-mono text-sm font-semibold tabular-nums', color)}>{Math.round(grams)}g</div>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground">{label}</p>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -507,7 +473,7 @@ const History = () => {
                         <div key={meal.id} className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-3">
                           <button
                             type="button"
-                            onClick={() => handleEditMeal(meal)}
+                            onClick={() => setEditingMeal(meal)}
                             className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
                           >
                             <span className="truncate font-sans text-sm font-medium text-foreground">{meal.name}</span>
@@ -516,7 +482,7 @@ const History = () => {
                           <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{Math.round(meal.calories)}</span>
                           <button
                             type="button"
-                            onClick={() => handleEditMeal(meal)}
+                            onClick={() => setEditingMeal(meal)}
                             aria-label={`Edit ${meal.name}`}
                             className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-muted-foreground"
                           >
@@ -552,8 +518,8 @@ const History = () => {
 
       <EditMealDialog
         meal={editingMeal}
-        open={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
+        open={!!editingMeal}
+        onOpenChange={(open) => !open && setEditingMeal(null)}
         onSave={handleSaveMeal}
         isDailyMeal={true}
       />

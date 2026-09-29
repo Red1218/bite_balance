@@ -8,7 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import MealReviewList, { ChatMealItem, MealTime, chatMealItemToRow } from '@/components/MealReviewList';
-import { parseMealLogFile, fmtLocalDate } from '@/lib/importMealLog';
+import { parseMealLogFile } from '@/lib/importMealLog';
+import { fmtLocalDate } from '@/lib/utils';
 
 const Import = () => {
   const { user } = useAuth();
