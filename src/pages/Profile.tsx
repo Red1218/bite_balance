@@ -1,17 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Moon, Sun, Monitor, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, Moon, Sun, Monitor, ChevronRight, ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
@@ -56,8 +50,163 @@ const computeCalorieGoal = (profile: { weight: string; height: string; age: stri
   return Math.round(goalCalories);
 };
 
-const rowInputClass = 'w-20 bg-transparent text-right font-mono text-base text-foreground focus:outline-none';
-const rowSelectTriggerClass = 'h-9 w-auto gap-1.5 rounded-lg border-none bg-transparent px-0 text-right text-sm text-foreground focus:ring-0 [&>svg]:text-muted-foreground';
+interface Option { value: string; label: string; long?: string; hint?: string }
+const GENDER_OPTIONS: Option[] = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+];
+const ACTIVITY_OPTIONS: Option[] = [
+  { value: 'sedentary', label: 'Sedentary', hint: 'little or no exercise' },
+  { value: 'active', label: 'Active', hint: '3–5 workouts / wk' },
+  { value: 'very_active', label: 'Very active', hint: '6–7 workouts / wk' },
+];
+const GOAL_OPTIONS: Option[] = [
+  { value: 'lose', label: 'Lose', long: 'Lose weight' },
+  { value: 'maintain', label: 'Maintain', long: 'Maintain weight' },
+  { value: 'gain', label: 'Gain', long: 'Gain weight' },
+];
+const optionOf = (options: Option[], value: string) => options.find((o) => o.value === value);
+
+// What the Body/Goal sheets edit. Weight is held in the display unit (kg or lb)
+// so the stepper and ruler move in clean 0.1 steps of whatever the user reads.
+interface Draft { weight: number; height: number; age: number; gender: string; activityLevel: string; goal: string }
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+const SectionLabel = ({ children, onEdit }: { children: ReactNode; onEdit?: () => void }) => (
+  <div className="flex h-5 items-center justify-between">
+    <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{children}</div>
+    {onEdit && (
+      <button type="button" onClick={onEdit} className="-my-2 px-1 py-2 text-[13px] font-medium text-primary">
+        Edit
+      </button>
+    )}
+  </div>
+);
+
+const ReadRow = ({ label, value, unit }: { label: string; value: ReactNode; unit?: string }) => (
+  <div className="flex h-[52px] items-center justify-between px-[14px]">
+    <span className="text-sm text-muted-foreground">{label}</span>
+    {unit ? (
+      <span className="flex items-baseline gap-1">
+        <span className="font-mono text-base font-medium tabular-nums text-foreground">{value}</span>
+        <span className="font-mono text-[11px] text-muted-foreground">{unit}</span>
+      </span>
+    ) : (
+      <span className="text-sm text-foreground">{value}</span>
+    )}
+  </div>
+);
+
+const StepButton = ({ onClick, label, children }: { onClick: () => void; label: string; children: ReactNode }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    className="flex h-10 w-10 items-center justify-center rounded-[11px] border border-border bg-muted text-foreground active:bg-accent"
+  >
+    {children}
+  </button>
+);
+
+// One sheet row: label (plus the old value once it changes) and a -/value/+ stepper.
+const StepperRow = ({ label, value, unit, was, onStep, children }: {
+  label: string; value: string; unit: string; was?: string; onStep: (dir: 1 | -1) => void; children?: ReactNode;
+}) => (
+  <div className="px-[14px] py-2.5">
+    <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-foreground">{label}</span>
+        {was && <span className="font-mono text-[10px] text-chart-carbs">{was}</span>}
+      </div>
+      <div className="flex items-center gap-1">
+        <StepButton onClick={() => onStep(-1)} label={`Decrease ${label}`}><Minus className="h-3.5 w-3.5" /></StepButton>
+        <div className="flex w-[90px] items-baseline justify-center gap-1">
+          <span className="font-mono text-lg font-medium tabular-nums text-foreground">{value}</span>
+          <span className="font-mono text-[11px] text-muted-foreground">{unit}</span>
+        </div>
+        <StepButton onClick={() => onStep(1)} label={`Increase ${label}`}><Plus className="h-3.5 w-3.5" /></StepButton>
+      </div>
+    </div>
+    {children}
+  </div>
+);
+
+// Drag-to-scrub ruler: 10px per 0.1, labelled every whole number. data-vaul-no-drag
+// keeps the horizontal drag from being read as a swipe to close the sheet.
+const RULER_MASK = 'linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)';
+const WeightRuler = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
+  const drag = useRef<{ x: number; v: number } | null>(null);
+  const center = Math.round(value * 10);
+  return (
+    <div
+      data-vaul-no-drag
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, v: value };
+      }}
+      onPointerMove={(e) => drag.current && onChange(drag.current.v - (e.clientX - drag.current.x) / 100)}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      className="relative mt-2 h-[60px] cursor-ew-resize touch-none select-none overflow-hidden"
+      style={{ maskImage: RULER_MASK, WebkitMaskImage: RULER_MASK }}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
+        {Array.from({ length: 41 }, (_, i) => {
+          const tick = center - 20 + i;
+          const major = tick % 10 === 0;
+          return (
+            <div key={tick} className="relative flex h-[60px] w-[10px] flex-none justify-center">
+              <div
+                className={cn(
+                  'mt-1.5 w-px',
+                  major ? 'h-[26px] bg-foreground/80' : tick % 5 === 0 ? 'h-4 bg-muted-foreground/60' : 'h-[9px] bg-muted-foreground/35'
+                )}
+              />
+              {major && (
+                <span className="absolute left-1/2 top-10 -translate-x-1/2 font-mono text-[10px] text-muted-foreground">{tick / 10}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="pointer-events-none absolute left-1/2 top-0 -ml-px h-9 w-0.5 rounded-sm bg-primary" />
+    </div>
+  );
+};
+
+const Segmented = ({ options, value, onChange }: { options: Option[]; value: string; onChange: (v: string) => void }) => (
+  <div className="grid h-11 gap-[3px] rounded-xl bg-muted p-[3px]" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
+    {options.map((o) => (
+      <button
+        key={o.value}
+        type="button"
+        onClick={() => onChange(o.value)}
+        className={cn(
+          'rounded-[9px] text-xs font-medium transition-colors',
+          value === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+        )}
+      >
+        {o.label}
+      </button>
+    ))}
+  </div>
+);
+
+const SegmentedField = ({ label, options, value, base, onChange }: {
+  label: string; options: Option[]; value: string; base: string; onChange: (v: string) => void;
+}) => (
+  <div className="space-y-2">
+    <div className="flex items-baseline justify-between">
+      <span className="text-sm text-foreground">{label}</span>
+      {value !== base ? (
+        <span className="font-mono text-[10px] text-chart-carbs">was {optionOf(options, base)?.label ?? base}</span>
+      ) : (
+        <span className="font-mono text-[10px] text-muted-foreground">{optionOf(options, value)?.hint}</span>
+      )}
+    </div>
+    <Segmented options={options} value={value} onChange={onChange} />
+  </div>
+);
 
 const Profile = () => {
   const { toast } = useToast();
@@ -140,33 +289,6 @@ const Profile = () => {
     }
   };
 
-  const saveProfileField = async (field: 'age' | 'weight' | 'height', value: string) => {
-    if (!user) return;
-    const parsed = field === 'age' ? parseInt(value) || null : parseFloat(value) || null;
-    const { error } = await supabase
-      .from('profiles')
-      .update({ [field]: parsed, updated_at: new Date().toISOString() })
-      .eq('user_id', user.id);
-    if (error) {
-      toast({ title: 'Error', description: 'Failed to save.', variant: 'destructive' });
-    }
-  };
-
-  const handleGenderChange = (value: string) => {
-    setProfile((p) => ({ ...p, gender: value }));
-    updateMeta({ gender: value });
-  };
-
-  const handleActivityChange = (value: string) => {
-    setProfile((p) => ({ ...p, activityLevel: value }));
-    updateMeta({ activity_level: value });
-  };
-
-  const handleGoalChange = (value: string) => {
-    setProfile((p) => ({ ...p, goal: value }));
-    updateMeta({ weight_goal: value });
-  };
-
   const handleWaterRemindersChange = (checked: boolean) => {
     setWaterReminders(checked);
     updateMeta({ water_reminders_enabled: checked });
@@ -204,21 +326,89 @@ const Profile = () => {
     return weightUnit === 'lb' ? v / 2.20462 : v;
   };
 
-  const [weightDisplay, setWeightDisplay] = useState('');
-  useEffect(() => {
-    setWeightDisplay(kgToDisplay(profile.weight));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile.weight, weightUnit]);
+  const calorieGoal = computeCalorieGoal(profile, Number(user?.user_metadata?.calorie_goal) || 2200);
 
-  const handleWeightBlur = (value: string) => {
-    const kg = displayToKg(value);
-    if (kg == null) return;
-    const kgStr = kg.toFixed(1);
-    setProfile((p) => ({ ...p, weight: kgStr }));
-    saveProfileField('weight', kgStr);
+  // Body/Goal are read-only on the page; each card's Edit opens one sheet that
+  // edits the whole card and saves once. `base` is the card as it was when the
+  // sheet opened, so every changed field can show its old value.
+  const [editing, setEditing] = useState<'body' | 'goal' | null>(null);
+  const [base, setBase] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+
+  const weightLimits = weightUnit === 'lb' ? [66, 550] : [30, 250];
+
+  const openEditor = (section: 'body' | 'goal') => {
+    const start: Draft = {
+      weight: parseFloat(kgToDisplay(profile.weight)) || (weightUnit === 'lb' ? 154 : 70),
+      height: parseInt(profile.height) || 170,
+      age: parseInt(profile.age) || 30,
+      gender: profile.gender,
+      activityLevel: profile.activityLevel,
+      goal: profile.goal,
+    };
+    setBase(start);
+    setDraft(start);
+    setEditing(section);
   };
 
-  const calorieGoal = computeCalorieGoal(profile, Number(user?.user_metadata?.calorie_goal) || 2200);
+  const patchDraft = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const setDraftWeight = (v: number) => patchDraft({ weight: clamp(Math.round(v * 10) / 10, weightLimits[0], weightLimits[1]) });
+
+  const changedKeys = draft && base ? (Object.keys(draft) as (keyof Draft)[]).filter((k) => draft[k] !== base[k]) : [];
+  const draftProfile = draft && {
+    ...profile,
+    weight: (displayToKg(String(draft.weight)) ?? draft.weight).toFixed(1),
+    height: String(draft.height),
+    age: String(draft.age),
+    gender: draft.gender,
+    activityLevel: draft.activityLevel,
+    goal: draft.goal,
+  };
+  const draftKcal = draftProfile ? computeCalorieGoal(draftProfile, calorieGoal) : calorieGoal;
+  const draftBmi = draftProfile && (parseFloat(draftProfile.weight) / Math.pow(draft.height / 100, 2)).toFixed(1);
+
+  // Writes only the fields that changed -- so opening the Goal sheet on a
+  // profile with no weight yet never saves the sheet's placeholder weight.
+  const saveDraft = async () => {
+    if (!user || !draftProfile || changedKeys.length === 0) return;
+    const changed = (k: keyof Draft) => changedKeys.includes(k);
+    const next = {
+      ...profile,
+      ...(changed('weight') && { weight: draftProfile.weight }),
+      ...(changed('height') && { height: draftProfile.height }),
+      ...(changed('age') && { age: draftProfile.age }),
+      gender: draftProfile.gender,
+      activityLevel: draftProfile.activityLevel,
+      goal: draftProfile.goal,
+    };
+    const bodyUpdate: Record<string, number> = {};
+    if (changed('weight')) bodyUpdate.weight = parseFloat(next.weight);
+    if (changed('height')) bodyUpdate.height = parseInt(next.height);
+    if (changed('age')) bodyUpdate.age = parseInt(next.age);
+
+    setSavingDraft(true);
+    const [bodyResult, metaResult] = await Promise.all([
+      Object.keys(bodyUpdate).length
+        ? supabase.from('profiles').update({ ...bodyUpdate, updated_at: new Date().toISOString() }).eq('user_id', user.id)
+        : Promise.resolve({ error: null }),
+      supabase.auth.updateUser({
+        data: {
+          gender: next.gender,
+          activity_level: next.activityLevel,
+          weight_goal: next.goal,
+          calorie_goal: computeCalorieGoal(next, calorieGoal),
+        },
+      }),
+    ]);
+    setSavingDraft(false);
+    if (bodyResult.error || metaResult.error) {
+      toast({ title: 'Error', description: 'Failed to save. Please try again.', variant: 'destructive' });
+      return;
+    }
+    setProfile(next);
+    setEditing(null);
+  };
 
   // Body/Goal rows autosave individually on change -- this just keeps
   // user_metadata's calorie_goal (read by Dashboard/History) in sync with
@@ -279,11 +469,6 @@ const Profile = () => {
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : null;
 
-  const bmi =
-    profile.weight && profile.height
-      ? parseFloat(profile.weight) / Math.pow(parseFloat(profile.height) / 100, 2)
-      : null;
-
   const proteinGoal = Math.round(Number(user?.user_metadata?.protein_goal) || (calorieGoal * 0.3) / 4);
   const carbsGoal = Math.round(Number(user?.user_metadata?.carbs_goal) || (calorieGoal * 0.45) / 4);
   const fatGoal = Math.round(Number(user?.user_metadata?.fat_goal) || (calorieGoal * 0.25) / 9);
@@ -315,127 +500,129 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Body — always editable, autosaves per row */}
+      {/* Body — read-only; Edit opens one sheet for the whole card */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            Body
-          </div>
-          {bmi && (
-            <div className="flex items-center gap-1.5">
-              <span className="rounded-[5px] border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide text-muted-foreground">
-                Derived
-              </span>
-              <span className="font-mono text-[10px] uppercase text-muted-foreground">BMI</span>
-              <span className="font-mono text-xs font-semibold tabular-nums text-chart-carbs">{bmi.toFixed(1)}</span>
-            </div>
-          )}
-        </div>
+        <SectionLabel onEdit={() => openEditor('body')}>Body</SectionLabel>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Weight</span>
-            <div className="flex items-baseline gap-1.5">
-              <input
-                type="number"
-                step="0.1"
-                inputMode="decimal"
-                value={weightDisplay}
-                onChange={(e) => setWeightDisplay(e.target.value)}
-                onBlur={(e) => handleWeightBlur(e.target.value)}
-                className={rowInputClass}
-              />
-              <span className="font-mono text-xs text-muted-foreground">{weightUnit}</span>
-            </div>
-          </div>
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Height</span>
-            <div className="flex items-baseline gap-1.5">
-              <input
-                type="number"
-                step="1"
-                inputMode="numeric"
-                value={profile.height}
-                onChange={(e) => setProfile((p) => ({ ...p, height: e.target.value }))}
-                onBlur={(e) => saveProfileField('height', e.target.value)}
-                className={rowInputClass}
-              />
-              <span className="font-mono text-xs text-muted-foreground">cm</span>
-            </div>
-          </div>
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Age</span>
-            <div className="flex items-baseline gap-1.5">
-              <input
-                type="number"
-                step="1"
-                inputMode="numeric"
-                value={profile.age}
-                onChange={(e) => setProfile((p) => ({ ...p, age: e.target.value }))}
-                onBlur={(e) => saveProfileField('age', e.target.value)}
-                className={rowInputClass}
-              />
-              <span className="font-mono text-xs text-muted-foreground">yrs</span>
-            </div>
-          </div>
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Gender</span>
-            <Select value={profile.gender} onValueChange={handleGenderChange}>
-              <SelectTrigger className={rowSelectTriggerClass}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="male" className="text-foreground hover:bg-accent focus:bg-accent">Male</SelectItem>
-                <SelectItem value="female" className="text-foreground hover:bg-accent focus:bg-accent">Female</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Activity level</span>
-            <Select value={profile.activityLevel} onValueChange={handleActivityChange}>
-              <SelectTrigger className={rowSelectTriggerClass}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="sedentary" className="text-foreground hover:bg-accent focus:bg-accent">Sedentary</SelectItem>
-                <SelectItem value="active" className="text-foreground hover:bg-accent focus:bg-accent">Active</SelectItem>
-                <SelectItem value="very_active" className="text-foreground hover:bg-accent focus:bg-accent">Very Active</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <ReadRow label="Weight" value={kgToDisplay(profile.weight) || '—'} unit={weightUnit} />
+          <ReadRow label="Height" value={profile.height || '—'} unit="cm" />
+          <ReadRow label="Age" value={profile.age || '—'} unit="yrs" />
+          <ReadRow label="Gender" value={optionOf(GENDER_OPTIONS, profile.gender)?.label ?? '—'} />
+          <ReadRow label="Activity" value={optionOf(ACTIVITY_OPTIONS, profile.activityLevel)?.label ?? '—'} />
         </div>
       </div>
 
-      {/* Goal — always editable, daily calories recompute live from Body + Goal */}
+      {/* Goal — read-only; the daily target is derived from Body + Goal */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Goal
-        </div>
+        <SectionLabel onEdit={() => openEditor('goal')}>Goal</SectionLabel>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <div className="flex h-14 items-center justify-between px-[14px]">
-            <span className="text-sm text-foreground">Goal</span>
-            <Select value={profile.goal} onValueChange={handleGoalChange}>
-              <SelectTrigger className={rowSelectTriggerClass}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="border-border bg-card">
-                <SelectItem value="lose" className="text-foreground hover:bg-accent focus:bg-accent">Lose Weight</SelectItem>
-                <SelectItem value="maintain" className="text-foreground hover:bg-accent focus:bg-accent">Maintain Weight</SelectItem>
-                <SelectItem value="gain" className="text-foreground hover:bg-accent focus:bg-accent">Gain Weight</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center justify-between gap-3 bg-muted/40 px-[14px] py-3.5">
-            <div>
-              <div className="text-sm text-foreground">Daily calories</div>
-              <div className="font-mono text-[10px] text-muted-foreground">recalculates live</div>
-            </div>
-            <div className="font-mono text-2xl font-bold tabular-nums text-foreground">
-              {calorieGoal.toLocaleString()}
-              <span className="ml-1 font-sans text-xs font-medium text-muted-foreground">kcal</span>
-            </div>
-          </div>
+          <ReadRow label="Goal" value={optionOf(GOAL_OPTIONS, profile.goal)?.long ?? '—'} />
+          <ReadRow label="Daily target" value={calorieGoal.toLocaleString()} unit="kcal" />
         </div>
       </div>
+
+      <Drawer open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        <DrawerContent className="rounded-t-[26px] border-border bg-card">
+          <DrawerTitle className="sr-only">{editing === 'goal' ? 'Edit goal' : 'Edit body'}</DrawerTitle>
+          {draft && base && (
+            <div className="space-y-3.5 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
+              <div className="flex h-7 items-center justify-between">
+                <div className="font-display text-lg font-semibold tracking-tight text-foreground">
+                  {editing === 'goal' ? 'Edit goal' : 'Edit body'}
+                </div>
+                <button type="button" onClick={() => setEditing(null)} className="py-2 text-[13px] font-medium text-muted-foreground">
+                  Discard
+                </button>
+              </div>
+
+              {/* Pinned so every change shows what it does to the target before it saves */}
+              <div className="flex items-center justify-between gap-3 rounded-[14px] border border-border bg-muted/50 px-[14px] py-[13px]">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[13px] text-muted-foreground">Daily target</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">BMI {draftBmi} · live</span>
+                </div>
+                <div className="flex items-baseline gap-[7px]">
+                  {draftKcal !== calorieGoal && (
+                    <span className="font-mono text-xs text-muted-foreground line-through">{calorieGoal.toLocaleString()}</span>
+                  )}
+                  <span className="font-mono text-2xl font-semibold tabular-nums tracking-tight text-foreground">{draftKcal.toLocaleString()}</span>
+                  <span className="font-mono text-[11px] text-muted-foreground">kcal</span>
+                </div>
+              </div>
+
+              {editing === 'body' ? (
+                <>
+                  <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-background">
+                    <StepperRow
+                      label="Weight"
+                      value={draft.weight.toFixed(1)}
+                      unit={weightUnit}
+                      was={draft.weight !== base.weight ? `was ${base.weight.toFixed(1)}` : undefined}
+                      onStep={(dir) => setDraftWeight(draft.weight + dir * 0.1)}
+                    >
+                      <WeightRuler value={draft.weight} onChange={setDraftWeight} />
+                    </StepperRow>
+                    <StepperRow
+                      label="Height"
+                      value={String(draft.height)}
+                      unit="cm"
+                      was={draft.height !== base.height ? `was ${base.height}` : undefined}
+                      onStep={(dir) => patchDraft({ height: clamp(draft.height + dir, 120, 230) })}
+                    />
+                    <StepperRow
+                      label="Age"
+                      value={String(draft.age)}
+                      unit="yrs"
+                      was={draft.age !== base.age ? `was ${base.age}` : undefined}
+                      onStep={(dir) => patchDraft({ age: clamp(draft.age + dir, 13, 100) })}
+                    />
+                  </div>
+                  <SegmentedField
+                    label="Gender"
+                    options={GENDER_OPTIONS}
+                    value={draft.gender}
+                    base={base.gender}
+                    onChange={(gender) => patchDraft({ gender })}
+                  />
+                  <SegmentedField
+                    label="Activity"
+                    options={ACTIVITY_OPTIONS}
+                    value={draft.activityLevel}
+                    base={base.activityLevel}
+                    onChange={(activityLevel) => patchDraft({ activityLevel })}
+                  />
+                </>
+              ) : (
+                <SegmentedField
+                  label="Goal"
+                  options={GOAL_OPTIONS}
+                  value={draft.goal}
+                  base={base.goal}
+                  onChange={(goal) => patchDraft({ goal })}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={saveDraft}
+                disabled={changedKeys.length === 0 || savingDraft}
+                className={cn(
+                  'h-[52px] w-full rounded-[14px] text-sm',
+                  changedKeys.length
+                    ? 'bg-primary font-semibold text-primary-foreground active:bg-primary/90'
+                    : 'border border-border bg-muted font-medium text-muted-foreground'
+                )}
+              >
+                {savingDraft
+                  ? 'Saving…'
+                  : changedKeys.length
+                    ? `Save ${changedKeys.length} change${changedKeys.length === 1 ? '' : 's'} · ${draftKcal.toLocaleString()} kcal`
+                    : 'Saved · nothing pending'}
+              </button>
+            </div>
+          )}
+        </DrawerContent>
+      </Drawer>
 
       {/* Daily goals — read-only breakdown derived from the calorie goal above */}
       <div className="space-y-2">
