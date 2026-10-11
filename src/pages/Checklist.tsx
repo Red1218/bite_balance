@@ -1,5 +1,5 @@
 import { Fragment, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import {
   addDays, dayProgress, isActiveOn, isChecked, isDue,
@@ -9,6 +9,10 @@ import { useChecklist, useLocalToday } from '@/hooks/useChecklist';
 import ChecklistRow from '@/components/ChecklistRow';
 import ChecklistItemSheet from '@/components/ChecklistItemSheet';
 import ChecklistItemsList from '@/components/ChecklistItemsList';
+import ChecklistReminderSheet from '@/components/ChecklistReminderSheet';
+import {
+  getReminderSettings, remindersSupported, saveReminderSettings, syncReminders, type ReminderSettings,
+} from '@/lib/checklistReminder';
 
 type CellState = 'done' | 'missed' | 'off';
 const CELL_CLASS: Record<CellState, string> = {
@@ -51,12 +55,20 @@ const Checklist = () => {
   const [selectedDate, setSelectedDate] = useState(today);
   const [sheetItem, setSheetItem] = useState<ChecklistItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [reminder, setReminder] = useState(getReminderSettings);
+  const [reminderOpen, setReminderOpen] = useState(false);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekEnd, i - 6));
   // One range covers the week grid, the month calendar, the selected day and a year of
   // history for each item's streak/rate.
   const from = [weekDays[0], month, selectedDate, addDays(today, -364)].sort()[0];
   const { items, checks, loading, error, toggle, saveItem, archiveItem, deleteItem, reorderItems } = useChecklist(from, today);
+
+  const changeReminder = (next: ReminderSettings) => {
+    setReminder(next);
+    saveReminderSettings(next);
+    syncReminders(items, checks);
+  };
 
   const openSheet = (item: ChecklistItem | null) => {
     setSheetItem(item);
@@ -95,14 +107,29 @@ const Checklist = () => {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Checklist</h1>
-        <button
-          type="button"
-          onClick={() => openSheet(null)}
-          className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add
-        </button>
+        <div className="flex items-center gap-2">
+          {remindersSupported() && (
+            <button
+              type="button"
+              onClick={() => setReminderOpen(true)}
+              aria-label="Daily reminder"
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-full',
+                reminder.enabled ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+              )}
+            >
+              <Bell className={cn('h-4 w-4', reminder.enabled && 'fill-current')} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => openSheet(null)}
+            className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-3.5 text-xs font-semibold text-primary-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -285,6 +312,7 @@ const Checklist = () => {
         onArchive={archiveItem}
         onDelete={deleteItem}
       />
+      <ChecklistReminderSheet open={reminderOpen} onOpenChange={setReminderOpen} settings={reminder} onChange={changeReminder} />
     </div>
   );
 };

@@ -3,9 +3,12 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard } from '@capacitor/keyboard';
 import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { useNavigate } from 'react-router-dom';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 export const useNativeApp = () => {
+  const navigate = useNavigate();
   const { open, closeAddMeal } = useAddMealSheet();
   const openRef = useRef(open);
 
@@ -46,6 +49,9 @@ export const useNativeApp = () => {
       Keyboard.addListener('keyboardWillHide', () => {
         document.body.style.paddingBottom = '0px';
       });
+
+      // 4. Tapping a checklist reminder opens the Checklist page
+      LocalNotifications.addListener('localNotificationActionPerformed', () => navigate('/checklist'));
     };
 
     initNativeHooks();
@@ -55,6 +61,7 @@ export const useNativeApp = () => {
       if (Capacitor.isNativePlatform()) {
         CapacitorApp.removeAllListeners();
         Keyboard.removeAllListeners();
+        LocalNotifications.removeAllListeners();
       }
     };
   }, []);
