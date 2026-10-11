@@ -118,6 +118,7 @@ export type Database = {
           potassium: number | null
           protein: number | null
           sodium: number | null
+          source: string | null
           unit: string
           updated_at: string
           user_id: string
@@ -143,6 +144,7 @@ export type Database = {
           potassium?: number | null
           protein?: number | null
           sodium?: number | null
+          source?: string | null
           unit?: string
           updated_at?: string
           user_id: string
@@ -168,6 +170,7 @@ export type Database = {
           potassium?: number | null
           protein?: number | null
           sodium?: number | null
+          source?: string | null
           unit?: string
           updated_at?: string
           user_id?: string
