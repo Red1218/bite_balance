@@ -1,65 +1,128 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Home, Sparkles, Plus, Calendar, User } from 'lucide-react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Calendar, Home, MessageCircle, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
-const tabs = [
+const TABS = [
   { path: '/', icon: Home, label: 'Today' },
-  { path: '/chat', icon: Sparkles, label: 'Chat' },
-] as const;
-
-const trailingTabs = [
+  { path: '/chat', icon: MessageCircle, label: 'Chat' },
   { path: '/history', icon: Calendar, label: 'History' },
   { path: '/profile', icon: User, label: 'You' },
 ] as const;
 
-const BottomNav = () => {
-  const location = useLocation();
-  const { openAddMeal } = useAddMealSheet();
+const PAD = 4; // track padding (px); the capsule's slots sit inside it
+const SLOT = `(100% - ${PAD * 2}px) / ${TABS.length}`;
+const SPRING =
+  'left .52s cubic-bezier(.34,1.5,.5,1), transform .38s cubic-bezier(.34,1.4,.5,1), background .3s, border-color .3s, box-shadow .3s';
+const FOLLOW = 'transform .2s ease, background .2s, border-color .2s';
 
-  const renderTab = ({
-    path,
-    icon: Icon,
-    label,
-  }: (typeof tabs)[number] | (typeof trailingTabs)[number]) => {
-    const isActive = location.pathname === path;
-    return (
-      <Link
-        key={path}
-        to={path}
-        className="flex flex-1 flex-col items-center justify-center gap-1 min-h-12"
-      >
-        <Icon
-          className={cn('w-5 h-5', isActive ? 'text-primary' : 'text-muted-foreground')}
-        />
-        <span
-          className={cn(
-            'text-[10px] leading-none',
-            isActive ? 'font-semibold text-primary' : 'font-medium text-muted-foreground'
-          )}
-        >
-          {label}
-        </span>
-      </Link>
-    );
+const BottomNav = () => {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { openAddMeal } = useAddMealSheet();
+  const trackRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x0: number; start: number; slot: number; moved: boolean } | null>(null);
+  const timer = useRef<number>();
+  const [dragLeft, setDragLeft] = useState<number | null>(null);
+  const [moving, setMoving] = useState(false);
+  const idx = TABS.findIndex((t) => t.path === pathname); // -1 on drawer pages: capsule hidden
+  const lens = moving || dragLeft !== null;
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  // Show the lens while the capsule springs to its new tab.
+  const pulse = () => {
+    clearTimeout(timer.current);
+    setMoving(true);
+    timer.current = window.setTimeout(() => setMoving(false), 280);
+  };
+
+  const dragTo = (d: NonNullable<typeof drag.current>, clientX: number) =>
+    Math.max(PAD, Math.min(PAD + (TABS.length - 1) * d.slot, d.start + clientX - d.x0));
+
+  // Only a press on the capsule itself starts a drag; other presses fall through to the tab links.
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    const track = trackRef.current;
+    if (!track || idx < 0) return;
+    const slot = (track.clientWidth - PAD * 2) / TABS.length;
+    const start = PAD + idx * slot;
+    const x = e.clientX - track.getBoundingClientRect().left;
+    if (x < start || x > start + slot) return;
+    track.setPointerCapture(e.pointerId);
+    drag.current = { x0: e.clientX, start, slot, moved: false };
+    setDragLeft(start);
+  };
+
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.x0) > 3) d.moved = true;
+    setDragLeft(dragTo(d, e.clientX));
+  };
+
+  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d) return;
+    setDragLeft(null);
+    if (!d.moved) return;
+    const nearest = Math.round((dragTo(d, e.clientX) - PAD) / d.slot);
+    pulse();
+    if (nearest !== idx) navigate(TABS[nearest].path);
   };
 
   return (
     <nav
-      className="elevation-glass fixed left-3 right-3 z-40 flex items-center justify-between rounded-[20px] px-1.5 py-2"
+      className="fixed left-4 right-4 z-40 flex items-center justify-center gap-2.5"
       style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
     >
-      {tabs.map(renderTab)}
-      <div className="flex flex-1 justify-center">
-        <button
-          onClick={openAddMeal}
-          aria-label="Add meal"
-          className="flex h-[50px] w-[50px] items-center justify-center rounded-2xl bg-primary shadow-[0_10px_24px_-8px_hsl(var(--primary)/0.95)]"
-        >
-          <Plus className="h-6 w-6 text-primary-foreground" strokeWidth={2.4} />
-        </button>
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        className="nav-glass relative flex h-16 max-w-[292px] flex-1 touch-none select-none rounded-full p-1 [-webkit-touch-callout:none]"
+      >
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute bottom-1 top-1 rounded-full',
+            lens ? 'nav-capsule-lens' : 'nav-capsule',
+            idx < 0 && 'opacity-0'
+          )}
+          style={{
+            width: `calc(${SLOT})`,
+            left: dragLeft ?? `calc(${PAD}px + ${Math.max(idx, 0)} * ${SLOT})`,
+            transition: dragLeft === null ? SPRING : FOLLOW,
+          }}
+        />
+        {TABS.map(({ path, icon: Icon, label }, i) => (
+          <Link
+            key={path}
+            to={path}
+            draggable={false}
+            onClick={() => i !== idx && pulse()}
+            aria-current={i === idx ? 'page' : undefined}
+            className="relative flex flex-1 flex-col items-center justify-center gap-[5px]"
+          >
+            <Icon
+              className={cn('h-[21px] w-[21px] transition-colors', i === idx && !lens ? 'text-primary' : 'text-foreground/90')}
+              strokeWidth={1.9}
+            />
+            <span className="text-[10px] font-semibold leading-none text-foreground">{label}</span>
+          </Link>
+        ))}
       </div>
-      {trailingTabs.map(renderTab)}
+      <button
+        type="button"
+        onClick={openAddMeal}
+        aria-label="Add meal"
+        className="flex h-16 w-16 flex-none items-center justify-center rounded-full border border-primary-foreground/20 bg-primary shadow-[inset_0_1px_0_hsl(0_0%_100%/0.28),0_14px_30px_-12px_hsl(var(--primary)/0.95)] transition-transform active:scale-[.94]"
+      >
+        <Plus className="h-6 w-6 text-primary-foreground" strokeWidth={2.4} />
+      </button>
     </nav>
   );
 };
