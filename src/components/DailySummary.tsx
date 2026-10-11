@@ -3,9 +3,10 @@ interface DailySummaryProps {
   calories: number;
   goal: number;
   caloriesBurned?: number;
+  weightGoal?: string;
 }
 
-const DailySummary = ({ calories, goal, caloriesBurned = 0 }: DailySummaryProps) => {
+const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal }: DailySummaryProps) => {
   const percentage = Math.min(Math.round((calories / goal) * 100), 100);
   const remaining = Math.max(0, goal - calories);
   const circumference = 2 * Math.PI * 50;
@@ -13,6 +14,9 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0 }: DailySummaryProps)
 
   const netCalories = calories - caloriesBurned;
   const netOver = netCalories > goal;
+  // Amber when over the target works against a lose goal. The day is still in
+  // progress, so being under is never flagged, and gain/maintain stay neutral.
+  const awayFromGoal = netOver && weightGoal === 'lose';
 
   return (
     <div className="elevation-glass flex items-center gap-[18px] rounded-[20px] p-[18px] animate-fade-in-up">
@@ -37,7 +41,7 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0 }: DailySummaryProps)
             cy="59"
             r="50"
             fill="none"
-            stroke="hsl(var(--primary))"
+            stroke={awayFromGoal ? 'hsl(var(--chart-carbs))' : 'hsl(var(--primary))'}
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -86,7 +90,7 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0 }: DailySummaryProps)
             <div className="font-sans text-[10px] text-muted-foreground">Net</div>
             <div
               className={`mt-1 font-mono text-sm font-semibold tabular-nums ${
-                netOver ? 'text-primary' : 'text-foreground'
+                awayFromGoal ? 'text-chart-carbs' : 'text-foreground'
               }`}
             >
               {netCalories.toLocaleString()}
