@@ -388,9 +388,10 @@ const Profile = () => {
     if (changed('age')) bodyUpdate.age = parseInt(next.age);
 
     setSavingDraft(true);
-    const [bodyResult, metaResult] = await Promise.all([
+    const now = new Date().toISOString();
+    const [bodyResult, metaResult, weightLogResult] = await Promise.all([
       Object.keys(bodyUpdate).length
-        ? supabase.from('profiles').update({ ...bodyUpdate, updated_at: new Date().toISOString() }).eq('user_id', user.id)
+        ? supabase.from('profiles').update({ ...bodyUpdate, updated_at: now }).eq('user_id', user.id)
         : Promise.resolve({ error: null }),
       supabase.auth.updateUser({
         data: {
@@ -400,9 +401,16 @@ const Profile = () => {
           calorie_goal: computeCalorieGoal(next, calorieGoal),
         },
       }),
+      // A weight change here is also today's weigh-in, so the history stays whole.
+      changed('weight')
+        ? supabase.from('weight_logs').upsert(
+            { user_id: user.id, logged_date: fmtLocalDate(new Date()), weight_kg: bodyUpdate.weight, updated_at: now },
+            { onConflict: 'user_id,logged_date' }
+          )
+        : Promise.resolve({ error: null }),
     ]);
     setSavingDraft(false);
-    if (bodyResult.error || metaResult.error) {
+    if (bodyResult.error || metaResult.error || weightLogResult.error) {
       toast({ title: 'Error', description: 'Failed to save. Please try again.', variant: 'destructive' });
       return;
     }
