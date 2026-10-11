@@ -3,7 +3,7 @@
 // Date use; checklist.ts creates no Dates at import time, so setting it here is early enough.)
 process.env.TZ = 'Asia/Kolkata';
 
-import { addDays, dayProgress, isActiveOn, isDue, itemRate, itemStreak, scheduleLabel, weekdayOf, type ChecklistItem } from './checklist';
+import { addDays, dayProgress, isActiveOn, isDue, itemRate, itemStreak, reminderSchedule, scheduleLabel, weekdayOf, type ChecklistItem } from './checklist';
 
 let failures = 0;
 const eq = (actual: unknown, expected: unknown, label: string) => {
@@ -72,6 +72,31 @@ eq(itemStreak(mwfItem, ticks('m', ['2026-09-23', '2026-09-28']), TODAY), 1, 'wee
 eq(itemRate(daily, ticks('d', ['2026-09-20', '2026-09-21', '2026-09-22']), TODAY), 33, 'rate 3/9 excludes unticked today');
 eq(itemRate(daily, ticks('d', ['2026-09-20', '2026-09-29']), TODAY), 20, 'rate 2/10 includes ticked today');
 eq(itemRate(item({ id: 'n', created_at: '2026-09-29T06:00:00Z' }), [], TODAY), null, 'rate null when nothing due yet');
+
+// Reminders. "Now" is Tue 29 Sep 18:00 IST. A daily, B Mondays, C archived 1 Oct (last due 30 Sep).
+const NOW = new Date(2026, 8, 29, 18, 0);
+const rA = item({ id: 'a', name: 'A' });
+const rB = item({ id: 'b', name: 'B', weekdays: [1] });
+const rC = item({ id: 'c', name: 'C', archived_at: '2026-10-01T06:00:00Z' });
+const brief = (list: { id: number; at: Date; body: string }[]) => list.map((n) => `${n.id} ${n.at.getHours()}:${n.at.getMinutes()} ${n.body}`);
+
+eq(
+  brief(reminderSchedule([rA, rB, rC], ticks('a', ['2026-09-29']), '20:00', NOW)),
+  [
+    '20260929 20:0 1 left today: C',
+    '20260930 20:0 2 to do today: A, C',
+    '20261001 20:0 1 to do today: A',
+    '20261002 20:0 1 to do today: A',
+    '20261003 20:0 1 to do today: A',
+    '20261004 20:0 1 to do today: A',
+    '20261005 20:0 2 to do today: A, B',
+  ],
+  'reminders: 7 days, unticked only today, archived and off-schedule items left out'
+);
+eq(reminderSchedule([rA], [], '17:30', NOW)[0].id, 20260930, 'reminders: time already passed today -> starts tomorrow');
+eq(reminderSchedule([rA], ticks('a', ['2026-09-29']), '20:00', NOW)[0].id, 20260930, 'reminders: all ticked today -> none today');
+eq(reminderSchedule([rB], [], '20:00', NOW).map((n) => n.id), [20261005], 'reminders: only days with something due');
+eq(reminderSchedule([], [], '20:00', NOW), [], 'reminders: no items -> nothing');
 
 if (failures) process.exitCode = 1;
 else console.log('checklist: all checks passed');

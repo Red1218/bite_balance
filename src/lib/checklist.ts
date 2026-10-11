@@ -88,3 +88,30 @@ export const scheduleLabel = (weekdays: number[]) =>
   weekdays.length === 7
     ? 'Every day'
     : MONDAY_FIRST.filter((d) => weekdays.includes(d)).map((d) => DAY_SHORT[d]).join(' · ');
+
+export const REMINDER_DAYS = 7;
+
+export interface ReminderNotice {
+  id: number; // the day as a number, e.g. 20261011 -- one slot per day
+  at: Date;
+  body: string;
+}
+
+// The next REMINDER_DAYS daily reminders at `time` ('HH:MM'), from `now`. Today lists what's still
+// unticked; later days list everything due. Days with nothing left, or a time already past, are skipped.
+export const reminderSchedule = (items: ChecklistItem[], checks: ChecklistCheck[], time: string, now: Date) => {
+  const [hours, minutes] = time.split(':').map(Number);
+  const today = fmtLocalDate(now);
+  const notices: ReminderNotice[] = [];
+  for (let i = 0; i < REMINDER_DAYS; i++) {
+    const date = addDays(today, i);
+    const at = localDay(date);
+    at.setHours(hours, minutes);
+    if (at <= now) continue;
+    const left = items.filter((item) => isDue(item, date) && !isChecked(checks, item.id, date));
+    if (!left.length) continue;
+    const names = left.map((item) => item.name).join(', ');
+    notices.push({ id: Number(date.replace(/-/g, '')), at, body: `${left.length} ${i === 0 ? 'left' : 'to do'} today: ${names}` });
+  }
+  return notices;
+};

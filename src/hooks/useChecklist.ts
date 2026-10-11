@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { fmtLocalDate } from '@/lib/utils';
 import { isChecked, type ChecklistCheck, type ChecklistItem, type ChecklistItemValues } from '@/lib/checklist';
+import { syncReminders } from '@/lib/checklistReminder';
 
 // Today's local date, refreshed when the app comes back to the foreground --
 // so a card left open overnight moves on to the new day's list.
@@ -55,6 +56,11 @@ export const useChecklist = (from: string, to: string) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Keep the phone's reminders in step with the latest ticks; a failed load keeps the last good schedule.
+  useEffect(() => {
+    if (!loading && !error) syncReminders(items, checks);
+  }, [items, checks, loading, error]);
 
   const failed = (description: string) => toast({ title: 'Error', description, variant: 'destructive' });
 
