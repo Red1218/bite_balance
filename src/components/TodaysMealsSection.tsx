@@ -1,24 +1,14 @@
+import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { Link } from 'react-router-dom';
 import MealCategorySection from './MealCategorySection';
 import EmptyMealsState from './EmptyMealsState';
 
-interface MealItem {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number | null;
-  carbs: number | null;
-  fat: number | null;
-  grams?: number | null;
-  unit?: string;
-  meal_time: string | null;
-  logged_at: string;
-}
+type MealItem = DailyMeal;
 
 interface TodaysMealsSectionProps {
   meals: MealItem[];
-  groupedMeals: any;
-  onEditMeal: (meal: any) => void;
+  groupedMeals: Record<string, { meals: DailyMeal[]; totalCalories: number }>;
+  onEditMeal: (meal: DailyMeal) => void;
   onDeleteMeal: (mealId: string, mealName: string) => void;
 }
 

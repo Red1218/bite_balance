@@ -1,21 +1,11 @@
+import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { Edit, Trash2, CircleAlert } from 'lucide-react';
 
-interface MealItem {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number | null;
-  carbs: number | null;
-  fat: number | null;
-  grams?: number | null;
-  unit?: string;
-  meal_time: string | null;
-  logged_at: string;
-}
+type MealItem = DailyMeal;
 
 interface AnimatedMealCardProps {
   meal: MealItem;
-  onEditMeal: (meal: any) => void;
+  onEditMeal: (meal: DailyMeal) => void;
   onDeleteMeal: (mealId: string, mealName: string) => void;
   /** Shown under the name when the surrounding list isn't already grouped by
    * meal time (History) -- omitted on Dashboard, where the section header
