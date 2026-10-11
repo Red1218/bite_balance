@@ -67,26 +67,6 @@ const Dashboard = () => {
     }),
   };
 
-  // Group meals by meal_time and calculate totals
-  const groupedMeals = meals.reduce((acc, meal) => {
-    const mealTime = meal.meal_time || 'snack';
-    if (!acc[mealTime]) {
-      acc[mealTime] = {
-        meals: [],
-        totalCalories: 0,
-        totalProtein: 0,
-        totalCarbs: 0,
-        totalFat: 0,
-      };
-    }
-    acc[mealTime].meals.push(meal);
-    acc[mealTime].totalCalories += meal.calories || 0;
-    acc[mealTime].totalProtein += meal.protein || 0;
-    acc[mealTime].totalCarbs += meal.carbs || 0;
-    acc[mealTime].totalFat += meal.fat || 0;
-    return acc;
-  }, {} as Record<string, { meals: DailyMeal[]; totalCalories: number; totalProtein: number; totalCarbs: number; totalFat: number }>);
-
   if (loading) {
     return (
       <div className="flex flex-col gap-5">
@@ -141,7 +121,6 @@ const Dashboard = () => {
       {/* Today's Meals */}
       <TodaysMealsSection
         meals={meals}
-        groupedMeals={groupedMeals}
         onEditMeal={handleEditMeal}
         onDeleteMeal={handleDeleteMeal}
       />
