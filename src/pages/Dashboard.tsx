@@ -117,6 +117,7 @@ const Dashboard = () => {
         calories={totals.calories}
         goal={dailyGoal}
         caloriesBurned={healthData?.activeCalories ?? 0}
+        weightGoal={user?.user_metadata?.weight_goal}
       />
 
       {/* Streak Banner */}
