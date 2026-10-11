@@ -14,9 +14,10 @@ interface ChecklistItemSheetProps {
   onOpenChange: (open: boolean) => void;
   onSave: (values: ChecklistItemValues) => Promise<boolean>;
   onArchive: (id: string) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
 }
 
-const ChecklistItemSheet = ({ open, item, onOpenChange, onSave, onArchive }: ChecklistItemSheetProps) => {
+const ChecklistItemSheet = ({ open, item, onOpenChange, onSave, onArchive, onDelete }: ChecklistItemSheetProps) => {
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [weekdays, setWeekdays] = useState<number[]>(ALL_WEEKDAYS);
@@ -41,10 +42,11 @@ const ChecklistItemSheet = ({ open, item, onOpenChange, onSave, onArchive }: Che
     if (ok) onOpenChange(false);
   };
 
-  const archive = async () => {
-    if (!item || !window.confirm(`Archive "${item.name}"? It leaves your daily list; its history is kept.`)) return;
+  // Archive keeps the item's past ticks; Delete removes the item and all of them.
+  const remove = async (action: (id: string) => Promise<boolean>, question: string) => {
+    if (!item || !window.confirm(question)) return;
     setBusy(true);
-    const ok = await onArchive(item.id);
+    const ok = await action(item.id);
     setBusy(false);
     if (ok) onOpenChange(false);
   };
@@ -104,9 +106,24 @@ const ChecklistItemSheet = ({ open, item, onOpenChange, onSave, onArchive }: Che
             {busy ? 'Saving…' : 'Save'}
           </button>
           {item && (
-            <button type="button" onClick={archive} disabled={busy} className="h-11 w-full rounded-[14px] text-sm font-medium text-primary">
-              Archive
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => remove(onArchive, `Archive "${item.name}"? It leaves your daily list; its history is kept.`)}
+                disabled={busy}
+                className="h-11 rounded-[14px] border border-border text-sm font-medium text-foreground"
+              >
+                Archive
+              </button>
+              <button
+                type="button"
+                onClick={() => remove(onDelete, `Delete "${item.name}" and all its history? This can't be undone.`)}
+                disabled={busy}
+                className="h-11 rounded-[14px] border border-primary/40 text-sm font-medium text-primary"
+              >
+                Delete
+              </button>
+            </div>
           )}
         </div>
       </DrawerContent>

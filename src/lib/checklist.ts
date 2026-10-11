@@ -50,7 +50,38 @@ export const dayProgress = (items: ChecklistItem[], checks: ChecklistCheck[], da
   return { done: due.filter((i) => isChecked(checks, i.id, date)).length, due: due.length };
 };
 
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Due days ticked in a row, counting back from `today`. Off-schedule days are skipped; an
+// unticked today doesn't break it (the day isn't over). Days before the item existed end it.
+export const itemStreak = (item: ChecklistItem, checks: ChecklistCheck[], today: string, maxDays = 365) => {
+  const firstDay = fmtLocalDate(new Date(item.created_at));
+  let streak = 0;
+  for (let i = 0; i < maxDays; i++) {
+    const date = addDays(today, -i);
+    if (date < firstDay) break;
+    if (!isDue(item, date)) continue;
+    if (isChecked(checks, item.id, date)) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+};
+
+// Percent of due days ticked over the last `days` days; today counts only once ticked.
+// null when nothing has been due yet.
+export const itemRate = (item: ChecklistItem, checks: ChecklistCheck[], today: string, days = 30) => {
+  let due = 0;
+  let done = 0;
+  for (let i = 0; i < days; i++) {
+    const date = addDays(today, -i);
+    if (!isDue(item, date)) continue;
+    const checked = isChecked(checks, item.id, date);
+    if (i === 0 && !checked) continue;
+    due++;
+    if (checked) done++;
+  }
+  return due ? Math.round((done / due) * 100) : null;
+};
+
+const DAY_SHORT =['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
 
 export const scheduleLabel = (weekdays: number[]) =>

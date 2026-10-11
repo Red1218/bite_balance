@@ -110,5 +110,42 @@ export const useChecklist = (from: string, to: string) => {
     return true;
   };
 
-  return { items, checks, loading, error, toggle, saveItem, archiveItem };
+  // Permanently removes the item; its ticks go with it (on delete cascade).
+  const deleteItem = async (id: string) => {
+    const { error: writeError } = await supabase.from('checklist_items').delete().eq('id', id);
+    if (writeError) {
+      console.error('Error deleting checklist item:', writeError);
+      failed('Could not delete the item. Please try again.');
+      return false;
+    }
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setChecks((prev) => prev.filter((c) => c.item_id !== id));
+    return true;
+  };
+
+  // Saves a new order for the given ids (position = index). Optimistic; reverts on failure.
+  const reorderItems = async (orderedIds: string[]) => {
+    const before = items;
+    const position = new Map(orderedIds.map((id, i) => [id, i]));
+    const changed = items.filter((i) => position.has(i.id) && position.get(i.id) !== i.position);
+    if (changed.length === 0) return true;
+    setItems((prev) =>
+      prev
+        .map((i) => (position.has(i.id) ? { ...i, position: position.get(i.id)! } : i))
+        .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at))
+    );
+    const results = await Promise.all(
+      changed.map((i) => supabase.from('checklist_items').update({ position: position.get(i.id)! }).eq('id', i.id))
+    );
+    const writeError = results.find((r) => r.error)?.error;
+    if (writeError) {
+      console.error('Error saving checklist order:', writeError);
+      setItems(before);
+      failed('Could not save the new order. Please try again.');
+      return false;
+    }
+    return true;
+  };
+
+  return { items, checks, loading, error, toggle, saveItem, archiveItem, deleteItem, reorderItems };
 };

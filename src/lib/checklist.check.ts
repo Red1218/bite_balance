@@ -3,7 +3,7 @@
 // Date use; checklist.ts creates no Dates at import time, so setting it here is early enough.)
 process.env.TZ = 'Asia/Kolkata';
 
-import { addDays, dayProgress, isActiveOn, isDue, scheduleLabel, weekdayOf, type ChecklistItem } from './checklist';
+import { addDays, dayProgress, isActiveOn, isDue, itemRate, itemStreak, scheduleLabel, weekdayOf, type ChecklistItem } from './checklist';
 
 let failures = 0;
 const eq = (actual: unknown, expected: unknown, label: string) => {
@@ -49,6 +49,29 @@ eq(dayProgress([a, b], checks, '2026-09-28'), { done: 0, due: 2 }, 'Monday: both
 eq(scheduleLabel([0, 1, 2, 3, 4, 5, 6]), 'Every day', 'label every day');
 eq(scheduleLabel([5, 1, 3]), 'Mon · Wed · Fri', 'label MWF sorted');
 eq(scheduleLabel([0]), 'Sun', 'label Sunday only');
+
+// Streak + rate. "Today" is Tue 2026-09-29; `ticks` builds checks for an item.
+const ticks = (id: string, dates: string[]) => dates.map((checked_date) => ({ item_id: id, checked_date }));
+const TODAY = '2026-09-29';
+const daily = item({ id: 'd', created_at: '2026-09-20T06:00:00Z' }); // first day: 20 Sep
+
+eq(itemStreak(daily, ticks('d', ['2026-09-27', '2026-09-28', '2026-09-29']), TODAY), 3, 'streak counts today when ticked');
+eq(itemStreak(daily, ticks('d', ['2026-09-27', '2026-09-28']), TODAY), 2, 'unticked today does not break streak');
+eq(itemStreak(daily, ticks('d', ['2026-09-26', '2026-09-27']), TODAY), 0, 'missed yesterday breaks streak');
+eq(
+  itemStreak(daily, ticks('d', ['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29']), TODAY),
+  10,
+  'streak stops at creation day, not a miss before it'
+);
+// Mon/Wed/Fri: due Mon 28, Fri 25, Wed 23 -- off days (Tue 29, Sat, Sun) are skipped
+const mwfItem = item({ id: 'm', weekdays: [1, 3, 5], created_at: '2026-09-20T06:00:00Z' });
+eq(itemStreak(mwfItem, ticks('m', ['2026-09-23', '2026-09-25', '2026-09-28']), TODAY), 3, 'weekday streak skips off days');
+eq(itemStreak(mwfItem, ticks('m', ['2026-09-23', '2026-09-28']), TODAY), 1, 'weekday streak breaks on missed Friday');
+
+// Rate over the last 30 days: daily item exists 20–29 Sep = 10 due days (today counts only once ticked)
+eq(itemRate(daily, ticks('d', ['2026-09-20', '2026-09-21', '2026-09-22']), TODAY), 33, 'rate 3/9 excludes unticked today');
+eq(itemRate(daily, ticks('d', ['2026-09-20', '2026-09-29']), TODAY), 20, 'rate 2/10 includes ticked today');
+eq(itemRate(item({ id: 'n', created_at: '2026-09-29T06:00:00Z' }), [], TODAY), null, 'rate null when nothing due yet');
 
 if (failures) process.exitCode = 1;
 else console.log('checklist: all checks passed');
