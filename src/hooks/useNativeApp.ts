@@ -29,7 +29,7 @@ export const useNativeApp = () => {
       }
 
       // 2. Hardware Back Button Routing -- close the Add Meal sheet first if it's open
-      CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+      CapacitorApp.addListener('backButton', () => {
         if (openRef.current) {
           closeAddMeal();
           return;

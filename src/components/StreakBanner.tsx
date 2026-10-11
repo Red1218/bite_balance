@@ -1,4 +1,3 @@
-import React from 'react';
 import { useStreak } from '@/hooks/useStreak';
 import { Flame, Trophy } from 'lucide-react';
 

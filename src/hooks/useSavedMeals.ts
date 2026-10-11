@@ -1,29 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-export interface SavedMeal {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number;
-  vitamin_c?: number;
-  vitamin_d?: number;
-  vitamin_b12?: number;
-  iron?: number;
-  calcium?: number;
-  potassium?: number;
-  sodium?: number;
-  magnesium?: number;
-  zinc?: number;
-  tags: string[];
-  notes: string;
-  created_at: string;
-}
+// The table row as stored: macros/micros are null when left blank.
+export type SavedMeal = Tables<'saved_meals'>;
 
 export const useSavedMeals = () => {
   const [meals, setMeals] = useState<SavedMeal[]>([]);

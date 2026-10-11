@@ -1,16 +1,15 @@
-import React from 'react';
 import { Edit, Trash2, CircleAlert } from 'lucide-react';
 
 interface MealItem {
   id: string;
   name: string;
   calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
   grams?: number | null;
   unit?: string;
-  meal_time: string;
+  meal_time: string | null;
   logged_at: string;
 }
 
@@ -32,7 +31,7 @@ const MACRO_TONE: Record<'p' | 'c' | 'f', string> = {
   f: 'border-chart-fat/30 text-chart-fat',
 };
 
-const dominantMacro = (protein: number, carbs: number, fat: number): 'p' | 'c' | 'f' => {
+const dominantMacro = (protein: number | null, carbs: number | null, fat: number | null): 'p' | 'c' | 'f' => {
   const p = (protein || 0) * 4;
   const c = (carbs || 0) * 4;
   const f = (fat || 0) * 9;
