@@ -2,12 +2,13 @@ import { Fragment, useState, type ReactNode } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import {
-  addDays, dayProgress, isActiveOn, isChecked, isDue, scheduleLabel,
+  addDays, dayProgress, isActiveOn, isChecked, isDue,
   type ChecklistCheck, type ChecklistItem,
 } from '@/lib/checklist';
 import { useChecklist, useLocalToday } from '@/hooks/useChecklist';
 import ChecklistRow from '@/components/ChecklistRow';
 import ChecklistItemSheet from '@/components/ChecklistItemSheet';
+import ChecklistItemsList from '@/components/ChecklistItemsList';
 
 type CellState = 'done' | 'missed' | 'off';
 const CELL_CLASS: Record<CellState, string> = {
@@ -52,9 +53,10 @@ const Checklist = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekEnd, i - 6));
-  // One range covers the week grid, the month calendar and the selected day.
-  const from = [weekDays[0], month, selectedDate].sort()[0];
-  const { items, checks, loading, error, toggle, saveItem, archiveItem } = useChecklist(from, today);
+  // One range covers the week grid, the month calendar, the selected day and a year of
+  // history for each item's streak/rate.
+  const from = [weekDays[0], month, selectedDate, addDays(today, -364)].sort()[0];
+  const { items, checks, loading, error, toggle, saveItem, archiveItem, deleteItem, reorderItems } = useChecklist(from, today);
 
   const openSheet = (item: ChecklistItem | null) => {
     setSheetItem(item);
@@ -171,10 +173,23 @@ const Checklist = () => {
                   <span className="truncate pr-2 text-sm text-foreground">{item.name}</span>
                   {weekDays.map((d) => {
                     const state = cellState(item, checks, d);
-                    return (
-                      <span key={d} className="flex h-6 items-center justify-center">
-                        <span aria-label={`${item.name}, ${d}: ${state}`} className={CELL_CLASS[state]} />
+                    // Due cells tick/untick directly; off-schedule days aren't tappable.
+                    return state === 'off' ? (
+                      <span key={d} className="flex h-8 items-center justify-center">
+                        <span className={CELL_CLASS.off} />
                       </span>
+                    ) : (
+                      <button
+                        key={d}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={state === 'done'}
+                        aria-label={`${item.name}, ${shortDate(d, { weekday: 'short', month: 'short', day: 'numeric' })}`}
+                        onClick={() => toggle(item.id, d)}
+                        className="flex h-8 items-center justify-center rounded-lg active:bg-muted"
+                      >
+                        <span className={CELL_CLASS[state]} />
+                      </button>
                     );
                   })}
                 </Fragment>
@@ -260,29 +275,7 @@ const Checklist = () => {
         )}
       </div>
 
-      <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Items</div>
-        {activeItems.length === 0 ? (
-          <div className="elevation-card p-6 text-center text-sm text-muted-foreground">No items yet. Tap Add to create your first one.</div>
-        ) : (
-          <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-            {activeItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => openSheet(item)}
-                className="flex w-full items-center justify-between gap-3 px-[14px] py-3 text-left"
-              >
-                <span className="min-w-0">
-                  <span className="block break-words text-sm text-foreground">{item.name}</span>
-                  {item.note && <span className="block break-words text-xs text-muted-foreground">{item.note}</span>}
-                </span>
-                <span className="flex-none font-mono text-[11px] text-muted-foreground">{scheduleLabel(item.weekdays)}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <ChecklistItemsList items={activeItems} checks={checks} today={today} onEdit={openSheet} onReorder={reorderItems} />
 
       <ChecklistItemSheet
         open={sheetOpen}
@@ -290,6 +283,7 @@ const Checklist = () => {
         onOpenChange={setSheetOpen}
         onSave={(values) => saveItem(values, sheetItem?.id)}
         onArchive={archiveItem}
+        onDelete={deleteItem}
       />
     </div>
   );
