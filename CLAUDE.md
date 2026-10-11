@@ -7,3 +7,7 @@
 ## Checks
 
 - `npm run typecheck` and `npm run lint` must pass with 0 errors; CI (`.github/workflows/ci.yml`) runs both on every push and pull request. Lint warnings are allowed.
+
+## Git
+
+- Don’t push to main or merge into it unless the user explicitly asks. Otherwise push work to a branch and open a PR for review.
