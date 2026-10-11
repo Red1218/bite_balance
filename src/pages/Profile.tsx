@@ -215,7 +215,6 @@ const Profile = () => {
   const { isConnected: healthConnected, requestPermissions } = useHealthConnect();
 
   const [microsOpen, setMicrosOpen] = useState(false);
-  const [profileLoaded, setProfileLoaded] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -275,7 +274,6 @@ const Profile = () => {
         setWaterReminders(Boolean(meta.water_reminders_enabled));
         setMealLogNudges(Boolean(meta.meal_log_nudges_enabled));
       }
-      setProfileLoaded(true);
     };
 
     loadProfile();
@@ -326,7 +324,9 @@ const Profile = () => {
     return weightUnit === 'lb' ? v / 2.20462 : v;
   };
 
-  const calorieGoal = computeCalorieGoal(profile, Number(user?.user_metadata?.calorie_goal) || 2200);
+  // The saved goal (what Today/History use). It changes only when Body/Goal is saved here,
+  // not when a weigh-in updates profiles.weight.
+  const calorieGoal = Number(user?.user_metadata?.calorie_goal) || computeCalorieGoal(profile, 2200);
 
   // Body/Goal are read-only on the page; each card's Edit opens one sheet that
   // edits the whole card and saves once. `base` is the card as it was when the
@@ -418,17 +418,6 @@ const Profile = () => {
     setEditing(null);
   };
 
-  // Body/Goal rows autosave individually on change -- this just keeps
-  // user_metadata's calorie_goal (read by Dashboard/History) in sync with
-  // whatever the rows above just derived, without a manual "Calculate" step.
-  useEffect(() => {
-    if (!profileLoaded) return;
-    const t = setTimeout(() => {
-      updateMeta({ calorie_goal: calorieGoal });
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileLoaded, calorieGoal]);
 
   const handleSaveAdvanced = async () => {
     if (!user) return;
