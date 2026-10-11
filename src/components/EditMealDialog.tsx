@@ -11,11 +11,38 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 
+// Any meal row the dialog edits: a logged meal (Today/History) or a saved meal.
+interface EditableMeal {
+  name: string;
+  calories: number;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber?: number | null;
+  grams?: number | null;
+  meal_time?: string | null;
+  tags?: string[] | null;
+  notes?: string | null;
+}
+
+export interface MealUpdates {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  meal_time?: string;
+  grams?: number | null;
+  tags?: string[];
+  notes?: string;
+}
+
 interface EditMealDialogProps {
-  meal: any;
+  meal: EditableMeal | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (updates: any) => Promise<void>;
+  onSave: (updates: MealUpdates) => Promise<void>;
   isDailyMeal?: boolean;
 }
 
@@ -46,7 +73,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
     setLoading(true);
 
     try {
-      const updates = {
+      const updates: MealUpdates = {
         name: formData.name,
         calories: Number(formData.calories),
         protein: Number(formData.protein),

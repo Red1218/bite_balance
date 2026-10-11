@@ -1,18 +1,7 @@
+import type { DailyMeal } from '@/hooks/useDailyMeals';
 import AnimatedMealCard from './AnimatedMealCard';
 
-interface MealItem {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number | null;
-  carbs: number | null;
-  fat: number | null;
-  fiber?: number | null;
-  grams?: number | null;
-  unit?: string;
-  meal_time: string | null;
-  logged_at: string;
-}
+type MealItem = DailyMeal;
 
 interface MealCategory {
   key: string;
@@ -24,7 +13,7 @@ interface MealCategory {
 
 interface MealCategorySectionProps {
   category: MealCategory;
-  onEditMeal: (meal: any) => void;
+  onEditMeal: (meal: DailyMeal) => void;
   onDeleteMeal: (mealId: string, mealName: string) => void;
 }
 
