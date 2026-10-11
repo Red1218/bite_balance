@@ -71,8 +71,23 @@ const WeightCard = () => {
 
   const change =
     weekAvg !== null && prevWeekAvg !== null
-      ? toDisplay(weekAvg) - toDisplay(prevWeekAvg)
+      ? round1(toDisplay(weekAvg) - toDisplay(prevWeekAvg))
       : null;
+  // Green toward the weight goal, amber away from it; no change (or maintaining) stays neutral.
+  const goal = user?.user_metadata?.weight_goal;
+  const changeTone =
+    !change || goal === 'maintain' || !goal
+      ? 'text-muted-foreground'
+      : (change < 0) === (goal === 'lose')
+        ? 'text-chart-fiber'
+        : 'text-chart-carbs';
+
+  // No weigh-in this week yet: show the latest reading instead of a blank average.
+  const headline = weekAvg ?? latest?.weight_kg ?? null;
+  const headlineLabel =
+    weekAvg === null && latest
+      ? `last weigh-in ${new Date(`${latest.logged_date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      : '7-day avg';
 
   // Sparkline over the last 14 days of weigh-ins.
   const W = 120;
@@ -101,18 +116,16 @@ const WeightCard = () => {
       <div className="flex items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <div className="font-mono text-[26px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
-            {weekAvg !== null ? toDisplay(weekAvg).toFixed(1) : '—'}
+            {headline !== null ? toDisplay(headline).toFixed(1) : '—'}
             <span className="font-sans text-xs font-medium text-muted-foreground">
               {' '}
-              {unit} · 7-day avg
+              {unit} · {headlineLabel}
             </span>
           </div>
           <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
             {weekCount} weigh-in{weekCount === 1 ? '' : 's'} this week
             {change !== null && (
-              <span
-                className={change <= 0 ? 'text-primary' : 'text-destructive'}
-              >
+              <span className={changeTone}>
                 {' · '}
                 {change > 0 ? '+' : change < 0 ? '−' : '±'}
                 {Math.abs(change).toFixed(1)} vs last week
