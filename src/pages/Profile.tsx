@@ -233,8 +233,6 @@ const Profile = () => {
   const [macroGoals, setMacroGoals] = useState({ protein: '', carbs: '', fat: '', fiber: '' });
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lb'>('kg');
 
-  const [waterReminders, setWaterReminders] = useState(false);
-  const [mealLogNudges, setMealLogNudges] = useState(false);
 
   const [savingAdvanced, setSavingAdvanced] = useState(false);
 
@@ -271,8 +269,6 @@ const Profile = () => {
           fiber: meta.fiber_goal ? String(meta.fiber_goal) : '',
         });
         setWeightUnit(meta.weight_unit === 'lb' ? 'lb' : 'kg');
-        setWaterReminders(Boolean(meta.water_reminders_enabled));
-        setMealLogNudges(Boolean(meta.meal_log_nudges_enabled));
       }
     };
 
@@ -285,16 +281,6 @@ const Profile = () => {
     if (error) {
       toast({ title: 'Error', description: 'Failed to save preference.', variant: 'destructive' });
     }
-  };
-
-  const handleWaterRemindersChange = (checked: boolean) => {
-    setWaterReminders(checked);
-    updateMeta({ water_reminders_enabled: checked });
-  };
-
-  const handleMealLogNudgesChange = (checked: boolean) => {
-    setMealLogNudges(checked);
-    updateMeta({ meal_log_nudges_enabled: checked });
   };
 
   const handleGoogleFitChange = async (checked: boolean) => {
@@ -807,14 +793,6 @@ const Profile = () => {
           Tracking
         </div>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <div className="flex items-center justify-between px-[15px] py-[13px]">
-            <span className="text-sm font-medium text-foreground">Water reminders</span>
-            <Switch checked={waterReminders} onCheckedChange={handleWaterRemindersChange} />
-          </div>
-          <div className="flex items-center justify-between px-[15px] py-[13px]">
-            <span className="text-sm font-medium text-foreground">Meal log nudges</span>
-            <Switch checked={mealLogNudges} onCheckedChange={handleMealLogNudgesChange} />
-          </div>
           <div className="flex items-center justify-between px-[15px] py-[13px]">
             <span className="text-sm font-medium text-foreground">Google Fit sync</span>
             <Switch checked={healthConnected} onCheckedChange={handleGoogleFitChange} />

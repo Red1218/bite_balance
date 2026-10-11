@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SavedMeal } from '@/hooks/useSavedMeals';
@@ -105,102 +105,65 @@ export const useDailyMeals = () => {
     }
   };
 
-  const addMealFromSaved = async (
-    savedMeal: SavedMeal,
-    mealTime: string = 'snack'
-  ) => {
+  // Inserts one row into today's log, refreshes the list, and confirms with a toast.
+  const addToToday = async (row: Omit<TablesInsert<'daily_meals'>, 'user_id' | 'logged_date'>) => {
     if (!user) return;
 
     try {
-      const today = fmtLocalDate(new Date());
-      const { error } = await supabase.from('daily_meals').insert({
-        user_id: user.id,
-        name: savedMeal.name,
-        calories: savedMeal.calories,
-        protein: savedMeal.protein || 0,
-        carbs: savedMeal.carbs || 0,
-        fat: savedMeal.fat || 0,
-        fiber: savedMeal.fiber || 0,
-        vitamin_c: savedMeal.vitamin_c || 0,
-        vitamin_d: savedMeal.vitamin_d || 0,
-        vitamin_b12: savedMeal.vitamin_b12 || 0,
-        iron: savedMeal.iron || 0,
-        calcium: savedMeal.calcium || 0,
-        potassium: savedMeal.potassium || 0,
-        sodium: savedMeal.sodium || 0,
-        magnesium: savedMeal.magnesium || 0,
-        zinc: savedMeal.zinc || 0,
-        meal_time: mealTime,
-        logged_date: today,
-      });
-
-      if (error) throw error;
-
-      // Refresh meals list
-      await fetchTodaysMeals();
-
-      toast({
-        title: 'Success',
-        description: `${savedMeal.name} added to today's meals`,
-      });
-    } catch (error) {
-      console.error('Error adding meal:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to add meal to today',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const addFoodFromSaved = async (
-    food: IndianFood,
-    mealTime: string = 'snack'
-  ) => {
-    if (!user) return;
-
-    try {
-      const today = fmtLocalDate(new Date());
-      const { error } = await supabase.from('daily_meals').insert({
-        user_id: user.id,
-        name: food.name,
-        grams: food.serving_size ?? null,
-        unit: food.serving_unit || 'g',
-        calories: food.calories,
-        protein: food.protein || 0,
-        carbs: food.carbs || 0,
-        fat: food.fat || 0,
-        fiber: food.fiber || 0,
-        vitamin_c: food.vitamin_c || 0,
-        vitamin_d: food.vitamin_d || 0,
-        vitamin_b12: food.vitamin_b12 || 0,
-        iron: food.iron || 0,
-        calcium: food.calcium || 0,
-        potassium: food.potassium || 0,
-        sodium: food.sodium || 0,
-        magnesium: food.magnesium || 0,
-        zinc: food.zinc || 0,
-        meal_time: mealTime,
-        logged_date: today,
-      });
-
+      const { error } = await supabase
+        .from('daily_meals')
+        .insert({ ...row, user_id: user.id, logged_date: fmtLocalDate(new Date()) });
       if (error) throw error;
 
       await fetchTodaysMeals();
-
-      toast({
-        title: 'Success',
-        description: `${food.name} added to today's meals`,
-      });
+      toast({ title: 'Success', description: `${row.name} added to today's meals` });
     } catch (error) {
-      console.error('Error adding food:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to add food to today',
-        variant: 'destructive',
-      });
+      console.error('Error adding to today:', error);
+      toast({ title: 'Error', description: `Failed to add ${row.name} to today`, variant: 'destructive' });
     }
   };
+
+  const addMealFromSaved = (savedMeal: SavedMeal, mealTime: string = 'snack') =>
+    addToToday({
+      name: savedMeal.name,
+      calories: savedMeal.calories,
+      protein: savedMeal.protein || 0,
+      carbs: savedMeal.carbs || 0,
+      fat: savedMeal.fat || 0,
+      fiber: savedMeal.fiber || 0,
+      vitamin_c: savedMeal.vitamin_c || 0,
+      vitamin_d: savedMeal.vitamin_d || 0,
+      vitamin_b12: savedMeal.vitamin_b12 || 0,
+      iron: savedMeal.iron || 0,
+      calcium: savedMeal.calcium || 0,
+      potassium: savedMeal.potassium || 0,
+      sodium: savedMeal.sodium || 0,
+      magnesium: savedMeal.magnesium || 0,
+      zinc: savedMeal.zinc || 0,
+      meal_time: mealTime,
+    });
+
+  const addFoodFromSaved = (food: IndianFood, mealTime: string = 'snack') =>
+    addToToday({
+      name: food.name,
+      grams: food.serving_size ?? null,
+      unit: food.serving_unit || 'g',
+      calories: food.calories,
+      protein: food.protein || 0,
+      carbs: food.carbs || 0,
+      fat: food.fat || 0,
+      fiber: food.fiber || 0,
+      vitamin_c: food.vitamin_c || 0,
+      vitamin_d: food.vitamin_d || 0,
+      vitamin_b12: food.vitamin_b12 || 0,
+      iron: food.iron || 0,
+      calcium: food.calcium || 0,
+      potassium: food.potassium || 0,
+      sodium: food.sodium || 0,
+      magnesium: food.magnesium || 0,
+      zinc: food.zinc || 0,
+      meal_time: mealTime,
+    });
 
   // Calculate totals
   const totals = meals.reduce(

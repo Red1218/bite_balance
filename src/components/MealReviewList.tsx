@@ -71,8 +71,6 @@ export const chatMealItemToRow = (item: ChatMealItem, userId: string, loggedDate
   logged_date: loggedDate,
 });
 
-export const countMealTimes = (items: ChatMealItem[]) => new Set(items.map((it) => it.mealTime)).size;
-
 export interface MealReviewListProps {
   items: ChatMealItem[];
   /** When set, only this meal-time's group renders (and totals/labels scope
