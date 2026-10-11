@@ -92,6 +92,8 @@ const History = () => {
   const calorieGoal = Number(user?.user_metadata?.calorie_goal || 2200);
   const [selectedDate, setSelectedDate] = useState(fmtLocalDate(new Date()));
   const [historyDays, setHistoryDays] = useState<DaySummary[]>([]);
+  // Every loaded day, including a selected one older than the 7-day strip.
+  const [daysByDate, setDaysByDate] = useState<Record<string, DaySummary>>({});
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [editingMeal, setEditingMeal] = useState<MealInfo | null>(null);
@@ -164,6 +166,7 @@ const History = () => {
       }
 
       setHistoryDays(historyList);
+      setDaysByDate(grouped);
     } catch (err) {
       console.error('Error loading history:', err);
     } finally {
@@ -241,7 +244,7 @@ const History = () => {
 
   const todayStr = fmtLocalDate(new Date());
 
-  const selectedDayData = historyDays.find((day) => day.date === selectedDate) ?? emptyDay(selectedDate);
+  const selectedDayData = daysByDate[selectedDate] ?? emptyDay(selectedDate);
   const selectedDayDelta = Math.round(selectedDayData.totalCalories - calorieGoal);
   const isSelectedToday = selectedDate === todayStr;
 
