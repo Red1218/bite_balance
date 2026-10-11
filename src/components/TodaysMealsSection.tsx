@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import MealCategorySection from './MealCategorySection';
 import EmptyMealsState from './EmptyMealsState';
@@ -7,12 +6,12 @@ interface MealItem {
   id: string;
   name: string;
   calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
   grams?: number | null;
   unit?: string;
-  meal_time: string;
+  meal_time: string | null;
   logged_at: string;
 }
 

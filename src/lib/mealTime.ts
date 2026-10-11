@@ -1,4 +1,6 @@
-export const defaultSlotForNow = () => {
+import type { MealTime } from '@/components/MealReviewList';
+
+export const defaultSlotForNow = (): MealTime => {
   const hour = new Date().getHours();
   if (hour < 11) return 'breakfast';
   if (hour < 16) return 'lunch';

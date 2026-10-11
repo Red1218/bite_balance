@@ -1,4 +1,3 @@
-import React from 'react';
 import { Plus, Utensils } from 'lucide-react';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useWaterTracker } from '@/hooks/useWaterTracker';
 import { Minus, Plus } from 'lucide-react';
 

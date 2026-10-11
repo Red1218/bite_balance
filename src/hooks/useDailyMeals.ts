@@ -1,34 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { SavedMeal } from '@/hooks/useSavedMeals';
 import { IndianFood } from '@/services/foodService';
 import { fmtLocalDate } from '@/lib/utils';
 
-export interface DailyMeal {
-  id: string;
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number;
-  vitamin_c?: number;
-  vitamin_d?: number;
-  vitamin_b12?: number;
-  iron?: number;
-  calcium?: number;
-  potassium?: number;
-  sodium?: number;
-  magnesium?: number;
-  zinc?: number;
-  grams?: number | null;
-  unit?: string;
-  meal_time: string;
-  logged_date: string;
-  logged_at: string;
-}
+// The table row as stored: macros/micros are null when left blank at logging time.
+export type DailyMeal = Tables<'daily_meals'>;
 
 export const useDailyMeals = () => {
   const [meals, setMeals] = useState<DailyMeal[]>([]);

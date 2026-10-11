@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
-  Edit3,
   Sparkles,
   Loader2,
   Plus,
@@ -260,6 +259,15 @@ const AddMeal = () => {
         carbs: 0,
         fat: 0,
         fiber: 0,
+        vitaminC: 0,
+        vitaminD: 0,
+        vitaminB12: 0,
+        iron: 0,
+        calcium: 0,
+        potassium: 0,
+        sodium: 0,
+        magnesium: 0,
+        zinc: 0,
         servingSizeWeight: 100,
       };
 

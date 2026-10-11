@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { RefreshCw, Flame, Activity } from 'lucide-react';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 

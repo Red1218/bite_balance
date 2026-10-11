@@ -1,17 +1,16 @@
-import React from 'react';
 import AnimatedMealCard from './AnimatedMealCard';
 
 interface MealItem {
   id: string;
   name: string;
   calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-  fiber?: number;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber?: number | null;
   grams?: number | null;
   unit?: string;
-  meal_time: string;
+  meal_time: string | null;
   logged_at: string;
 }
 

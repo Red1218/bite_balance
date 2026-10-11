@@ -60,7 +60,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
         ...(!isDailyMeal && {
           tags: formData.tags
             .split(',')
-            .map((tag) => tag.trim())
+            .map((tag: string) => tag.trim())
             .filter(Boolean),
           notes: formData.notes,
         }),
