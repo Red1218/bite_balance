@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Send, Sparkles, Mic, Plus, Loader2, ArrowLeft } from 'lucide-react';
-import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { useSavedMeals, type SavedMeal } from '@/hooks/useSavedMeals';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
@@ -36,7 +36,6 @@ const GREETING = "Tell me what you ate -- I'll tally it up, and you can log each
 // conversations regularly need older context than the last ~30 messages.
 const CHAT_CONTEXT_LIMIT = 30;
 const HISTORY_LOAD_LIMIT = 200;
-const MAX_FAILED_RESTARTS = 10;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -137,176 +136,17 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   const [logging, setLogging] = useState(false);
   const [chipLoading, setChipLoading] = useState<'yesterday' | 'dinner' | 'most' | null>(null);
   const [showSavedMeals, setShowSavedMeals] = useState(false);
-  const [listening, setListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-  // Android's native recognizer ends its listening session as soon as it
-  // detects a pause in speech (mid-sentence, not just when the user is done)
-  // -- these refs let the 'stopped' handler tell an intentional stop from a
-  // pause and, for a pause, silently start a new session so dictation reads
-  // as continuous instead of cutting off at the first breath.
-  const dictatingRef = useRef(false);
-  const draftRef = useRef('');
-  const committedTextRef = useRef('');
-  // The native recognizer funnels its session-final transcript (onResults)
-  // through the SAME 'partialResults' event used for growing interim
-  // hypotheses (see SpeechRecognitionListener#onResults in the plugin's
-  // Android source) and lands ~100ms AFTER 'stopped'. It is the complete
-  // transcript (the interim partials are often a word or two), so it must be
-  // applied. Commit draftRef into committedTextRef only when the next session
-  // is about to start, after the final has landed; from then on, drop
-  // 'partialResults' until the new session's own 'started' proves they're fresh,
-  // or a straggling final would be appended a second time.
-  const ignorePartialRef = useRef(false);
-  // Last time the native recognizer said anything; the watchdog below uses it
-  // to catch a session that died without emitting 'stopped'.
-  const lastSpeechEventRef = useRef(0);
-  // The patched plugin emits 'stopped' for every recognizer error, and a
-  // restart's own failure arrives as a later error (start() has already
-  // resolved by then), so restarts are driven only by 'stopped': one at a
-  // time, giving up after MAX_FAILED_RESTARTS in a row with no speech.
-  const restartPendingRef = useRef(false);
-  const failedRestartsRef = useRef(0);
+  // Each transcript is appended to whatever is already typed, so the user can
+  // dictate in several goes and still edit before sending.
+  const voice = useVoiceRecorder((text) =>
+    setDraft((d) => (d.trim() ? `${d.trim()} ${text}` : text))
+  );
+  const voiceClock = `${Math.floor(voice.seconds / 60)}:${String(voice.seconds % 60).padStart(2, '0')}`;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, sending, items.length]);
-
-  useEffect(() => {
-    draftRef.current = draft;
-  }, [draft]);
-
-  useEffect(() => {
-    const partialHandle = SpeechRecognition.addListener('partialResults', (data) => {
-      lastSpeechEventRef.current = Date.now();
-      if (ignorePartialRef.current) return;
-      if (data.matches && data.matches.length > 0) {
-        failedRestartsRef.current = 0;
-        const latest = data.matches[0];
-        setDraft(committedTextRef.current ? `${committedTextRef.current} ${latest}` : latest);
-      }
-    });
-    const listeningHandle = SpeechRecognition.addListener('listeningState', (data) => {
-      lastSpeechEventRef.current = Date.now();
-      if (data.status === 'started') {
-        ignorePartialRef.current = false;
-        failedRestartsRef.current = 0;
-        setListening(true);
-        return;
-      }
-      if (dictatingRef.current) {
-        if (restartPendingRef.current) return;
-        if (++failedRestartsRef.current > MAX_FAILED_RESTARTS) {
-          dictatingRef.current = false;
-          setListening(false);
-          toast({ title: 'Microphone stopped', description: 'No speech heard. Tap the mic to try again.' });
-          return;
-        }
-        restartPendingRef.current = true;
-        // ponytail: the native recognizer's teardown of the previous session
-        // is an OS-level async race we don't control -- any fixed delay is a
-        // guess, and logcat confirms 400ms alone still loses sometimes
-        // ("Client has opened 2 sessions" -> cancel-without-start -> restart
-        // fails and the mic silently shuts off). One retry after a longer
-        // gap absorbs that instead of surfacing it as a dead mic.
-        const attemptRestart = (delayMs: number, isRetry: boolean) => {
-          setTimeout(() => {
-            restartPendingRef.current = false;
-            if (!dictatingRef.current) return;
-            committedTextRef.current = draftRef.current;
-            ignorePartialRef.current = true;
-            SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
-              console.error('Speech recognition restart error:', err);
-              if (!isRetry) {
-                restartPendingRef.current = true;
-                attemptRestart(700, true);
-                return;
-              }
-              dictatingRef.current = false;
-              setListening(false);
-            });
-          }, delayMs);
-        };
-        attemptRestart(400, false);
-      } else {
-        setListening(false);
-      }
-    });
-    return () => {
-      void partialHandle.then((h) => h.remove());
-      void listeningHandle.then((h) => h.remove());
-    };
-  }, [toast]);
-
-  // Watchdog: a live session reports something at least every few seconds
-  // (the patched plugin emits 'stopped' on timeout/no-match). Silence for
-  // WATCHDOG_MS means the recognizer is dead -- restart once, and if that
-  // also produces nothing, stop with a message instead of a mic that lies.
-  useEffect(() => {
-    if (!listening) return;
-    const WATCHDOG_MS = 10_000;
-    let strikes = 0;
-    lastSpeechEventRef.current = Date.now();
-    const timer = setInterval(() => {
-      if (!dictatingRef.current || Date.now() - lastSpeechEventRef.current < WATCHDOG_MS) return;
-      lastSpeechEventRef.current = Date.now();
-      strikes += 1;
-      if (strikes > 1) {
-        dictatingRef.current = false;
-        ignorePartialRef.current = true;
-        void SpeechRecognition.stop().catch(() => {});
-        setListening(false);
-        toast({ title: 'Microphone stopped', description: 'Speech recognition stopped responding. Tap the mic to try again.', variant: 'destructive' });
-        return;
-      }
-      committedTextRef.current = draftRef.current;
-      SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
-        console.error('Speech recognition watchdog restart error:', err);
-      });
-    }, 2_000);
-    return () => clearInterval(timer);
-  }, [listening, toast]);
-
-  const handleMicToggle = async () => {
-    if (listening) {
-      dictatingRef.current = false;
-      // Don't await: the plugin's native stop() never resolves its call on
-      // success (only rejects on error), so awaiting it hangs forever and
-      // the UI never leaves "listening" until the page remounts. The native
-      // mic stops immediately regardless; update our own state right away.
-      void SpeechRecognition.stop().catch(() => {});
-      setListening(false);
-      return;
-    }
-
-    const { available } = await SpeechRecognition.available();
-    if (!available) {
-      toast({ title: 'Not available', description: 'Speech recognition is not available on this device.', variant: 'destructive' });
-      return;
-    }
-
-    let { speechRecognition } = await SpeechRecognition.checkPermissions();
-    if (speechRecognition !== 'granted') {
-      ({ speechRecognition } = await SpeechRecognition.requestPermissions());
-    }
-    if (speechRecognition !== 'granted') {
-      toast({ title: 'Microphone permission needed', description: 'Allow microphone access to use speech-to-text.', variant: 'destructive' });
-      return;
-    }
-
-    committedTextRef.current = '';
-    ignorePartialRef.current = false;
-    failedRestartsRef.current = 0;
-    restartPendingRef.current = false;
-    dictatingRef.current = true;
-    setListening(true);
-    try {
-      await SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' });
-    } catch (err) {
-      console.error('Speech recognition error:', err);
-      dictatingRef.current = false;
-      setListening(false);
-    }
-  };
 
   // Load persisted conversation history once, on mount -- an empty history
   // keeps the local GREETING (never persisted, it's just a canned opener).
@@ -720,10 +560,12 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
             background: 'linear-gradient(to top, hsl(var(--background)) 70%, hsl(var(--background) / 0))',
           }}
         >
-          {listening && (
+          {voice.state !== 'idle' && (
             <div className="flex items-center gap-1.5 px-1">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-              <span className="text-[11px] font-medium text-destructive">Listening…</span>
+              <span className="text-[11px] font-medium text-destructive">
+                {voice.state === 'recording' ? `Recording ${voiceClock}` : 'Transcribing…'}
+              </span>
             </div>
           )}
           <div className="flex min-h-12 items-center gap-1.5 rounded-full bg-muted pl-4 pr-2">
@@ -736,15 +578,19 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
             />
             <button
               type="button"
-              onClick={handleMicToggle}
-              disabled={sending}
-              aria-label={listening ? 'Stop dictation' : 'Dictate'}
+              onClick={() => void voice.toggle()}
+              disabled={sending || voice.state === 'transcribing'}
+              aria-label={voice.state === 'recording' ? 'Stop recording' : 'Record voice'}
               className={cn(
                 'flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-muted-foreground disabled:opacity-50',
-                listening && 'animate-pulse bg-primary/10 text-primary'
+                voice.state === 'recording' && 'animate-pulse bg-primary/10 text-primary'
               )}
             >
-              <Mic className="h-4 w-4" />
+              {voice.state === 'transcribing' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
             </button>
             <button
               type="submit"
