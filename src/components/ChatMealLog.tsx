@@ -36,6 +36,7 @@ const GREETING = "Tell me what you ate -- I'll tally it up, and you can log each
 // conversations regularly need older context than the last ~30 messages.
 const CHAT_CONTEXT_LIMIT = 30;
 const HISTORY_LOAD_LIMIT = 200;
+const MAX_FAILED_RESTARTS = 10;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -167,11 +168,22 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   // The native recognizer funnels its session-final transcript (onResults)
   // through the SAME 'partialResults' event used for growing interim
   // hypotheses (see SpeechRecognitionListener#onResults in the plugin's
-  // Android source) -- so after we commit draftRef into committedTextRef on
-  // 'stopped', that same session's late final result arrives right after and
-  // gets appended a second time, duplicating every word. Drop any
-  // 'partialResults' event that isn't from an actually-started session.
+  // Android source) and lands ~100ms AFTER 'stopped'. It is the complete
+  // transcript (the interim partials are often a word or two), so it must be
+  // applied. Commit draftRef into committedTextRef only when the next session
+  // is about to start, after the final has landed; from then on, drop
+  // 'partialResults' until the new session's own 'started' proves they're fresh,
+  // or a straggling final would be appended a second time.
   const ignorePartialRef = useRef(false);
+  // Last time the native recognizer said anything; the watchdog below uses it
+  // to catch a session that died without emitting 'stopped'.
+  const lastSpeechEventRef = useRef(0);
+  // The patched plugin emits 'stopped' for every recognizer error, and a
+  // restart's own failure arrives as a later error (start() has already
+  // resolved by then), so restarts are driven only by 'stopped': one at a
+  // time, giving up after MAX_FAILED_RESTARTS in a row with no speech.
+  const restartPendingRef = useRef(false);
+  const failedRestartsRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -183,24 +195,31 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
   useEffect(() => {
     const partialHandle = SpeechRecognition.addListener('partialResults', (data) => {
+      lastSpeechEventRef.current = Date.now();
       if (ignorePartialRef.current) return;
       if (data.matches && data.matches.length > 0) {
+        failedRestartsRef.current = 0;
         const latest = data.matches[0];
         setDraft(committedTextRef.current ? `${committedTextRef.current} ${latest}` : latest);
       }
     });
     const listeningHandle = SpeechRecognition.addListener('listeningState', (data) => {
+      lastSpeechEventRef.current = Date.now();
       if (data.status === 'started') {
         ignorePartialRef.current = false;
+        failedRestartsRef.current = 0;
         setListening(true);
         return;
       }
-      // Every 'stopped' -- restart or real stop -- is followed by that
-      // session's late final result on the same event; ignore partials until
-      // the next session's own 'started' proves they're fresh.
-      ignorePartialRef.current = true;
       if (dictatingRef.current) {
-        committedTextRef.current = draftRef.current;
+        if (restartPendingRef.current) return;
+        if (++failedRestartsRef.current > MAX_FAILED_RESTARTS) {
+          dictatingRef.current = false;
+          setListening(false);
+          toast({ title: 'Microphone stopped', description: 'No speech heard. Tap the mic to try again.' });
+          return;
+        }
+        restartPendingRef.current = true;
         // ponytail: the native recognizer's teardown of the previous session
         // is an OS-level async race we don't control -- any fixed delay is a
         // guess, and logcat confirms 400ms alone still loses sometimes
@@ -209,10 +228,14 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         // gap absorbs that instead of surfacing it as a dead mic.
         const attemptRestart = (delayMs: number, isRetry: boolean) => {
           setTimeout(() => {
+            restartPendingRef.current = false;
             if (!dictatingRef.current) return;
+            committedTextRef.current = draftRef.current;
+            ignorePartialRef.current = true;
             SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
               console.error('Speech recognition restart error:', err);
               if (!isRetry) {
+                restartPendingRef.current = true;
                 attemptRestart(700, true);
                 return;
               }
@@ -230,12 +253,40 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       void partialHandle.then((h) => h.remove());
       void listeningHandle.then((h) => h.remove());
     };
-  }, []);
+  }, [toast]);
+
+  // Watchdog: a live session reports something at least every few seconds
+  // (the patched plugin emits 'stopped' on timeout/no-match). Silence for
+  // WATCHDOG_MS means the recognizer is dead -- restart once, and if that
+  // also produces nothing, stop with a message instead of a mic that lies.
+  useEffect(() => {
+    if (!listening) return;
+    const WATCHDOG_MS = 10_000;
+    let strikes = 0;
+    lastSpeechEventRef.current = Date.now();
+    const timer = setInterval(() => {
+      if (!dictatingRef.current || Date.now() - lastSpeechEventRef.current < WATCHDOG_MS) return;
+      lastSpeechEventRef.current = Date.now();
+      strikes += 1;
+      if (strikes > 1) {
+        dictatingRef.current = false;
+        ignorePartialRef.current = true;
+        void SpeechRecognition.stop().catch(() => {});
+        setListening(false);
+        toast({ title: 'Microphone stopped', description: 'Speech recognition stopped responding. Tap the mic to try again.', variant: 'destructive' });
+        return;
+      }
+      committedTextRef.current = draftRef.current;
+      SpeechRecognition.start({ popup: false, partialResults: true, language: 'en-US' }).catch((err) => {
+        console.error('Speech recognition watchdog restart error:', err);
+      });
+    }, 2_000);
+    return () => clearInterval(timer);
+  }, [listening, toast]);
 
   const handleMicToggle = async () => {
     if (listening) {
       dictatingRef.current = false;
-      ignorePartialRef.current = true;
       // Don't await: the plugin's native stop() never resolves its call on
       // success (only rejects on error), so awaiting it hangs forever and
       // the UI never leaves "listening" until the page remounts. The native
@@ -261,6 +312,9 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     }
 
     committedTextRef.current = '';
+    ignorePartialRef.current = false;
+    failedRestartsRef.current = 0;
+    restartPendingRef.current = false;
     dictatingRef.current = true;
     setListening(true);
     try {
