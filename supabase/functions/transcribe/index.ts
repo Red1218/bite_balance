@@ -1,4 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { isPromptEcho } from './promptEcho.ts';
+
+const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +27,11 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
+
+  // verify_jwt also accepts the public anon key, so check the token belongs to a signed-in user.
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) return json({ error: 'Sign in required.' }, 401);
 
   let audio: FormDataEntryValue | null;
   try {
@@ -55,7 +64,10 @@ serve(async (req) => {
     }
 
     const data = await res.json();
-    return json({ text: String(data.text ?? '').trim() });
+    const text = String(data.text ?? '').trim();
+    const echo = isPromptEcho(text, PROMPT);
+    if (echo) console.log('transcribe: dropped prompt echo');
+    return json({ text: echo ? '' : text });
   } catch (err) {
     console.error('OpenAI transcription request failed', err);
     return json({ error: 'Transcription failed' }, 502);

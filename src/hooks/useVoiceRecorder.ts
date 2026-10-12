@@ -19,6 +19,8 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
   const [seconds, setSeconds] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const discardRef = useRef(false);
+  const startingRef = useRef(false);
+  const cancelStartRef = useRef(false);
   const onTranscriptRef = useRef(onTranscript);
 
   useEffect(() => {
@@ -44,6 +46,7 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
   useEffect(
     () => () => {
       discardRef.current = true;
+      cancelStartRef.current = true;
       stop();
     },
     [stop]
@@ -68,12 +71,18 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
   };
 
   const toggle = async () => {
+    if (startingRef.current) {
+      cancelStartRef.current = true;
+      return;
+    }
     if (state === 'recording') {
       stop();
       return;
     }
     if (state !== 'idle') return;
 
+    startingRef.current = true;
+    cancelStartRef.current = false;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -85,27 +94,65 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
         variant: 'destructive',
       });
       return;
+    } finally {
+      startingRef.current = false;
     }
 
-    const recorder = new MediaRecorder(stream);
+    const release = () => stream.getTracks().forEach((t) => t.stop());
+    if (cancelStartRef.current) {
+      release();
+      return;
+    }
+    const failStart = (err: unknown) => {
+      release();
+      recorderRef.current = null;
+      console.error('Recorder start error:', err);
+      toast({ title: "Couldn't start recording", variant: 'destructive' });
+    };
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream);
+    } catch (err) {
+      failStart(err);
+      return;
+    }
     const chunks: Blob[] = [];
     const startedAt = Date.now();
     discardRef.current = false;
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
+    recorder.onerror = () => {
+      if (recorder.state !== 'inactive') recorder.stop();
+      else {
+        release();
+        recorderRef.current = null;
+        setState('idle');
+      }
+    };
     recorder.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop());
+      release();
       recorderRef.current = null;
       setSeconds(0);
       if (discardRef.current || Date.now() - startedAt < MIN_MS) {
         setState('idle');
         return;
       }
+      if (!chunks.length) {
+        setState('idle');
+        toast({ title: "Didn't catch anything" });
+        return;
+      }
       void transcribe(new Blob(chunks, { type: recorder.mimeType }));
     };
     recorderRef.current = recorder;
-    recorder.start();
+    try {
+      recorder.start();
+    } catch (err) {
+      failStart(err);
+      return;
+    }
     setSeconds(0);
     setState('recording');
   };

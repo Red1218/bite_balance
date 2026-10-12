@@ -579,7 +579,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
             <button
               type="button"
               onClick={() => void voice.toggle()}
-              disabled={sending || voice.state === 'transcribing'}
+              disabled={(sending && voice.state === 'idle') || voice.state === 'transcribing'}
               aria-label={voice.state === 'recording' ? 'Stop recording' : 'Record voice'}
               className={cn(
                 'flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-muted-foreground disabled:opacity-50',
