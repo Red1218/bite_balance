@@ -1,0 +1,28 @@
+diff --git a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
+index a99ea69..c782542 100644
+--- a/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
++++ b/node_modules/@capacitor-community/speech-recognition/android/src/main/java/com/getcapacitor/community/speechrecognition/SpeechRecognition.java
+@@ -168,6 +168,10 @@ public class SpeechRecognition extends Plugin implements Constants {
+         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, bridge.getActivity().getPackageName());
+         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partialResults);
+         intent.putExtra("android.speech.extra.DICTATION_MODE", partialResults);
++        // Without these Android ends the session at the first short pause.
++        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L);
++        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L);
++        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 5000L);
+ 
+         if (prompt != null) {
+             intent.putExtra(RecognizerIntent.EXTRA_PROMPT, prompt);
+@@ -280,6 +284,12 @@ public class SpeechRecognition extends Plugin implements Constants {
+ 
+         @Override
+         public void onError(int error) {
++            // Errors end the session without onEndOfSpeech (and fail after start() already resolved); tell JS so it can restart.
++            if (error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
++                JSObject stopped = new JSObject();
++                stopped.put("status", "stopped");
++                SpeechRecognition.this.notifyListeners(LISTENING_EVENT, stopped);
++            }
+             SpeechRecognition.this.stopListening();
+             String errorMssg = getErrorText(error);
+ 
