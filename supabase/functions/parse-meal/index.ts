@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { NUMBER_WORDS, portionFactor } from './portion.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,8 +39,6 @@ const ZERO_MICROS = {
 // Strips a weight/count phrase (e.g. "150g", "2 ") from free text so what's left is
 // just the food name -- search_foods does `name ILIKE '%query%'`, so the query needs
 // to be a short phrase that could appear IN a food name, not a sentence containing one.
-const NUMBER_WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-
 // Trailing "s" is stripped per word so "3 eggs" finds "Boiled Egg" (ILIKE '%egg%' still matches plurals).
 // ponytail: only plain "s" plurals; "potatoes"/"chutneys" style plurals still miss.
 const extractFoodQuery = (text: string): string => {
@@ -50,21 +49,6 @@ const extractFoodQuery = (text: string): string => {
     .filter(Boolean)
     .map((w) => (w.length > 3 && /s$/i.test(w) ? w.slice(0, -1) : w))
     .join(' ');
-};
-
-// "3 eggs" / "two idli" -> 3 / 2, so a count with no weight scales the food's serving size.
-const parseCount = (text: string): number => {
-  const m = text.toLowerCase().match(new RegExp(`\\b(\\d+(?:\\.\\d+)?|${NUMBER_WORDS.join('|')})\\b`));
-  if (!m) return 1;
-  const n = NUMBER_WORDS.indexOf(m[1]) + 1 || parseFloat(m[1]);
-  return n > 0 && n <= 50 ? n : 1;
-};
-
-const parseWeightGrams = (text: string): number | null => {
-  const match = text.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(g|grams|gram|oz|ounces|ounce)/i);
-  if (!match) return null;
-  const val = parseFloat(match[1]);
-  return match[2].toLowerCase().startsWith('oz') ? val * 28.35 : val;
 };
 
 // Generic rough estimate used only when OPENAI_API_KEY is unset -- the app
@@ -137,15 +121,18 @@ serve(async (req) => {
   // match against the food name, so strip the weight/count phrase first.
   const foodQuery = extractFoodQuery(text);
   if (foodQuery.length >= 3) {
-    const { data: matches, error: searchError } = await supabase.rpc('search_foods', {
+    // Search as the caller so search_foods (which filters on auth.uid()) includes their own foods.
+    const userDb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: matches, error: searchError } = await userDb.rpc('search_foods', {
       search_query: foodQuery,
     });
     if (searchError) console.warn('search_foods failed:', searchError.message);
 
     const dbMatch = matches?.[0];
     if (dbMatch) {
-      const weightGrams = parseWeightGrams(text) ?? (Number(dbMatch.serving_size) || 100) * parseCount(text);
-      const factor = weightGrams / 100;
+      const factor = portionFactor(text, dbMatch);
       const scale = (n: number | null) => Math.round((Number(n) || 0) * factor * 10) / 10;
 
       const result: ParseResponse = {
