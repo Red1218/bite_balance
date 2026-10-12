@@ -29,6 +29,15 @@ import {
 } from '@/components/ui/dialog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { fmtLocalDate } from '@/lib/utils';
+import { ChatMealItem, MealTime, MICRO, chatMealItemToRow } from '@/components/MealReviewList';
+
+const MICRO_KEYS = MICRO.map((m) => m.key);
+const NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fat', 'fiber', ...MICRO_KEYS] as const;
+type NutrientKey = (typeof NUTRIENT_KEYS)[number];
+
+function mapNutrients<T>(f: (k: NutrientKey) => T) {
+  return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, f(k)])) as Record<NutrientKey, T>;
+}
 
 const categories = [
   { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
@@ -173,26 +182,12 @@ const AddMeal = () => {
     }));
   };
 
-  const [baseNutrition, setBaseNutrition] = useState<{
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-    fiber: number;
-    vitaminC: number;
-    vitaminD: number;
-    vitaminB12: number;
-    iron: number;
-    calcium: number;
-    potassium: number;
-    sodium: number;
-    magnesium: number;
-    zinc: number;
-    servingSizeWeight: number;
-  } | null>(null);
+  const [baseNutrition, setBaseNutrition] = useState<
+    (Record<NutrientKey, number> & { servingSizeWeight: number }) | null
+  >(null);
   const [portionWeight, setPortionWeight] = useState<string>('100');
 
-  const getDefaultMealTime = () => {
+  const getDefaultMealTime = (): MealTime => {
     const hour = new Date().getHours();
     if (hour < 11) return 'breakfast';
     if (hour < 16) return 'lunch';
@@ -200,26 +195,8 @@ const AddMeal = () => {
     return 'snack';
   };
 
-  const [mealData, setMealData] = useState({
-    name: '',
-    mealTime: getDefaultMealTime(),
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    fiber: '',
-    vitaminC: '',
-    vitaminD: '',
-    vitaminB12: '',
-    iron: '',
-    calcium: '',
-    potassium: '',
-    sodium: '',
-    magnesium: '',
-    zinc: '',
-    date: fmtLocalDate(new Date()),
-    notes: '',
-  });
+  const emptyMeal = () => ({ name: '', mealTime: getDefaultMealTime(), ...mapNutrients(() => '') });
+  const [mealData, setMealData] = useState(emptyMeal);
 
   const handlePortionWeightChange = (newWeightStr: string) => {
     setPortionWeight(newWeightStr);
@@ -230,20 +207,8 @@ const AddMeal = () => {
       const scale = (n: number) => String(Math.round(n * ratio * 10) / 10);
       setMealData((prev) => ({
         ...prev,
+        ...mapNutrients((k) => scale(baseNutrition[k])),
         calories: String(Math.round(baseNutrition.calories * ratio)),
-        protein: scale(baseNutrition.protein),
-        carbs: scale(baseNutrition.carbs),
-        fat: scale(baseNutrition.fat),
-        fiber: scale(baseNutrition.fiber),
-        vitaminC: scale(baseNutrition.vitaminC),
-        vitaminD: scale(baseNutrition.vitaminD),
-        vitaminB12: scale(baseNutrition.vitaminB12),
-        iron: scale(baseNutrition.iron),
-        calcium: scale(baseNutrition.calcium),
-        potassium: scale(baseNutrition.potassium),
-        sodium: scale(baseNutrition.sodium),
-        magnesium: scale(baseNutrition.magnesium),
-        zinc: scale(baseNutrition.zinc),
       }));
     }
   };
@@ -253,23 +218,7 @@ const AddMeal = () => {
     const currentWeight = parseFloat(portionWeight) || 100;
 
     setBaseNutrition((prev) => {
-      const currentBase = prev || {
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        fiber: 0,
-        vitaminC: 0,
-        vitaminD: 0,
-        vitaminB12: 0,
-        iron: 0,
-        calcium: 0,
-        potassium: 0,
-        sodium: 0,
-        magnesium: 0,
-        zinc: 0,
-        servingSizeWeight: 100,
-      };
+      const currentBase = prev || { ...mapNutrients(() => 0), servingSizeWeight: 100 };
 
       const ratio = currentBase.servingSizeWeight / currentWeight;
 
@@ -302,42 +251,16 @@ const AddMeal = () => {
           parsedWeight = unit.startsWith('oz') ? Math.round(val * 28.35) : val;
         }
 
-        setBaseNutrition({
-          calories: data.calories,
-          protein: data.protein,
-          carbs: data.carbs,
-          fat: data.fat,
-          fiber: data.fiber,
-          vitaminC: data.vitaminC ?? 0,
-          vitaminD: data.vitaminD ?? 0,
-          vitaminB12: data.vitaminB12 ?? 0,
-          iron: data.iron ?? 0,
-          calcium: data.calcium ?? 0,
-          potassium: data.potassium ?? 0,
-          sodium: data.sodium ?? 0,
-          magnesium: data.magnesium ?? 0,
-          zinc: data.zinc ?? 0,
-          servingSizeWeight: parsedWeight,
-        });
+        // Micros may be missing from parse-meal's reply (default 0); macros pass through as-is.
+        const fromData = (k: NutrientKey): number =>
+          MICRO_KEYS.some((m) => m === k) ? data[k] ?? 0 : data[k];
+        setBaseNutrition({ ...mapNutrients(fromData), servingSizeWeight: parsedWeight });
         setPortionWeight(String(parsedWeight));
 
         setMealData({
           ...mealData,
           name: data.name,
-          calories: String(data.calories),
-          protein: String(data.protein),
-          carbs: String(data.carbs),
-          fat: String(data.fat),
-          fiber: String(data.fiber),
-          vitaminC: String(data.vitaminC ?? 0),
-          vitaminD: String(data.vitaminD ?? 0),
-          vitaminB12: String(data.vitaminB12 ?? 0),
-          iron: String(data.iron ?? 0),
-          calcium: String(data.calcium ?? 0),
-          potassium: String(data.potassium ?? 0),
-          sodium: String(data.sodium ?? 0),
-          magnesium: String(data.magnesium ?? 0),
-          zinc: String(data.zinc ?? 0),
+          ...mapNutrients((k) => String(fromData(k))),
         });
 
         toast({
@@ -381,28 +304,16 @@ const AddMeal = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('daily_meals').insert({
-        user_id: user.id,
+      const item: ChatMealItem = {
         name: mealData.name,
-        grams: Number(portionWeight) || null,
-        unit: 'g',
+        mealTime: mealData.mealTime,
+        grams: Number(portionWeight),
+        ...mapNutrients((k) => Number(mealData[k]) || 0),
         calories: Number(mealData.calories),
-        protein: Number(mealData.protein) || 0,
-        carbs: Number(mealData.carbs) || 0,
-        fat: Number(mealData.fat) || 0,
-        fiber: Number(mealData.fiber) || 0,
-        vitamin_c: Number(mealData.vitaminC) || 0,
-        vitamin_d: Number(mealData.vitaminD) || 0,
-        vitamin_b12: Number(mealData.vitaminB12) || 0,
-        iron: Number(mealData.iron) || 0,
-        calcium: Number(mealData.calcium) || 0,
-        potassium: Number(mealData.potassium) || 0,
-        sodium: Number(mealData.sodium) || 0,
-        magnesium: Number(mealData.magnesium) || 0,
-        zinc: Number(mealData.zinc) || 0,
-        meal_time: mealData.mealTime,
-        logged_date: mealData.date,
-      });
+      };
+      const { error } = await supabase
+        .from('daily_meals')
+        .insert(chatMealItemToRow(item, user.id, fmtLocalDate(new Date())));
 
       if (error) throw error;
 
@@ -411,26 +322,7 @@ const AddMeal = () => {
         description: `"${mealData.name}" has been added to your daily log.`,
       });
 
-      setMealData({
-        name: '',
-        mealTime: getDefaultMealTime(),
-        calories: '',
-        protein: '',
-        carbs: '',
-        fat: '',
-        fiber: '',
-        vitaminC: '',
-        vitaminD: '',
-        vitaminB12: '',
-        iron: '',
-        calcium: '',
-        potassium: '',
-        sodium: '',
-        magnesium: '',
-        zinc: '',
-        date: fmtLocalDate(new Date()),
-        notes: '',
-      });
+      setMealData(emptyMeal());
       setBaseNutrition(null);
 
       notifyMealsLogged();
@@ -682,15 +574,6 @@ const AddMeal = () => {
                   </div>
                 </div>
 
-                {/* Hidden Date Field */}
-                <input
-                  type="hidden"
-                  value={mealData.date}
-                  onChange={(e) =>
-                    setMealData({ ...mealData, date: e.target.value })
-                  }
-                />
-
                 {/* Save as reusable food, or a hint while the meal isn't ready to save */}
                 {canSaveAsFood ? (
                   <button
@@ -822,87 +705,29 @@ const AddMeal = () => {
 
             <div className="h-px bg-border" />
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-protein" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-protein">
-                  <span className="h-1.5 w-1.5 rounded-full bg-chart-protein" />
-                  Protein / 100g
-                </Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-protein"
-                    type="number"
-                    step="0.1"
-                    value={customFoodForm.protein}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, protein: e.target.value })}
-                    placeholder="0"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                    required
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
+            {/* gap-y-4 matches the form's space-y-4 between the two former 2-col rows */}
+            <div className="grid grid-cols-2 gap-x-2.5 gap-y-4">
+              {macroFields.map((m) => (
+                <div key={m.key} className="space-y-1.5">
+                  <Label htmlFor={`custom-${m.key}`} className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wide ${m.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+                    {m.key === 'fat' ? 'Fat' : m.label} / 100g
+                  </Label>
+                  <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
+                    <input
+                      id={`custom-${m.key}`}
+                      type="number"
+                      step="0.1"
+                      value={customFoodForm[m.key]}
+                      onChange={(e) => setCustomFoodForm({ ...customFoodForm, [m.key]: e.target.value })}
+                      placeholder="0"
+                      className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
+                      required={m.key !== 'fiber'}
+                    />
+                    <span className="flex-none text-[11px] text-muted-foreground">g</span>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-carbs" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-carbs">
-                  <span className="h-1.5 w-1.5 rounded-full bg-chart-carbs" />
-                  Carbs / 100g
-                </Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-carbs"
-                    type="number"
-                    step="0.1"
-                    value={customFoodForm.carbs}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, carbs: e.target.value })}
-                    placeholder="0"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                    required
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-fat" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-fat">
-                  <span className="h-1.5 w-1.5 rounded-full bg-chart-fat" />
-                  Fat / 100g
-                </Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-fat"
-                    type="number"
-                    step="0.1"
-                    value={customFoodForm.fat}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, fat: e.target.value })}
-                    placeholder="0"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                    required
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-fiber" className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-chart-fiber">
-                  <span className="h-1.5 w-1.5 rounded-full bg-chart-fiber" />
-                  Fiber / 100g
-                </Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-fiber"
-                    type="number"
-                    step="0.1"
-                    value={customFoodForm.fiber}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, fiber: e.target.value })}
-                    placeholder="0"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
-                </div>
-              </div>
+              ))}
             </div>
 
             <div className="space-y-1.5">

@@ -21,7 +21,6 @@ const glassTooltipStyle = {
 const Steps = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const {
-    isAvailable,
     isConnected,
     healthData,
     loading,
@@ -53,20 +52,7 @@ const Steps = () => {
         )}
       </div>
 
-      {!isAvailable ? (
-        <div className="elevation-card flex flex-col items-center gap-4 p-6 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-            <Activity className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <div>
-            <h2 className="font-display text-lg font-semibold text-foreground">Health Connect not available</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Health Connect is not available on this device. Please ensure you have Android 14+ and Health
-              Connect installed from Google Play Store.
-            </p>
-          </div>
-        </div>
-      ) : !isConnected ? (
+      {!isConnected ? (
         <div className="elevation-card flex flex-col items-center gap-4 p-6 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/14 border border-primary/30">
             <Activity className="h-8 w-8 text-primary" />

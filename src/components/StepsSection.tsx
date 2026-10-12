@@ -6,7 +6,6 @@ const STEPS_GOAL = 10000;
 
 const StepsSection = () => {
   const {
-    isAvailable,
     isConnected,
     healthData,
     loading,
@@ -15,10 +14,6 @@ const StepsSection = () => {
   } = useHealthConnect();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleConnect = async () => {
-    await requestPermissions();
-  };
 
   const handleRefreshData = async () => {
     setIsRefreshing(true);
@@ -33,30 +28,26 @@ const StepsSection = () => {
           <Activity className="h-6 w-6" />
         </div>
         <p className="max-w-[280px] font-sans text-sm text-muted-foreground">
-          {!isAvailable
-            ? 'Health Connect is not available on this device.'
-            : 'Connect to Health Connect to track steps and calories.'}
+          Connect to Health Connect to track steps and calories.
         </p>
-        {isAvailable && (
-          <button
-            type="button"
-            onClick={handleConnect}
-            disabled={loading}
-            className="flex h-11 w-full max-w-[220px] items-center justify-center gap-2 rounded-xl bg-primary font-sans text-sm font-semibold text-primary-foreground disabled:opacity-60"
-          >
-            {loading ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <Activity className="h-4 w-4" />
-                Connect Health Connect
-              </>
-            )}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={requestPermissions}
+          disabled={loading}
+          className="flex h-11 w-full max-w-[220px] items-center justify-center gap-2 rounded-xl bg-primary font-sans text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {loading ? (
+            <>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <Activity className="h-4 w-4" />
+              Connect Health Connect
+            </>
+          )}
+        </button>
       </div>
     );
   }

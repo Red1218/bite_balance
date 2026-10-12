@@ -46,6 +46,13 @@ interface EditMealDialogProps {
   isDailyMeal?: boolean;
 }
 
+const MACRO_FIELDS = [
+  { key: 'protein', label: 'Protein', color: 'text-chart-protein' },
+  { key: 'carbs', label: 'Carbs', color: 'text-chart-carbs' },
+  { key: 'fat', label: 'Fat', color: 'text-chart-fat' },
+  { key: 'fiber', label: 'Fiber', color: 'text-chart-fiber' },
+] as const;
+
 const EditMealDialog: React.FC<EditMealDialogProps> = ({
   meal,
   open,
@@ -200,70 +207,24 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
           )}
 
           <div className="grid grid-cols-4 gap-2">
-            <div className="space-y-2">
-              <Label htmlFor="protein" className="text-chart-protein">Protein (g)</Label>
-              <Input
-                id="protein"
-                type="number"
-                step="0.1"
-                value={formData.protein}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    protein: Number(e.target.value),
-                  }))
-                }
-                className="rounded-xl font-mono tabular-nums"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="carbs" className="text-chart-carbs">Carbs (g)</Label>
-              <Input
-                id="carbs"
-                type="number"
-                step="0.1"
-                value={formData.carbs}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    carbs: Number(e.target.value),
-                  }))
-                }
-                className="rounded-xl font-mono tabular-nums"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fat" className="text-chart-fat">Fat (g)</Label>
-              <Input
-                id="fat"
-                type="number"
-                step="0.1"
-                value={formData.fat}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    fat: Number(e.target.value),
-                  }))
-                }
-                className="rounded-xl font-mono tabular-nums"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fiber" className="text-chart-fiber">Fiber (g)</Label>
-              <Input
-                id="fiber"
-                type="number"
-                step="0.1"
-                value={formData.fiber}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    fiber: Number(e.target.value),
-                  }))
-                }
-                className="rounded-xl font-mono tabular-nums"
-              />
-            </div>
+            {MACRO_FIELDS.map((f) => (
+              <div key={f.key} className="space-y-2">
+                <Label htmlFor={f.key} className={f.color}>{f.label} (g)</Label>
+                <Input
+                  id={f.key}
+                  type="number"
+                  step="0.1"
+                  value={formData[f.key]}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      [f.key]: Number(e.target.value),
+                    }))
+                  }
+                  className="rounded-xl font-mono tabular-nums"
+                />
+              </div>
+            ))}
           </div>
 
           {!isDailyMeal && (

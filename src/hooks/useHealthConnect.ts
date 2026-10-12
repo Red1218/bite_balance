@@ -14,45 +14,22 @@ export interface HealthData {
 }
 
 export const useHealthConnect = () => {
-  const [isAvailable, setIsAvailable] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Already granted from an earlier session: show data straight away.
   useEffect(() => {
-    checkAvailability();
+    HealthConnect.checkPermissions().then(({ granted }) => {
+      if (!granted) return;
+      setIsConnected(true);
+      fetchHealthData();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const checkAvailability = async () => {
-    try {
-      const result = await HealthConnect.isAvailable();
-      setIsAvailable(result.available);
-      
-      if (result.available) {
-        const permResult = await HealthConnect.checkPermissions();
-        if (permResult.granted) {
-          setIsConnected(true);
-          // We call fetchHealthData directly, but we pass a flag to bypass the state check
-          await fetchHealthData(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking Health Connect availability:', error);
-      setIsAvailable(false);
-    }
-  };
-
   const requestPermissions = async () => {
-    if (!isAvailable) {
-      toast({
-        title: 'Health Connect Not Available',
-        description: 'Please install Health Connect from Google Play Store',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
     setLoading(true);
     try {
       const result = await HealthConnect.requestPermissions();
@@ -86,22 +63,20 @@ export const useHealthConnect = () => {
     }
   };
 
-  const fetchHealthData = async (force: boolean = false) => {
-    if (!force && !isConnected && !isAvailable) return;
-
+  const fetchHealthData = async () => {
     setLoading(true);
     try {
-      const [stepsResult, caloriesResult, stepsHistory, caloriesHistory] = await Promise.all([
-        HealthConnect.getTodaysSteps(),
-        HealthConnect.getTodaysCalories(),
+      const [stepsHistory, caloriesHistory] = await Promise.all([
         HealthConnect.getStepsForDays(30),
         HealthConnect.getCaloriesForDays(30),
       ]);
+      // Today is the last day of each history.
+      const today = caloriesHistory.at(-1);
 
       setHealthData({
-        steps: stepsResult.steps,
-        activeCalories: caloriesResult.activeCalories,
-        totalCalories: caloriesResult.totalCalories,
+        steps: stepsHistory.at(-1)?.steps ?? 0,
+        activeCalories: today?.activeCalories ?? 0,
+        totalCalories: today?.totalCalories ?? 0,
         lastUpdated: new Date().toISOString(),
         history: {
           steps: stepsHistory,
@@ -121,7 +96,6 @@ export const useHealthConnect = () => {
   };
 
   return {
-    isAvailable,
     isConnected,
     healthData,
     loading,
