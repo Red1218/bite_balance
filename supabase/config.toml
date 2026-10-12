@@ -2,3 +2,9 @@ project_id = "ppbckzgqevfpkhymwuxs"
 
 [functions.search-food]
 verify_jwt = false
+
+[functions.chat-meal]
+verify_jwt = true
+
+[functions.parse-meal]
+verify_jwt = true

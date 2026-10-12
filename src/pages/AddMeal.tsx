@@ -1,33 +1,21 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import {
   Sparkles,
   Loader2,
   Plus,
   RefreshCw,
-  X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createCustomFood, confirmNotDuplicate, categories } from '@/services/foodService';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import AddFoodForm, { type AddFoodFormProps } from '@/components/AddFoodForm';
 import { fmtLocalDate } from '@/lib/utils';
 import { ChatMealItem, MEAL_LABEL, MEAL_ORDER, MICRO, chatMealItemToRow } from '@/components/MealReviewList';
 import { defaultSlotForNow } from '@/lib/mealTime';
@@ -47,112 +35,20 @@ const AddMeal = () => {
   const [loading, setLoading] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
 
-  const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
-  const [aliasDraft, setAliasDraft] = useState('');
-  const [customFoodForm, setCustomFoodForm] = useState({
-    name: '',
-    category: 'south_indian',
-    serving_size: '100',
-    serving_unit: 'g',
-    calories: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    fiber: '',
-    aliases: '',
-  });
-  const aliasChips = customFoodForm.aliases.split(',').map((a) => a.trim()).filter(Boolean);
+  // Prefill for the "Save as food" dialog; the dialog is open while this is set.
+  const [foodDraft, setFoodDraft] = useState<AddFoodFormProps['initial'] | null>(null);
 
-  const handleCreateCustomFood = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) {
-      toast({
-        title: 'Error',
-        description: 'You must be logged in to save custom foods',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!(await confirmNotDuplicate(customFoodForm.name))) return;
-
-    try {
-      const created = await createCustomFood({
-        name: customFoodForm.name,
-        category: customFoodForm.category,
-        serving_size: Number(customFoodForm.serving_size) || 100,
-        serving_unit: customFoodForm.serving_unit,
-        calories: Number(customFoodForm.calories) || 0,
-        protein: Number(customFoodForm.protein) || 0,
-        carbs: Number(customFoodForm.carbs) || 0,
-        fat: Number(customFoodForm.fat) || 0,
-        fiber: Number(customFoodForm.fiber) || 0,
-      });
-
-      for (const alias of aliasChips) {
-        const { error: aliasError } = await supabase.from('food_aliases').insert({
-          food_id: created.id,
-          alias: alias,
-        });
-        if (aliasError) {
-          console.warn('Failed to insert alias:', alias, aliasError);
-        }
-      }
-
-      toast({
-        title: 'Custom Food Saved',
-        description: `"${customFoodForm.name}" has been added to your foods.`,
-      });
-      setIsCustomDialogOpen(false);
-    } catch (err) {
-      console.error(err);
-      toast({
-        title: 'Error saving food',
-        description: err instanceof Error ? err.message : 'Please check details.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const openSaveAsCustomFood = () => {
-    // Manual's fields hold totals for the entered portion, but custom foods
-    // are stored per-100g (matching how every other food in indian_foods
-    // works) -- normalize before prefilling, or a >100g portion gets saved
-    // that many times too rich.
-    const weight = Number(portionWeight) || 100;
-    const ratio = 100 / weight;
-    setCustomFoodForm({
+  // Saved foods are per serving (calories and macros for serving_size), so the meal's
+  // portion becomes the serving and its totals carry over as-is.
+  const openSaveAsCustomFood = () =>
+    setFoodDraft({
       name: mealData.name,
-      category: 'south_indian',
       serving_size: portionWeight || '100',
-      serving_unit: 'g',
-      calories: String(Math.round((Number(mealData.calories) || 0) * ratio)),
-      protein: String(Math.round((Number(mealData.protein) || 0) * ratio * 10) / 10),
-      carbs: String(Math.round((Number(mealData.carbs) || 0) * ratio * 10) / 10),
-      fat: String(Math.round((Number(mealData.fat) || 0) * ratio * 10) / 10),
-      fiber: String(Math.round((Number(mealData.fiber) || 0) * ratio * 10) / 10),
-      aliases: '',
+      calories: String(Math.round(Number(mealData.calories) || 0)),
+      ...Object.fromEntries(
+        (['protein', 'carbs', 'fat', 'fiber'] as const).map((k) => [k, String(Math.round((Number(mealData[k]) || 0) * 10) / 10)])
+      ),
     });
-    setAliasDraft('');
-    setIsCustomDialogOpen(true);
-  };
-
-  const commitAliasDraft = () => {
-    const val = aliasDraft.trim();
-    if (!val) return;
-    setCustomFoodForm((prev) => ({
-      ...prev,
-      aliases: [...aliasChips, val].join(', '),
-    }));
-    setAliasDraft('');
-  };
-
-  const removeAliasChip = (idx: number) => {
-    setCustomFoodForm((prev) => ({
-      ...prev,
-      aliases: aliasChips.filter((_, i) => i !== idx).join(', '),
-    }));
-  };
 
   const [baseNutrition, setBaseNutrition] = useState<
     (Record<NutrientKey, number> & { servingSizeWeight: number }) | null
@@ -577,171 +473,13 @@ const AddMeal = () => {
               </form>
             </div>
 
-      {/* Save as Custom Food Dialog */}
-      <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-sm overflow-y-auto rounded-xl border-border bg-card p-5 text-foreground">
-          <form onSubmit={handleCreateCustomFood} className="space-y-4">
-            <DialogHeader className="space-y-1.5 pr-6 text-left">
-              <DialogTitle className="font-display text-lg">Save as food</DialogTitle>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Every field is editable. Prefilled from the meal you just entered — name, portion and the four macros.
-              </p>
-            </DialogHeader>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="custom-name" className="text-[10px] uppercase tracking-wide text-muted-foreground">Food Name</Label>
-              <Input
-                id="custom-name"
-                value={customFoodForm.name}
-                onChange={(e) => setCustomFoodForm({ ...customFoodForm, name: e.target.value })}
-                placeholder="e.g. Homemade Chicken Curry"
-                className="h-[42px] rounded-[11px] bg-background/60 text-sm"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-category" className="text-[10px] uppercase tracking-wide text-muted-foreground">Category</Label>
-                <Select
-                  value={customFoodForm.category}
-                  onValueChange={(val) => setCustomFoodForm({ ...customFoodForm, category: val })}
-                >
-                  <SelectTrigger className="h-[42px] rounded-[11px] bg-background/60 text-sm">
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.icon} {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-serving" className="text-[10px] uppercase tracking-wide text-muted-foreground">Portion Size</Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-serving"
-                    type="number"
-                    value={customFoodForm.serving_size}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, serving_size: e.target.value })}
-                    placeholder="100"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                    required
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">g</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-unit" className="text-[10px] uppercase tracking-wide text-muted-foreground">Serving Unit</Label>
-                <Input
-                  id="custom-unit"
-                  value={customFoodForm.serving_unit}
-                  onChange={(e) => setCustomFoodForm({ ...customFoodForm, serving_unit: e.target.value })}
-                  placeholder="piece, glass, g, ml"
-                  className="h-[42px] rounded-[11px] bg-background/60 text-sm"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-calories" className="text-[10px] uppercase tracking-wide text-muted-foreground">Calories per 100g</Label>
-                <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                  <input
-                    id="custom-calories"
-                    type="number"
-                    value={customFoodForm.calories}
-                    onChange={(e) => setCustomFoodForm({ ...customFoodForm, calories: e.target.value })}
-                    placeholder="0"
-                    className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                    required
-                  />
-                  <span className="flex-none text-[11px] text-muted-foreground">kcal</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="h-px bg-border" />
-
-            {/* gap-y-4 matches the form's space-y-4 between the two former 2-col rows */}
-            <div className="grid grid-cols-2 gap-x-2.5 gap-y-4">
-              {macroFields.map((m) => (
-                <div key={m.key} className="space-y-1.5">
-                  <Label htmlFor={`custom-${m.key}`} className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wide ${m.text}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-                    {m.key === 'fat' ? 'Fat' : m.label} / 100g
-                  </Label>
-                  <div className="flex h-[42px] items-center gap-1.5 rounded-[11px] border border-input bg-background/60 px-3">
-                    <input
-                      id={`custom-${m.key}`}
-                      type="number"
-                      step="0.1"
-                      value={customFoodForm[m.key]}
-                      onChange={(e) => setCustomFoodForm({ ...customFoodForm, [m.key]: e.target.value })}
-                      placeholder="0"
-                      className="w-full min-w-0 bg-transparent font-mono text-sm tabular-nums text-foreground focus:outline-none"
-                      required={m.key !== 'fiber'}
-                    />
-                    <span className="flex-none text-[11px] text-muted-foreground">g</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-baseline justify-between">
-                <Label htmlFor="custom-alias-draft" className="text-[10px] uppercase tracking-wide text-muted-foreground">Aliases</Label>
-                <span className="text-[10px] text-muted-foreground">optional</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5 rounded-[11px] border border-input bg-background/60 p-2">
-                {aliasChips.map((chip, i) => (
-                  <span
-                    key={`${chip}-${i}`}
-                    className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground"
-                  >
-                    {chip}
-                    <button type="button" onClick={() => removeAliasChip(i)} aria-label={`Remove ${chip}`}>
-                      <X className="h-2.5 w-2.5 text-muted-foreground" />
-                    </button>
-                  </span>
-                ))}
-                <input
-                  id="custom-alias-draft"
-                  value={aliasDraft}
-                  onChange={(e) => setAliasDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === ',' || e.key === 'Enter') {
-                      e.preventDefault();
-                      commitAliasDraft();
-                    }
-                  }}
-                  onBlur={commitAliasDraft}
-                  placeholder="Type and press comma"
-                  className="min-w-[110px] flex-1 bg-transparent px-1 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="flex-row gap-2.5 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCustomDialogOpen(false)}
-                className="h-[52px] w-[106px] flex-none rounded-[14px]"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" className="h-[52px] flex-1 rounded-[14px]">
-                Save Food
-              </Button>
-            </DialogFooter>
-          </form>
+      {/* Save as food: the same form as Saved > Add a food, prefilled from this meal */}
+      <Dialog open={!!foodDraft} onOpenChange={(open) => !open && setFoodDraft(null)}>
+        <DialogContent className="max-h-[90vh] max-w-sm overflow-y-auto border-none bg-transparent p-0 shadow-none [&>button]:hidden">
+          <DialogTitle className="sr-only">Save as food</DialogTitle>
+          {foodDraft && (
+            <AddFoodForm initial={foodDraft} onFoodAdded={() => setFoodDraft(null)} onCancel={() => setFoodDraft(null)} />
+          )}
         </DialogContent>
       </Dialog>
     </div>
