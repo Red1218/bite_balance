@@ -113,6 +113,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // verify_jwt also accepts the public anon key, so check the token belongs to a signed-in user.
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: 'Sign in required.' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   const { text } = await req.json();
 
   if (!text || text.trim().length < 3) {
