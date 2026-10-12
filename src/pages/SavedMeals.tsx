@@ -71,7 +71,6 @@ const SavedMeals = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [editingMeal, setEditingMeal] = useState<SavedMeal | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addKind, setAddKind] = useState<'meal' | 'food'>('meal');
   const [editingFood, setEditingFood] = useState<IndianFood | null>(null);
@@ -152,7 +151,6 @@ const SavedMeals = () => {
 
   const handleEditMeal = (meal: SavedMeal) => {
     setEditingMeal(meal);
-    setIsEditDialogOpen(true);
   };
 
   const handleDeleteMeal = async (meal: SavedMeal) => {
@@ -227,6 +225,9 @@ const SavedMeals = () => {
     // The form renders above the list.
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const selectedForToday =
+    selectedItemForToday?.kind === 'meal' ? selectedItemForToday.meal : selectedItemForToday?.food;
 
   const handleBulkDelete = async () => {
     const count = selectedKeys.size;
@@ -475,22 +476,19 @@ const SavedMeals = () => {
                               <div style={{ width: bw }} className="bg-chart-fiber" />
                             </div>
                             <div className="flex gap-3 font-mono text-[10px] font-medium tabular-nums">
-                              <span className="flex items-center gap-1 text-chart-protein">
-                                <span className="w-1.5 h-1.5 rounded-full bg-chart-protein" />
-                                P {Math.round(item.meal.protein || 0)}
-                              </span>
-                              <span className="flex items-center gap-1 text-chart-carbs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-chart-carbs" />
-                                C {Math.round(item.meal.carbs || 0)}
-                              </span>
-                              <span className="flex items-center gap-1 text-chart-fat">
-                                <span className="w-1.5 h-1.5 rounded-full bg-chart-fat" />
-                                F {Math.round(item.meal.fat || 0)}
-                              </span>
-                              <span className="flex items-center gap-1 text-chart-fiber">
-                                <span className="w-1.5 h-1.5 rounded-full bg-chart-fiber" />
-                                Fib {Math.round(item.meal.fiber || 0)}
-                              </span>
+                              {(
+                                [
+                                  ['P', 'protein', 'text-chart-protein', 'bg-chart-protein'],
+                                  ['C', 'carbs', 'text-chart-carbs', 'bg-chart-carbs'],
+                                  ['F', 'fat', 'text-chart-fat', 'bg-chart-fat'],
+                                  ['Fib', 'fiber', 'text-chart-fiber', 'bg-chart-fiber'],
+                                ] as const
+                              ).map(([label, macro, text, bg]) => (
+                                <span key={macro} className={`flex items-center gap-1 ${text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${bg}`} />
+                                  {label} {Math.round(item.meal[macro] || 0)}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         );
@@ -660,8 +658,8 @@ const SavedMeals = () => {
 
         <EditMealDialog
           meal={editingMeal}
-          open={isEditDialogOpen}
-          onOpenChange={setIsEditDialogOpen}
+          open={!!editingMeal}
+          onOpenChange={(open) => !open && setEditingMeal(null)}
           onSave={handleSaveMeal}
           isDailyMeal={false}
         />
@@ -670,20 +668,8 @@ const SavedMeals = () => {
           open={isMealTimeSelectorOpen}
           onOpenChange={setIsMealTimeSelectorOpen}
           onSelect={handleMealTimeSelect}
-          mealName={
-            selectedItemForToday?.kind === 'meal'
-              ? selectedItemForToday.meal.name
-              : selectedItemForToday?.kind === 'food'
-              ? selectedItemForToday.food.name
-              : ''
-          }
-          kcal={
-            selectedItemForToday?.kind === 'meal'
-              ? selectedItemForToday.meal.calories
-              : selectedItemForToday?.kind === 'food'
-              ? selectedItemForToday.food.calories
-              : undefined
-          }
+          mealName={selectedForToday?.name ?? ''}
+          kcal={selectedForToday?.calories}
         />
       </div>
     </div>

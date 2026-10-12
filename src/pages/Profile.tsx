@@ -11,23 +11,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, fmtLocalDate } from '@/lib/utils';
+import { MICRO } from '@/components/MealReviewList';
 
 const WATER_GOAL_GLASSES = 8; // matches useWaterTracker's fixed daily goal
 const STEP_GOAL = 10000; // matches Steps.tsx
 
 // Standard adult RDA defaults -- same values the chat-meal edge function's
 // reference data assumes. `cap` marks an upper limit rather than a target minimum.
-const MICRO_GOALS = [
-  { label: 'Vitamin C', value: '90 mg', dot: 'bg-chart-vitc' },
-  { label: 'Vitamin D', value: '15 µg', dot: 'bg-chart-vitd' },
-  { label: 'Vitamin B12', value: '2.4 µg', dot: 'bg-chart-b12' },
-  { label: 'Iron', value: '18 mg', dot: 'bg-chart-iron' },
-  { label: 'Calcium', value: '1,000 mg', dot: 'bg-chart-calcium' },
-  { label: 'Potassium', value: '3,500 mg', dot: 'bg-chart-potassium' },
-  { label: 'Sodium', value: '≤ 2,300 mg', dot: 'bg-chart-sodium' },
-  { label: 'Magnesium', value: '400 mg', dot: 'bg-chart-magnesium' },
-  { label: 'Zinc', value: '11 mg', dot: 'bg-chart-zinc' },
-];
+const LONG_NAME: Record<string, string> = { vitaminC: 'Vitamin C', vitaminD: 'Vitamin D', vitaminB12: 'Vitamin B12' };
+const MICRO_GOALS = MICRO.map((m) => ({
+  label: LONG_NAME[m.key] ?? m.label,
+  value: `${'cap' in m ? '≤ ' : ''}${m.goal.toLocaleString('en-US')} ${m.unit}`,
+  dot: m.dot,
+}));
 
 const MACRO_GOAL_FIELDS = [
   { key: 'protein', label: 'Protein', dot: 'bg-chart-protein' },

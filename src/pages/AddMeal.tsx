@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createCustomFood, findExistingSavedItemByName } from '@/services/foodService';
+import { createCustomFood, confirmNotDuplicate, categories } from '@/services/foodService';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { fmtLocalDate } from '@/lib/utils';
-import { ChatMealItem, MealTime, MICRO, chatMealItemToRow } from '@/components/MealReviewList';
+import { ChatMealItem, MEAL_LABEL, MEAL_ORDER, MICRO, chatMealItemToRow } from '@/components/MealReviewList';
+import { defaultSlotForNow } from '@/lib/mealTime';
 
 const MICRO_KEYS = MICRO.map((m) => m.key);
 const NUTRIENT_KEYS = ['calories', 'protein', 'carbs', 'fat', 'fiber', ...MICRO_KEYS] as const;
@@ -38,22 +39,6 @@ type NutrientKey = (typeof NUTRIENT_KEYS)[number];
 function mapNutrients<T>(f: (k: NutrientKey) => T) {
   return Object.fromEntries(NUTRIENT_KEYS.map((k) => [k, f(k)])) as Record<NutrientKey, T>;
 }
-
-const categories = [
-  { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
-  { id: 'south_indian', name: 'South Indian', icon: '🥞' },
-  { id: 'north_indian', name: 'North Indian', icon: '🫓' },
-  { id: 'curries', name: 'Curries', icon: '🍛' },
-  { id: 'vegetables', name: 'Vegetables', icon: '🥦' },
-  { id: 'fruits', name: 'Fruits', icon: '🍎' },
-  { id: 'dairy', name: 'Dairy', icon: '🧀' },
-  { id: 'eggs', name: 'Eggs', icon: '🥚' },
-  { id: 'chicken', name: 'Chicken', icon: '🍗' },
-  { id: 'meat', name: 'Meat', icon: '🥩' },
-  { id: 'seafood', name: 'Seafood', icon: '🐟' },
-  { id: 'snacks', name: 'Snacks', icon: '🥟' },
-  { id: 'beverages', name: 'Beverages', icon: '☕' },
-];
 
 const AddMeal = () => {
   const { toast } = useToast();
@@ -89,13 +74,7 @@ const AddMeal = () => {
       return;
     }
 
-    const existing = await findExistingSavedItemByName(customFoodForm.name);
-    if (existing) {
-      const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
-      if (!window.confirm(`You already have a ${kind} named "${customFoodForm.name}". Save this anyway?`)) {
-        return;
-      }
-    }
+    if (!(await confirmNotDuplicate(customFoodForm.name))) return;
 
     try {
       const created = await createCustomFood({
@@ -110,20 +89,13 @@ const AddMeal = () => {
         fiber: Number(customFoodForm.fiber) || 0,
       });
 
-      if (customFoodForm.aliases.trim()) {
-        const aliasList = customFoodForm.aliases
-          .split(',')
-          .map((a) => a.trim())
-          .filter((a) => a.length > 0);
-
-        for (const alias of aliasList) {
-          const { error: aliasError } = await supabase.from('food_aliases').insert({
-            food_id: created.id,
-            alias: alias,
-          });
-          if (aliasError) {
-            console.warn('Failed to insert alias:', alias, aliasError);
-          }
+      for (const alias of aliasChips) {
+        const { error: aliasError } = await supabase.from('food_aliases').insert({
+          food_id: created.id,
+          alias: alias,
+        });
+        if (aliasError) {
+          console.warn('Failed to insert alias:', alias, aliasError);
         }
       }
 
@@ -187,15 +159,7 @@ const AddMeal = () => {
   >(null);
   const [portionWeight, setPortionWeight] = useState<string>('100');
 
-  const getDefaultMealTime = (): MealTime => {
-    const hour = new Date().getHours();
-    if (hour < 11) return 'breakfast';
-    if (hour < 16) return 'lunch';
-    if (hour < 20) return 'dinner';
-    return 'snack';
-  };
-
-  const emptyMeal = () => ({ name: '', mealTime: getDefaultMealTime(), ...mapNutrients(() => '') });
+  const emptyMeal = () => ({ name: '', mealTime: defaultSlotForNow(), ...mapNutrients(() => '') });
   const [mealData, setMealData] = useState(emptyMeal);
 
   const handlePortionWeightChange = (newWeightStr: string) => {
@@ -365,7 +329,7 @@ const AddMeal = () => {
     <div className="px-4 pb-6 pt-2">
       {/* Meal slot chips */}
       <div className="flex gap-2 mb-6">
-          {(['breakfast', 'lunch', 'snack', 'dinner'] as const).map((slot) => {
+          {MEAL_ORDER.map((slot) => {
             const isActive = mealData.mealTime === slot;
             return (
               <button
@@ -378,7 +342,7 @@ const AddMeal = () => {
                     : 'rounded-full px-[13px] py-2 text-xs font-medium bg-muted border border-border text-muted-foreground'
                 }
               >
-                {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                {MEAL_LABEL[slot]}
               </button>
             );
           })}
@@ -602,7 +566,7 @@ const AddMeal = () => {
                     'Adding...'
                   ) : mealData.calories ? (
                     <>
-                      Add to {mealData.mealTime.charAt(0).toUpperCase() + mealData.mealTime.slice(1)}
+                      Add to {MEAL_LABEL[mealData.mealTime]}
                       <span className="h-4 w-px bg-primary-foreground/30" />
                       <span className="font-mono tabular-nums">{mealData.calories} kcal</span>
                     </>
