@@ -53,6 +53,19 @@ const MACRO_FIELDS = [
   { key: 'fiber', label: 'Fiber', color: 'text-chart-fiber' },
 ] as const;
 
+const toForm = (meal: EditableMeal | null) => ({
+  name: meal?.name || '',
+  calories: meal?.calories || 0,
+  protein: meal?.protein || 0,
+  carbs: meal?.carbs || 0,
+  fat: meal?.fat || 0,
+  fiber: meal?.fiber || 0,
+  grams: meal?.grams ?? '',
+  meal_time: meal?.meal_time || 'snack',
+  tags: meal?.tags?.join(', ') || '',
+  notes: meal?.notes || '',
+});
+
 const EditMealDialog: React.FC<EditMealDialogProps> = ({
   meal,
   open,
@@ -60,18 +73,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
   onSave,
   isDailyMeal = false,
 }) => {
-  const [formData, setFormData] = useState({
-    name: meal?.name || '',
-    calories: meal?.calories || 0,
-    protein: meal?.protein || 0,
-    carbs: meal?.carbs || 0,
-    fat: meal?.fat || 0,
-    fiber: meal?.fiber || 0,
-    grams: meal?.grams ?? '',
-    meal_time: meal?.meal_time || 'snack',
-    tags: meal?.tags?.join(', ') || '',
-    notes: meal?.notes || '',
-  });
+  const [formData, setFormData] = useState(() => toForm(meal));
 
   const [loading, setLoading] = useState(false);
 
@@ -110,20 +112,7 @@ const EditMealDialog: React.FC<EditMealDialogProps> = ({
   };
 
   React.useEffect(() => {
-    if (meal) {
-      setFormData({
-        name: meal.name || '',
-        calories: meal.calories || 0,
-        protein: meal.protein || 0,
-        carbs: meal.carbs || 0,
-        fat: meal.fat || 0,
-        fiber: meal.fiber || 0,
-        grams: meal.grams ?? '',
-        meal_time: meal.meal_time || 'snack',
-        tags: meal.tags?.join(', ') || '',
-        notes: meal.notes || '',
-      });
-    }
+    if (meal) setFormData(toForm(meal));
   }, [meal]);
 
   return (

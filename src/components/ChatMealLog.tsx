@@ -40,10 +40,10 @@ const MAX_FAILED_RESTARTS = 10;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const rowToItem = (row: DailyMeal): ChatMealItem => ({
+const toItem = (row: DailyMeal | SavedMeal, mealTime: MealTime, grams: number): ChatMealItem => ({
   name: row.name,
-  mealTime: row.meal_time as MealTime,
-  grams: row.grams ?? 0,
+  mealTime,
+  grams,
   calories: row.calories,
   protein: row.protein ?? 0,
   carbs: row.carbs ?? 0,
@@ -60,25 +60,7 @@ const rowToItem = (row: DailyMeal): ChatMealItem => ({
   zinc: row.zinc ?? 0,
 });
 
-const savedMealToItem = (meal: SavedMeal, mealTime: MealTime): ChatMealItem => ({
-  name: meal.name,
-  mealTime,
-  grams: 0,
-  calories: meal.calories,
-  protein: meal.protein ?? 0,
-  carbs: meal.carbs ?? 0,
-  fat: meal.fat ?? 0,
-  fiber: meal.fiber ?? 0,
-  vitaminC: meal.vitamin_c ?? 0,
-  vitaminD: meal.vitamin_d ?? 0,
-  vitaminB12: meal.vitamin_b12 ?? 0,
-  iron: meal.iron ?? 0,
-  calcium: meal.calcium ?? 0,
-  potassium: meal.potassium ?? 0,
-  sodium: meal.sodium ?? 0,
-  magnesium: meal.magnesium ?? 0,
-  zinc: meal.zinc ?? 0,
-});
+const rowToItem = (row: DailyMeal) => toItem(row, row.meal_time as MealTime, row.grams ?? 0);
 
 // If exactly one item changed grams/calories between turns and nothing else
 // about the list's shape moved, render it as a diff line instead of prose.
@@ -429,10 +411,21 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     }
   };
 
+  const runChip = async (key: NonNullable<typeof chipLoading>, errorMessage: string, fn: () => Promise<void>) => {
+    setChipLoading(key);
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`${errorMessage}:`, err);
+      toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+    } finally {
+      setChipLoading(null);
+    }
+  };
+
   const handleSameAsYesterday = async () => {
     if (!user) return;
-    setChipLoading('yesterday');
-    try {
+    await runChip('yesterday', "Failed to load yesterday's meals", async () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       const dateStr = fmtLocalDate(yesterday);
@@ -447,18 +440,12 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         return;
       }
       setItems((prev) => [...prev, ...(data as DailyMeal[]).map(rowToItem)]);
-    } catch (err) {
-      console.error("Failed to load yesterday's meals:", err);
-      toast({ title: 'Error', description: "Failed to load yesterday's meals", variant: 'destructive' });
-    } finally {
-      setChipLoading(null);
-    }
+    });
   };
 
   const handleRepeatLastDinner = async () => {
     if (!user) return;
-    setChipLoading('dinner');
-    try {
+    await runChip('dinner', 'Failed to load last dinner', async () => {
       const today = fmtLocalDate(new Date());
       const { data, error } = await supabase
         .from('daily_meals')
@@ -477,18 +464,12 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       const lastDate = (data as DailyMeal[])[0].logged_date;
       const rows = (data as DailyMeal[]).filter((r) => r.logged_date === lastDate);
       setItems((prev) => [...prev, ...rows.map((r) => ({ ...rowToItem(r), mealTime: defaultSlotForNow() }))]);
-    } catch (err) {
-      console.error('Failed to load last dinner:', err);
-      toast({ title: 'Error', description: 'Failed to load last dinner', variant: 'destructive' });
-    } finally {
-      setChipLoading(null);
-    }
+    });
   };
 
   const handleMostLogged = async () => {
     if (!user) return;
-    setChipLoading('most');
-    try {
+    await runChip('most', 'Failed to load most logged meal', async () => {
       const { data, error } = await supabase
         .from('daily_meals')
         .select('*')
@@ -513,16 +494,11 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       });
       const mostRecent = rows.find((r) => r.name === topName)!;
       setItems((prev) => [...prev, { ...rowToItem(mostRecent), mealTime: defaultSlotForNow() }]);
-    } catch (err) {
-      console.error('Failed to load most logged meal:', err);
-      toast({ title: 'Error', description: 'Failed to load most logged meal', variant: 'destructive' });
-    } finally {
-      setChipLoading(null);
-    }
+    });
   };
 
   const handlePickSavedMeal = (meal: SavedMeal) => {
-    setItems((prev) => [...prev, savedMealToItem(meal, defaultSlotForNow())]);
+    setItems((prev) => [...prev, toItem(meal, defaultSlotForNow(), 0)]);
   };
 
   const handleChangeMealTime = (idx: number, mealTime: MealTime) => {
@@ -666,37 +642,27 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         <div className="space-y-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Or start from</span>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleSameAsYesterday}
-              disabled={chipLoading !== null}
-              className="rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground disabled:opacity-50"
-            >
-              {chipLoading === 'yesterday' ? 'Loading...' : 'Same as yesterday'}
-            </button>
-            <button
-              type="button"
-              onClick={handleRepeatLastDinner}
-              disabled={chipLoading !== null}
-              className="rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground disabled:opacity-50"
-            >
-              {chipLoading === 'dinner' ? 'Loading...' : 'Repeat last dinner'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSavedMeals((v) => !v)}
-              className="rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground"
-            >
-              From saved meals
-            </button>
-            <button
-              type="button"
-              onClick={handleMostLogged}
-              disabled={chipLoading !== null}
-              className="rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground disabled:opacity-50"
-            >
-              {chipLoading === 'most' ? 'Loading...' : 'Most logged'}
-            </button>
+            {(
+              [
+                { key: 'yesterday', label: 'Same as yesterday', onClick: handleSameAsYesterday },
+                { key: 'dinner', label: 'Repeat last dinner', onClick: handleRepeatLastDinner },
+                { key: null, label: 'From saved meals', onClick: () => setShowSavedMeals((v) => !v) },
+                { key: 'most', label: 'Most logged', onClick: handleMostLogged },
+              ] as const
+            ).map(({ key, label, onClick }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                disabled={key !== null && chipLoading !== null}
+                className={cn(
+                  'rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground',
+                  key && 'disabled:opacity-50'
+                )}
+              >
+                {key && chipLoading === key ? 'Loading...' : label}
+              </button>
+            ))}
           </div>
           {showSavedMeals && (
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-border p-2">

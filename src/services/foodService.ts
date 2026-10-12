@@ -4,14 +4,35 @@ import { Database } from '@/integrations/supabase/types';
 export type IndianFood = Database['public']['Tables']['indian_foods']['Row'];
 export type NewIndianFood = Database['public']['Tables']['indian_foods']['Insert'];
 
+export const categories = [
+  { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
+  { id: 'south_indian', name: 'South Indian', icon: '🥞' },
+  { id: 'north_indian', name: 'North Indian', icon: '🫓' },
+  { id: 'curries', name: 'Curries', icon: '🍛' },
+  { id: 'vegetables', name: 'Vegetables', icon: '🥦' },
+  { id: 'fruits', name: 'Fruits', icon: '🍎' },
+  { id: 'dairy', name: 'Dairy', icon: '🧀' },
+  { id: 'eggs', name: 'Eggs', icon: '🥚' },
+  { id: 'chicken', name: 'Chicken', icon: '🍗' },
+  { id: 'meat', name: 'Meat', icon: '🥩' },
+  { id: 'seafood', name: 'Seafood', icon: '🐟' },
+  { id: 'snacks', name: 'Snacks', icon: '🥟' },
+  { id: 'beverages', name: 'Beverages', icon: '☕' },
+];
+
+async function requireUser() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('User must be authenticated');
+  return user;
+}
+
 /**
  * Inserts a new custom food for the authenticated user.
  */
 export async function createCustomFood(
   food: Omit<NewIndianFood, 'id' | 'is_verified' | 'user_id' | 'created_at'>
 ): Promise<IndianFood> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User must be authenticated');
+  const user = await requireUser();
 
   const { data, error } = await supabase
     .from('indian_foods')
@@ -35,8 +56,7 @@ export async function createCustomFood(
  * Lists the authenticated user's own custom foods, most recently saved first.
  */
 export async function getMyCustomFoods(): Promise<IndianFood[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User must be authenticated');
+  const user = await requireUser();
 
   const { data, error } = await supabase
     .from('indian_foods')
@@ -55,8 +75,7 @@ export async function getMyCustomFoods(): Promise<IndianFood[]> {
 export type CustomFoodUpdate = Partial<Omit<NewIndianFood, 'id' | 'is_verified' | 'user_id' | 'created_at'>>;
 
 export async function updateCustomFood(id: string, updates: CustomFoodUpdate): Promise<IndianFood> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User must be authenticated');
+  const user = await requireUser();
 
   const { data, error } = await supabase
     .from('indian_foods')
@@ -75,8 +94,7 @@ export async function updateCustomFood(id: string, updates: CustomFoodUpdate): P
 }
 
 export async function deleteCustomFood(id: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User must be authenticated');
+  const user = await requireUser();
 
   const { error } = await supabase.from('indian_foods').delete().eq('id', id).eq('user_id', user.id);
   if (error) {
@@ -87,8 +105,7 @@ export async function deleteCustomFood(id: string): Promise<void> {
 
 export async function deleteCustomFoods(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('User must be authenticated');
+  const user = await requireUser();
 
   const { error } = await supabase.from('indian_foods').delete().in('id', ids).eq('user_id', user.id);
   if (error) {
@@ -116,4 +133,15 @@ export async function findExistingSavedItemByName(
   if (meals?.[0]) return { type: 'meal', id: meals[0].id };
   if (foods?.[0]) return { type: 'food', id: foods[0].id };
   return null;
+}
+
+/**
+ * Asks before saving under a name that's already taken; true means go ahead.
+ * selfId: the item being edited, which isn't a duplicate of itself.
+ */
+export async function confirmNotDuplicate(name: string, selfId?: string): Promise<boolean> {
+  const existing = await findExistingSavedItemByName(name);
+  if (!existing || existing.id === selfId) return true;
+  const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
+  return window.confirm(`You already have a ${kind} named "${name}". Save this anyway?`);
 }

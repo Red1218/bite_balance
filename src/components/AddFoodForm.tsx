@@ -14,25 +14,10 @@ import { useToast } from '@/hooks/use-toast';
 import {
   createCustomFood,
   updateCustomFood,
-  findExistingSavedItemByName,
+  confirmNotDuplicate,
+  categories,
   IndianFood,
 } from '@/services/foodService';
-
-const categories = [
-  { id: 'rice_grains', name: 'Rice & Grains', icon: '🍚' },
-  { id: 'south_indian', name: 'South Indian', icon: '🥞' },
-  { id: 'north_indian', name: 'North Indian', icon: '🫓' },
-  { id: 'curries', name: 'Curries', icon: '🍛' },
-  { id: 'vegetables', name: 'Vegetables', icon: '🥦' },
-  { id: 'fruits', name: 'Fruits', icon: '🍎' },
-  { id: 'dairy', name: 'Dairy', icon: '🧀' },
-  { id: 'eggs', name: 'Eggs', icon: '🥚' },
-  { id: 'chicken', name: 'Chicken', icon: '🍗' },
-  { id: 'meat', name: 'Meat', icon: '🥩' },
-  { id: 'seafood', name: 'Seafood', icon: '🐟' },
-  { id: 'snacks', name: 'Snacks', icon: '🥟' },
-  { id: 'beverages', name: 'Beverages', icon: '☕' },
-];
 
 const MACRO_FIELDS = [
   { key: 'protein', label: 'Protein', color: 'text-chart-protein' },
@@ -76,13 +61,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food }
     }
 
     // Editing: the food matching its own name isn't a duplicate.
-    const existing = await findExistingSavedItemByName(formData.name);
-    if (existing && existing.id !== food?.id) {
-      const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
-      if (!window.confirm(`You already have a ${kind} named "${formData.name}". Save this anyway?`)) {
-        return;
-      }
-    }
+    if (!(await confirmNotDuplicate(formData.name, food?.id))) return;
 
     setLoading(true);
 

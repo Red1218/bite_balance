@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { findExistingSavedItemByName, getMyCustomFoods, IndianFood } from '@/services/foodService';
+import { confirmNotDuplicate, getMyCustomFoods, IndianFood } from '@/services/foodService';
 
 interface AddSavedMealFormProps {
   onMealAdded: () => void;
@@ -147,13 +147,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
       return;
     }
 
-    const existing = await findExistingSavedItemByName(formData.name);
-    if (existing) {
-      const kind = existing.type === 'meal' ? 'saved meal' : 'custom food';
-      if (!window.confirm(`You already have a ${kind} named "${formData.name}". Save this anyway?`)) {
-        return;
-      }
-    }
+    if (!(await confirmNotDuplicate(formData.name))) return;
 
     setLoading(true);
 

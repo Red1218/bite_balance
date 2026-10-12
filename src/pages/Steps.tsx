@@ -28,10 +28,6 @@ const Steps = () => {
     fetchHealthData,
   } = useHealthConnect();
 
-  const handleConnect = async () => {
-    await requestPermissions();
-  };
-
   const handleRefresh = async () => {
     await fetchHealthData();
   };
@@ -64,7 +60,7 @@ const Steps = () => {
               one place.
             </p>
             <Button
-              onClick={handleConnect}
+              onClick={requestPermissions}
               disabled={loading}
               className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
             >
@@ -124,28 +120,20 @@ const Steps = () => {
               </div>
 
               <div className="grid grid-cols-3 gap-3 border-t border-border pt-3.5">
-                <div>
-                  <div className="font-sans text-[10px] text-muted-foreground">Distance</div>
-                  <div className="mt-1.5 font-mono text-base font-semibold tabular-nums text-foreground">
-                    {/* ponytail: no GPS distance source, estimated from steps at ~0.78m stride */}
-                    {(healthData.steps * 0.00078).toFixed(1)}
-                    <span className="font-sans text-[10px] font-medium text-muted-foreground"> km</span>
+                {[
+                  // ponytail: no GPS distance source, estimated from steps at ~0.78m stride
+                  { label: 'Distance', value: (healthData.steps * 0.00078).toFixed(1), unit: 'km', color: 'text-foreground' },
+                  { label: 'Burned', value: Math.round(healthData.activeCalories), unit: 'kcal', color: 'text-chart-steps' },
+                  { label: 'Active', value: Math.round(healthData.totalCalories), unit: 'kcal', color: 'text-foreground' },
+                ].map((s) => (
+                  <div key={s.label}>
+                    <div className="font-sans text-[10px] text-muted-foreground">{s.label}</div>
+                    <div className={`mt-1.5 font-mono text-base font-semibold tabular-nums ${s.color}`}>
+                      {s.value}
+                      <span className="font-sans text-[10px] font-medium text-muted-foreground"> {s.unit}</span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="font-sans text-[10px] text-muted-foreground">Burned</div>
-                  <div className="mt-1.5 font-mono text-base font-semibold tabular-nums text-chart-steps">
-                    {Math.round(healthData.activeCalories)}
-                    <span className="font-sans text-[10px] font-medium text-muted-foreground"> kcal</span>
-                  </div>
-                </div>
-                <div>
-                  <div className="font-sans text-[10px] text-muted-foreground">Active</div>
-                  <div className="mt-1.5 font-mono text-base font-semibold tabular-nums text-foreground">
-                    {Math.round(healthData.totalCalories)}
-                    <span className="font-sans text-[10px] font-medium text-muted-foreground"> kcal</span>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
 
