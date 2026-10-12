@@ -43,16 +43,21 @@ serve(async (req) => {
   upstream.append('language', 'en');
   upstream.append('prompt', PROMPT);
 
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}` },
-    body: upstream,
-  });
-  if (!res.ok) {
-    console.error('OpenAI transcription failed', res.status, await res.text());
+  try {
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}` },
+      body: upstream,
+    });
+    if (!res.ok) {
+      console.error('OpenAI transcription failed', res.status, await res.text());
+      return json({ error: 'Transcription failed' }, 502);
+    }
+
+    const data = await res.json();
+    return json({ text: String(data.text ?? '').trim() });
+  } catch (err) {
+    console.error('OpenAI transcription request failed', err);
     return json({ error: 'Transcription failed' }, 502);
   }
-
-  const data = await res.json();
-  return json({ text: String(data.text ?? '').trim() });
 });
