@@ -29,7 +29,14 @@ const MICRO_GOALS = [
   { label: 'Zinc', value: '11 mg', dot: 'bg-chart-zinc' },
 ];
 
-const ACTIVITY_MULTIPLIERS = { sedentary: 1.2, active: 1.55, very_active: 1.725 };
+const MACRO_GOAL_FIELDS = [
+  { key: 'protein', label: 'Protein', dot: 'bg-chart-protein' },
+  { key: 'carbs', label: 'Carbs', dot: 'bg-chart-carbs' },
+  { key: 'fat', label: 'Fat', dot: 'bg-chart-fat' },
+  { key: 'fiber', label: 'Fibre', dot: 'bg-chart-fiber' },
+] as const;
+
+const ACTIVITY_MULTIPLIERS ={ sedentary: 1.2, active: 1.55, very_active: 1.725 };
 
 const computeCalorieGoal = (profile: { weight: string; height: string; age: string; gender: string; activityLevel: string; goal: string }, fallback: number) => {
   const weight = parseFloat(profile.weight);
@@ -702,34 +709,15 @@ const Profile = () => {
             Override the auto-calculated macro splits. Leave blank to use values derived from your calorie goal.
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="proteinGoal" className="flex items-center gap-1.5 text-sm text-foreground">
-                <span className="inline-block h-2 w-2 rounded-full bg-chart-protein" />
-                Protein (g/day)
-              </Label>
-              <Input id="proteinGoal" type="number" min="0" value={macroGoals.protein} onChange={(e) => setMacroGoals({ ...macroGoals, protein: e.target.value })} placeholder={String(proteinGoal)} className={inputClass} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="carbsGoal" className="flex items-center gap-1.5 text-sm text-foreground">
-                <span className="inline-block h-2 w-2 rounded-full bg-chart-carbs" />
-                Carbs (g/day)
-              </Label>
-              <Input id="carbsGoal" type="number" min="0" value={macroGoals.carbs} onChange={(e) => setMacroGoals({ ...macroGoals, carbs: e.target.value })} placeholder={String(carbsGoal)} className={inputClass} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fatGoal" className="flex items-center gap-1.5 text-sm text-foreground">
-                <span className="inline-block h-2 w-2 rounded-full bg-chart-fat" />
-                Fat (g/day)
-              </Label>
-              <Input id="fatGoal" type="number" min="0" value={macroGoals.fat} onChange={(e) => setMacroGoals({ ...macroGoals, fat: e.target.value })} placeholder={String(fatGoal)} className={inputClass} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="fiberGoal" className="flex items-center gap-1.5 text-sm text-foreground">
-                <span className="inline-block h-2 w-2 rounded-full bg-chart-fiber" />
-                Fibre (g/day)
-              </Label>
-              <Input id="fiberGoal" type="number" min="0" value={macroGoals.fiber} onChange={(e) => setMacroGoals({ ...macroGoals, fiber: e.target.value })} placeholder={String(fiberGoal)} className={inputClass} />
-            </div>
+            {MACRO_GOAL_FIELDS.map((f) => (
+              <div key={f.key} className="space-y-2">
+                <Label htmlFor={`${f.key}Goal`} className="flex items-center gap-1.5 text-sm text-foreground">
+                  <span className={`inline-block h-2 w-2 rounded-full ${f.dot}`} />
+                  {f.label} (g/day)
+                </Label>
+                <Input id={`${f.key}Goal`} type="number" min="0" value={macroGoals[f.key]} onChange={(e) => setMacroGoals({ ...macroGoals, [f.key]: e.target.value })} placeholder={String({ protein: proteinGoal, carbs: carbsGoal, fat: fatGoal, fiber: fiberGoal }[f.key])} className={inputClass} />
+              </div>
+            ))}
           </div>
         </div>
       </div>

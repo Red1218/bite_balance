@@ -34,6 +34,13 @@ const categories = [
   { id: 'beverages', name: 'Beverages', icon: '☕' },
 ];
 
+const MACRO_FIELDS = [
+  { key: 'protein', label: 'Protein', color: 'text-chart-protein' },
+  { key: 'carbs', label: 'Carbs', color: 'text-chart-carbs' },
+  { key: 'fat', label: 'Fat', color: 'text-chart-fat' },
+  { key: 'fiber', label: 'Fiber', color: 'text-chart-fiber' },
+] as const;
+
 interface AddFoodFormProps {
   onFoodAdded: () => void;
   onCancel: () => void;
@@ -195,54 +202,20 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food }
         </div>
 
         <div className="grid grid-cols-4 gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="food-protein" className="text-[10px] uppercase tracking-wide text-chart-protein">Protein</Label>
-            <Input
-              id="food-protein"
-              type="number"
-              step="0.1"
-              value={formData.protein}
-              onChange={(e) => setFormData({ ...formData, protein: e.target.value })}
-              placeholder="0"
-              className="rounded-lg h-10 font-mono tabular-nums"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="food-carbs" className="text-[10px] uppercase tracking-wide text-chart-carbs">Carbs</Label>
-            <Input
-              id="food-carbs"
-              type="number"
-              step="0.1"
-              value={formData.carbs}
-              onChange={(e) => setFormData({ ...formData, carbs: e.target.value })}
-              placeholder="0"
-              className="rounded-lg h-10 font-mono tabular-nums"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="food-fat" className="text-[10px] uppercase tracking-wide text-chart-fat">Fat</Label>
-            <Input
-              id="food-fat"
-              type="number"
-              step="0.1"
-              value={formData.fat}
-              onChange={(e) => setFormData({ ...formData, fat: e.target.value })}
-              placeholder="0"
-              className="rounded-lg h-10 font-mono tabular-nums"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="food-fiber" className="text-[10px] uppercase tracking-wide text-chart-fiber">Fiber</Label>
-            <Input
-              id="food-fiber"
-              type="number"
-              step="0.1"
-              value={formData.fiber}
-              onChange={(e) => setFormData({ ...formData, fiber: e.target.value })}
-              placeholder="0"
-              className="rounded-lg h-10 font-mono tabular-nums"
-            />
-          </div>
+          {MACRO_FIELDS.map((f) => (
+            <div key={f.key} className="space-y-2">
+              <Label htmlFor={`food-${f.key}`} className={`text-[10px] uppercase tracking-wide ${f.color}`}>{f.label}</Label>
+              <Input
+                id={`food-${f.key}`}
+                type="number"
+                step="0.1"
+                value={formData[f.key]}
+                onChange={(e) => setFormData({ ...formData, [f.key]: e.target.value })}
+                placeholder="0"
+                className="rounded-lg h-10 font-mono tabular-nums"
+              />
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-2">
