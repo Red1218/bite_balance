@@ -53,6 +53,17 @@ export async function createCustomFood(
 }
 
 /**
+ * Adds search aliases to a food. Aliases are unique across all users, so each is inserted on
+ * its own: one clash is logged and skipped instead of losing the rest.
+ */
+export async function addFoodAliases(foodId: string, aliases: string[]): Promise<void> {
+  for (const alias of aliases) {
+    const { error } = await supabase.from('food_aliases').insert({ food_id: foodId, alias });
+    if (error) console.warn('Failed to insert alias:', alias, error);
+  }
+}
+
+/**
  * Lists the authenticated user's own custom foods, most recently saved first.
  */
 export async function getMyCustomFoods(): Promise<IndianFood[]> {
