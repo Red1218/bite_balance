@@ -6,10 +6,12 @@ import android.util.Log;
 import androidx.activity.result.ActivityResult;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
+import androidx.health.connect.client.aggregate.AggregationResultGroupedByPeriod;
 import androidx.health.connect.client.permission.HealthPermission;
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord;
 import androidx.health.connect.client.records.StepsRecord;
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest;
 import androidx.health.connect.client.request.ReadRecordsRequest;
 import androidx.health.connect.client.response.ReadRecordsResponse;
 import androidx.health.connect.client.time.TimeRangeFilter;
@@ -24,7 +26,9 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -33,8 +37,8 @@ import kotlin.coroutines.EmptyCoroutineContext;
 import kotlin.jvm.JvmClassMappingKt;
 import kotlinx.coroutines.BuildersKt;
 
-// Health Connect reads that @capgo/capacitor-health can't do. Some watch apps (OHealth) write
-// total calories burned but never active calories, so the app needs the total too.
+// Health Connect reads that @capgo/capacitor-health can't do: deduplicated daily steps, and total
+// calories (some watch apps, like OHealth, write total calories burned but never active calories).
 @CapacitorPlugin(name = "HealthConnect")
 public class HealthConnectPlugin extends Plugin {
     private static final String TAG = "HealthConnectPlugin";
@@ -84,6 +88,43 @@ public class HealthConnectPlugin extends Plugin {
     @ActivityCallback
     private void accessResult(PluginCall call, ActivityResult result) {
         new Thread(() -> call.resolve(new JSObject().put("granted", granted()))).start();
+    }
+
+    // Steps per local day for the last `days` days (today included); days without data are left out.
+    // Health Connect's aggregate counts overlapping sources (watch + the phone's own step counter)
+    // once, preferring the higher one in the user's app priority. Summing raw records double counts.
+    @PluginMethod
+    public void getSteps(PluginCall call) {
+        int days = call.getInt("days", 30);
+        new Thread(() -> {
+            HealthConnectClient c = client();
+            JSArray out = new JSArray();
+            if (c == null) {
+                call.resolve(new JSObject().put("days", out));
+                return;
+            }
+            try {
+                AggregateGroupByPeriodRequest request = new AggregateGroupByPeriodRequest(
+                    Set.of(StepsRecord.COUNT_TOTAL),
+                    TimeRangeFilter.between(LocalDate.now().minusDays(days - 1).atStartOfDay(), LocalDateTime.now()),
+                    Period.ofDays(1),
+                    Set.of()
+                );
+                List<AggregationResultGroupedByPeriod> groups = BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+                    (scope, cont) -> c.aggregateGroupByPeriod(request, cont));
+                for (AggregationResultGroupedByPeriod group : groups) {
+                    Long steps = group.getResult().get(StepsRecord.COUNT_TOTAL);
+                    if (steps == null) continue;
+                    out.put(new JSObject()
+                        .put("date", group.getStartTime().toLocalDate().toString())
+                        .put("steps", steps));
+                }
+                call.resolve(new JSObject().put("days", out));
+            } catch (Exception e) {
+                Log.e(TAG, "Error reading steps", e);
+                call.reject("Failed to read steps", e);
+            }
+        }).start();
     }
 
     // Summed total-calorie records per local day for the last `days` days (today included); days
