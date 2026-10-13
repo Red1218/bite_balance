@@ -5,11 +5,10 @@ import { useToast } from '@/hooks/use-toast';
 export interface HealthData {
   steps: number;
   activeCalories: number;
-  totalCalories: number;
   lastUpdated: string;
   history?: {
     steps: Array<{ steps: number; date: string }>;
-    calories: Array<{ activeCalories: number; totalCalories: number; date: string }>;
+    calories: Array<{ activeCalories: number; date: string }>;
   };
 }
 
@@ -76,7 +75,6 @@ export const useHealthConnect = () => {
       setHealthData({
         steps: stepsHistory.at(-1)?.steps ?? 0,
         activeCalories: today?.activeCalories ?? 0,
-        totalCalories: today?.totalCalories ?? 0,
         lastUpdated: new Date().toISOString(),
         history: {
           steps: stepsHistory,

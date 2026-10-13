@@ -1,222 +1,126 @@
 package com.bite_balance.app;
 
-import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.util.Log;
 
-import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.ActivityResult;
 import androidx.health.connect.client.HealthConnectClient;
 import androidx.health.connect.client.PermissionController;
 import androidx.health.connect.client.permission.HealthPermission;
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord;
 import androidx.health.connect.client.records.StepsRecord;
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
-import androidx.health.connect.client.request.AggregateRequest;
 import androidx.health.connect.client.request.ReadRecordsRequest;
+import androidx.health.connect.client.response.ReadRecordsResponse;
 import androidx.health.connect.client.time.TimeRangeFilter;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.Permission;
 
-import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
-import kotlin.coroutines.Continuation;
-import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
 import kotlin.jvm.JvmClassMappingKt;
 import kotlinx.coroutines.BuildersKt;
-import kotlinx.coroutines.CoroutineScope;
-import kotlinx.coroutines.Dispatchers;
-import kotlinx.coroutines.GlobalScope;
 
+// Health Connect reads that @capgo/capacitor-health can't do. Some watch apps (OHealth) write
+// total calories burned but never active calories, so the app needs the total too.
 @CapacitorPlugin(name = "HealthConnect")
 public class HealthConnectPlugin extends Plugin {
     private static final String TAG = "HealthConnectPlugin";
-    private HealthConnectClient healthConnectClient;
-    private PluginCall pendingCall;
 
-    private static final Set<String> PERMISSIONS = new HashSet<String>() {{
-        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(StepsRecord.class)));
-        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(ActiveCaloriesBurnedRecord.class)));
-        add(HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(TotalCaloriesBurnedRecord.class)));
-    }};
+    // Everything the app reads, asked for in one dialog: capgo's steps + active calories, plus total.
+    private static final Set<String> PERMISSIONS = Set.of(
+        HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(StepsRecord.class)),
+        HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(ActiveCaloriesBurnedRecord.class)),
+        HealthPermission.getReadPermission(JvmClassMappingKt.getKotlinClass(TotalCaloriesBurnedRecord.class))
+    );
 
-    @Override
-    public void load() {
-        super.load();
+    private HealthConnectClient client() {
+        if (HealthConnectClient.getSdkStatus(getContext()) != HealthConnectClient.SDK_AVAILABLE) return null;
+        return HealthConnectClient.getOrCreate(getContext());
+    }
+
+    // Blocks the calling thread; only call from a background thread.
+    private boolean granted() {
+        HealthConnectClient c = client();
+        if (c == null) return false;
         try {
-            int availability = HealthConnectClient.getSdkStatus(getContext());
-            if (availability == HealthConnectClient.SDK_AVAILABLE) {
-                healthConnectClient = HealthConnectClient.getOrCreate(getContext());
-                Log.d(TAG, "Health Connect client initialized");
-            } else {
-                Log.w(TAG, "Health Connect not available, status: " + availability);
-            }
+            Set<String> granted = BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+                (scope, cont) -> c.getPermissionController().getGrantedPermissions(cont));
+            return granted.containsAll(PERMISSIONS);
         } catch (Exception e) {
-            Log.e(TAG, "Error initializing Health Connect", e);
+            Log.e(TAG, "Error checking permissions", e);
+            return false;
         }
     }
 
     @PluginMethod
-    public void isAvailable(PluginCall call) {
-        try {
-            int status = HealthConnectClient.getSdkStatus(getContext());
-            JSObject result = new JSObject();
-            result.put("available", status == HealthConnectClient.SDK_AVAILABLE);
-            result.put("status", status);
-            call.resolve(result);
-        } catch (Exception e) {
-            Log.e(TAG, "Error checking availability", e);
-            JSObject result = new JSObject();
-            result.put("available", false);
-            result.put("status", 0);
-            call.resolve(result);
-        }
+    public void hasAccess(PluginCall call) {
+        new Thread(() -> call.resolve(new JSObject().put("granted", granted()))).start();
     }
 
     @PluginMethod
-    public void requestPermissions(PluginCall call) {
-        if (healthConnectClient == null) {
-            JSObject result = new JSObject();
-            result.put("granted", false);
-            call.resolve(result);
+    public void requestAccess(PluginCall call) {
+        if (client() == null) {
+            call.resolve(new JSObject().put("granted", false));
             return;
         }
-
-        pendingCall = call;
-
-        try {
-            Intent intent = PermissionController.createRequestPermissionResultContract()
-                .createIntent(getContext(), PERMISSIONS);
-            startActivityForResult(call, intent, "handlePermissionResult");
-        } catch (Exception e) {
-            Log.e(TAG, "Error requesting permissions", e);
-            JSObject result = new JSObject();
-            result.put("granted", false);
-            call.resolve(result);
-        }
+        Intent intent = PermissionController.createRequestPermissionResultContract()
+            .createIntent(getContext(), PERMISSIONS);
+        startActivityForResult(call, intent, "accessResult");
     }
 
-    @Override
-    protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
-        super.handleOnActivityResult(requestCode, resultCode, data);
-        
-        if (pendingCall != null) {
-            // Check if permissions were granted
-            checkPermissionsGranted(pendingCall);
-            pendingCall = null;
-        }
+    @ActivityCallback
+    private void accessResult(PluginCall call, ActivityResult result) {
+        new Thread(() -> call.resolve(new JSObject().put("granted", granted()))).start();
     }
 
-    private void checkPermissionsGranted(PluginCall call) {
-        if (healthConnectClient == null) {
-            JSObject result = new JSObject();
-            result.put("granted", false);
-            call.resolve(result);
-            return;
-        }
-
-        getActivity().runOnUiThread(() -> {
-            try {
-                // For simplicity, assume granted after the permission flow
-                // In production, you'd verify with getGrantedPermissions
-                JSObject result = new JSObject();
-                result.put("granted", true);
-                call.resolve(result);
-            } catch (Exception e) {
-                Log.e(TAG, "Error checking permissions", e);
-                JSObject result = new JSObject();
-                result.put("granted", false);
-                call.resolve(result);
-            }
-        });
-    }
-
+    // Summed total-calorie records per local day for the last `days` days (today included); days
+    // without records are left out. Raw records on purpose: Health Connect's ENERGY_TOTAL aggregate
+    // pads unrecorded time with an estimated resting burn, which isn't what the watch measured.
     @PluginMethod
-    public void getTodaysSteps(PluginCall call) {
-        if (healthConnectClient == null) {
-            JSObject result = new JSObject();
-            result.put("steps", 0);
-            result.put("date", LocalDate.now().toString());
-            call.resolve(result);
-            return;
-        }
-
+    public void getTotalCalories(PluginCall call) {
+        int days = call.getInt("days", 30);
         new Thread(() -> {
-            try {
-                LocalDate today = LocalDate.now();
-                Instant startOfDay = today.atStartOfDay(ZoneId.systemDefault()).toInstant();
-                Instant now = Instant.now();
-
-                TimeRangeFilter timeRange = TimeRangeFilter.between(startOfDay, now);
-                
-                AggregateRequest request = new AggregateRequest(
-                    Set.of(StepsRecord.COUNT_TOTAL),
-                    timeRange,
-                    Set.of()
-                );
-
-                // Using blocking call for simplicity
-                // In production, use proper coroutines
-                long steps = 0;
-                
-                JSObject result = new JSObject();
-                result.put("steps", steps);
-                result.put("date", today.toString());
-                call.resolve(result);
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Error getting steps", e);
-                JSObject result = new JSObject();
-                result.put("steps", 0);
-                result.put("date", LocalDate.now().toString());
-                call.resolve(result);
+            HealthConnectClient c = client();
+            JSArray out = new JSArray();
+            if (c == null) {
+                call.resolve(new JSObject().put("days", out));
+                return;
             }
-        }).start();
-    }
-
-    @PluginMethod
-    public void getTodaysCalories(PluginCall call) {
-        if (healthConnectClient == null) {
-            JSObject result = new JSObject();
-            result.put("activeCalories", 0);
-            result.put("totalCalories", 0);
-            result.put("date", LocalDate.now().toString());
-            call.resolve(result);
-            return;
-        }
-
-        new Thread(() -> {
             try {
-                LocalDate today = LocalDate.now();
-                
-                // Return placeholder values
-                // Full implementation requires proper Kotlin coroutine handling
-                double activeCalories = 0;
-                double totalCalories = 0;
-                
-                JSObject result = new JSObject();
-                result.put("activeCalories", activeCalories);
-                result.put("totalCalories", totalCalories);
-                result.put("date", today.toString());
-                call.resolve(result);
-                
+                TimeRangeFilter range = TimeRangeFilter.between(LocalDate.now().minusDays(days - 1).atStartOfDay(), LocalDateTime.now());
+                Map<String, Double> byDay = new TreeMap<>();
+                String pageToken = null;
+                do {
+                    ReadRecordsRequest<TotalCaloriesBurnedRecord> request = new ReadRecordsRequest<>(
+                        JvmClassMappingKt.getKotlinClass(TotalCaloriesBurnedRecord.class), range, Set.of(), true, 1000, pageToken);
+                    ReadRecordsResponse<TotalCaloriesBurnedRecord> response = BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE,
+                        (scope, cont) -> c.readRecords(request, cont));
+                    for (TotalCaloriesBurnedRecord r : response.getRecords()) {
+                        String day = r.getStartTime().atZone(ZoneId.systemDefault()).toLocalDate().toString();
+                        byDay.merge(day, r.getEnergy().getKilocalories(), Double::sum);
+                    }
+                    pageToken = response.getPageToken();
+                } while (pageToken != null);
+                for (Map.Entry<String, Double> day : byDay.entrySet()) {
+                    out.put(new JSObject().put("date", day.getKey()).put("kcal", day.getValue()));
+                }
+                call.resolve(new JSObject().put("days", out));
             } catch (Exception e) {
-                Log.e(TAG, "Error getting calories", e);
-                JSObject result = new JSObject();
-                result.put("activeCalories", 0);
-                result.put("totalCalories", 0);
-                result.put("date", LocalDate.now().toString());
-                call.resolve(result);
+                Log.e(TAG, "Error reading total calories", e);
+                call.reject("Failed to read total calories", e);
             }
         }).start();
     }

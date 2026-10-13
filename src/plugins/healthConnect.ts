@@ -1,5 +1,14 @@
+import { registerPlugin } from '@capacitor/core';
 import { Health } from '@capgo/capacitor-health';
 import { fmtLocalDate } from '@/lib/utils';
+
+// Our own HealthConnectPlugin.java: permissions for every type we read, plus the watch's
+// total-calorie records, which capgo can't read (OHealth writes those, never active calories).
+const Native = registerPlugin<{
+  hasAccess(): Promise<{ granted: boolean }>;
+  requestAccess(): Promise<{ granted: boolean }>;
+  getTotalCalories(options: { days: number }): Promise<{ days: Array<{ date: string; kcal: number }> }>;
+}>('HealthConnect');
 
 type DataType = 'steps' | 'calories';
 
@@ -13,6 +22,7 @@ const sumDay = async (dataType: DataType, day: Date) => {
     dataType,
     startDate: start.toISOString(),
     endDate: end.toISOString(),
+    limit: 0, // capgo caps at 100 samples by default; a watch writes far more per day
   });
   return (samples ?? []).reduce((sum, s) => sum + (s.value as number), 0);
 };
@@ -31,8 +41,7 @@ const lastDays = async (dataType: DataType, days: number) => {
 const HealthConnect = {
   async checkPermissions(): Promise<{ granted: boolean }> {
     try {
-      const result = await Health.checkAuthorization({ read: ['steps', 'calories'] });
-      return { granted: result.readAuthorized.includes('steps') && result.readAuthorized.includes('calories') };
+      return await Native.hasAccess();
     } catch (error) {
       console.error('Failed to check Health Connect permissions:', error);
       return { granted: false };
@@ -41,8 +50,7 @@ const HealthConnect = {
 
   async requestPermissions(): Promise<{ granted: boolean }> {
     try {
-      await Health.requestAuthorization({ read: ['steps', 'calories'] });
-      return { granted: true };
+      return await Native.requestAccess();
     } catch (error) {
       console.error('Failed to request Health Connect permissions:', error);
       return { granted: false };
@@ -58,14 +66,14 @@ const HealthConnect = {
     }
   },
 
-  // capgo reports active energy only; total adds a rough 1500 kcal BMR for display.
-  async getCaloriesForDays(
-    days: number
-  ): Promise<Array<{ activeCalories: number; totalCalories: number; date: string }>> {
+  // Active calories per day; falls back to the summed total-calorie records for watches that only
+  // write those (OHealth logs one per moving minute, so the sum is its own "Calories" figure).
+  // ponytail: a source writing round-the-clock total records would count resting burn as active.
+  async getCaloriesForDays(days: number): Promise<Array<{ activeCalories: number; date: string }>> {
     try {
-      return (await lastDays('calories', days)).map(({ date, value }) => ({
-        activeCalories: value,
-        totalCalories: value + 1500,
+      const [active, { days: totals }] = await Promise.all([lastDays('calories', days), Native.getTotalCalories({ days })]);
+      return active.map(({ date, value }) => ({
+        activeCalories: value || (totals.find((t) => t.date === date)?.kcal ?? 0),
         date,
       }));
     } catch (error) {
