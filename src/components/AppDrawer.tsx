@@ -15,7 +15,7 @@ const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
   const { isConnected, healthData } = useHealthConnect();
 
   const navItems = [
-    { path: '/checklist', icon: ListChecks, label: 'Checklist', badge: undefined },
+    { path: '/habits', icon: ListChecks, label: 'Habits', badge: undefined },
     { path: '/import', icon: FileSpreadsheet, label: 'Import log', badge: undefined },
     { path: '/conversations', icon: MessagesSquare, label: 'Conversations', badge: undefined },
     { path: '/saved-meals', icon: BookmarkPlus, label: 'Saved', badge: undefined },

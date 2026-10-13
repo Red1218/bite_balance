@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "preview": "vite preview",
     "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts",
-    "check:checklist": "esbuild src/lib/checklist.check.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/checklist-check.cjs && node node_modules/.cache/checklist-check.cjs"
+    "check:habits": "esbuild src/lib/habits.check.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/habits-check.cjs && node node_modules/.cache/habits-check.cjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.3.0",

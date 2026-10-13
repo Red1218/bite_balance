@@ -9,7 +9,7 @@ import DashboardHeader from '@/components/DashboardHeader';
 import TodaysMealsSection from '@/components/TodaysMealsSection';
 import WaterTracker from '@/components/WaterTracker';
 import WeightCard from '@/components/WeightCard';
-import ChecklistCard from '@/components/ChecklistCard';
+import HabitsCard from '@/components/habits/HabitsCard';
 import StreakBanner from '@/components/StreakBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -115,8 +115,8 @@ const Dashboard = () => {
       {/* Daily weigh-in */}
       <WeightCard />
 
-      {/* Daily checklist */}
-      <ChecklistCard />
+      {/* Today's habits */}
+      <HabitsCard />
 
       {/* Today's Meals */}
       <TodaysMealsSection
