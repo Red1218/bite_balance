@@ -119,12 +119,11 @@ const Steps = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3 border-t border-border pt-3.5">
+              <div className="grid grid-cols-2 gap-3 border-t border-border pt-3.5">
                 {[
                   // ponytail: no GPS distance source, estimated from steps at ~0.78m stride
                   { label: 'Distance', value: (healthData.steps * 0.00078).toFixed(1), unit: 'km', color: 'text-foreground' },
                   { label: 'Burned', value: Math.round(healthData.activeCalories), unit: 'kcal', color: 'text-chart-steps' },
-                  { label: 'Active', value: Math.round(healthData.totalCalories), unit: 'kcal', color: 'text-foreground' },
                 ].map((s) => (
                   <div key={s.label}>
                     <div className="font-sans text-[10px] text-muted-foreground">{s.label}</div>
