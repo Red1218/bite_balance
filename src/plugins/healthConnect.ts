@@ -2,15 +2,16 @@ import { registerPlugin } from '@capacitor/core';
 import { Health } from '@capgo/capacitor-health';
 import { fmtLocalDate } from '@/lib/utils';
 
-// Our own HealthConnectPlugin.java: permissions for every type we read, plus the watch's
-// total-calorie records, which capgo can't read (OHealth writes those, never active calories).
+// Our own HealthConnectPlugin.java: permissions for every type we read, deduplicated daily steps,
+// and the watch's total-calorie records, which capgo can't read (OHealth writes those, never active).
 const Native = registerPlugin<{
   hasAccess(): Promise<{ granted: boolean }>;
   requestAccess(): Promise<{ granted: boolean }>;
+  getSteps(options: { days: number }): Promise<{ days: Array<{ date: string; steps: number }> }>;
   getTotalCalories(options: { days: number }): Promise<{ days: Array<{ date: string; kcal: number }> }>;
 }>('HealthConnect');
 
-type DataType = 'steps' | 'calories';
+type DataType = 'calories';
 
 // Sum of every `dataType` sample recorded on the local day containing `day`.
 const sumDay = async (dataType: DataType, day: Date) => {
@@ -59,7 +60,15 @@ const HealthConnect = {
 
   async getStepsForDays(days: number): Promise<Array<{ steps: number; date: string }>> {
     try {
-      return (await lastDays('steps', days)).map(({ date, value }) => ({ steps: value, date }));
+      // Native aggregate, not capgo's raw samples: the watch and the phone's own step counter both
+      // write steps, and summing raw samples counts the overlap twice.
+      const { days: steps } = await Native.getSteps({ days });
+      return Array.from({ length: days }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (days - 1 - i));
+        const date = fmtLocalDate(d);
+        return { steps: steps.find((s) => s.date === date)?.steps ?? 0, date };
+      });
     } catch (error) {
       console.error('Failed to get steps:', error);
       return [];
