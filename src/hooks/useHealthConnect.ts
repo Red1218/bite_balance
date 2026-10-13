@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import HealthConnect from '@/plugins/healthConnect';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -15,8 +15,7 @@ export interface HealthData {
 }
 
 // Saves each day's steps and calories so the web dashboard can read them (the data otherwise lives
-// only on the phone). Several components use this hook and each fetches on mount, so a save that
-// matches the last successful one is skipped.
+// only on the phone). A save that matches the last successful one is skipped.
 let lastSynced = '';
 const syncDaily = async (
   userId: string,
@@ -39,76 +38,56 @@ const syncDaily = async (
   else lastSynced = key;
 };
 
-export const useHealthConnect = () => {
-  const { user } = useAuth();
-  const [isConnected, setIsConnected] = useState(false);
-  const [healthData, setHealthData] = useState<HealthData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
-
-  // Already granted from an earlier session: show data straight away.
-  useEffect(() => {
-    HealthConnect.checkPermissions().then(({ granted }) => {
-      if (!granted) return;
-      setIsConnected(true);
-      fetchHealthData();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const requestPermissions = async () => {
-    setLoading(true);
-    try {
-      const result = await HealthConnect.requestPermissions();
-      setIsConnected(result.granted);
-
-      if (result.granted) {
-        toast({
-          title: 'Connected Successfully',
-          description: 'Health Connect permissions granted',
-        });
-        await fetchHealthData();
-      } else {
-        toast({
-          title: 'Permissions Required',
-          description: 'Please grant permissions to access health data',
-          variant: 'destructive',
-        });
-      }
-
-      return result.granted;
-    } catch (error) {
-      console.error('Error requesting permissions:', error);
-      toast({
-        title: 'Connection Failed',
-        description: 'Failed to connect to Health Connect',
-        variant: 'destructive',
-      });
-      return false;
-    } finally {
-      setLoading(false);
-    }
+// One copy of the data and one fetch, shared by every component that uses the hook. Each used to keep
+// its own, so on first open the Steps card and the calorie ring filled in at different times.
+interface Shared {
+  isConnected: boolean;
+  healthData: HealthData | null;
+  loading: boolean;
+}
+const initial: Shared = { isConnected: false, healthData: null, loading: false };
+let shared = initial;
+const listeners = new Set<() => void>();
+const setShared = (patch: Partial<Shared>) => {
+  shared = { ...shared, ...patch };
+  listeners.forEach((l) => l());
+};
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
   };
+};
+const getShared = () => shared;
 
-  const fetchHealthData = async () => {
-    setLoading(true);
+let owner: string | null = null; // the signed-in user the shared data belongs to
+let started = false;
+let inflight: Promise<void> | null = null;
+
+// Joins a fetch already running rather than starting another.
+const fetchHealthData = (): Promise<void> => {
+  if (inflight) return inflight;
+  setShared({ loading: true });
+  inflight = (async () => {
     try {
       const [stepsHistory, caloriesHistory] = await Promise.all([
         HealthConnect.getStepsForDays(30),
         HealthConnect.getCaloriesForDays(30),
       ]);
-      if (user) void syncDaily(user.id, stepsHistory, caloriesHistory);
+      if (owner) void syncDaily(owner, stepsHistory, caloriesHistory);
       // Today is the last day of each history.
       const today = caloriesHistory.at(-1);
 
-      setHealthData({
-        steps: stepsHistory.at(-1)?.steps ?? 0,
-        activeCalories: today?.activeCalories ?? 0,
-        lastUpdated: new Date().toISOString(),
-        history: {
-          steps: stepsHistory,
-          calories: caloriesHistory,
-        }
+      setShared({
+        healthData: {
+          steps: stepsHistory.at(-1)?.steps ?? 0,
+          activeCalories: today?.activeCalories ?? 0,
+          lastUpdated: new Date().toISOString(),
+          history: {
+            steps: stepsHistory,
+            calories: caloriesHistory,
+          },
+        },
       });
     } catch (error) {
       console.error('Error fetching health data:', error);
@@ -118,9 +97,72 @@ export const useHealthConnect = () => {
         variant: 'destructive',
       });
     } finally {
-      setLoading(false);
+      setShared({ loading: false });
+      inflight = null;
     }
-  };
+  })();
+  return inflight;
+};
+
+// Already granted from an earlier session: show data straight away.
+const start = () => {
+  if (started) return;
+  started = true;
+  HealthConnect.checkPermissions().then(({ granted }) => {
+    if (!granted) return;
+    setShared({ isConnected: true });
+    void fetchHealthData();
+  });
+};
+
+const requestPermissions = async () => {
+  setShared({ loading: true });
+  try {
+    const result = await HealthConnect.requestPermissions();
+    setShared({ isConnected: result.granted });
+
+    if (result.granted) {
+      toast({
+        title: 'Connected Successfully',
+        description: 'Health Connect permissions granted',
+      });
+      await fetchHealthData();
+    } else {
+      toast({
+        title: 'Permissions Required',
+        description: 'Please grant permissions to access health data',
+        variant: 'destructive',
+      });
+    }
+
+    return result.granted;
+  } catch (error) {
+    console.error('Error requesting permissions:', error);
+    toast({
+      title: 'Connection Failed',
+      description: 'Failed to connect to Health Connect',
+      variant: 'destructive',
+    });
+    return false;
+  } finally {
+    setShared({ loading: false });
+  }
+};
+
+export const useHealthConnect = () => {
+  const { user } = useAuth();
+  const { isConnected, healthData, loading } = useSyncExternalStore(subscribe, getShared);
+
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (id !== owner) {
+      // A different user signed in: drop the previous user's data.
+      owner = id;
+      started = false;
+      setShared(initial);
+    }
+    if (id) start();
+  }, [user?.id]);
 
   return {
     isConnected,
