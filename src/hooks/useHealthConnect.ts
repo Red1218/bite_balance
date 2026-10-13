@@ -33,7 +33,15 @@ const syncDaily = async (
     .filter((r) => r.steps > 0 || r.burned_kcal > 0);
   const key = JSON.stringify([userId, rows]);
   if (!rows.length || key === lastSynced) return;
-  const { error } = await supabase.from('health_daily').upsert(rows, { onConflict: 'user_id,logged_date' });
+  // updated_at is set here because an upsert only applies the column default on insert; without it
+  // the saved time stayed at the first save of each day.
+  const savedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('health_daily')
+    .upsert(
+      rows.map((r) => ({ ...r, updated_at: savedAt })),
+      { onConflict: 'user_id,logged_date' }
+    );
   if (error) console.error('Error saving health data:', error);
   else lastSynced = key;
 };
@@ -63,10 +71,22 @@ const getShared = () => shared;
 let owner: string | null = null; // the signed-in user the shared data belongs to
 let started = false;
 let inflight: Promise<void> | null = null;
+let lastFetchStarted = 0;
+let listeningForReturn = false;
+
+// The app is usually left in the background rather than closed, so mounting alone never re-reads the
+// watch. Read it again when the app comes back to the front, at most once every 30 seconds.
+const RETURN_REFRESH_MS = 30_000;
+const refreshOnReturn = () => {
+  if (document.visibilityState !== 'visible' || !shared.isConnected || !owner) return;
+  if (Date.now() - lastFetchStarted < RETURN_REFRESH_MS) return;
+  void fetchHealthData();
+};
 
 // Joins a fetch already running rather than starting another.
 const fetchHealthData = (): Promise<void> => {
   if (inflight) return inflight;
+  lastFetchStarted = Date.now();
   setShared({ loading: true });
   inflight = (async () => {
     try {
@@ -108,6 +128,10 @@ const fetchHealthData = (): Promise<void> => {
 const start = () => {
   if (started) return;
   started = true;
+  if (!listeningForReturn) {
+    listeningForReturn = true;
+    document.addEventListener('visibilitychange', refreshOnReturn);
+  }
   HealthConnect.checkPermissions().then(({ granted }) => {
     if (!granted) return;
     setShared({ isConnected: true });
