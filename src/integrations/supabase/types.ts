@@ -207,6 +207,33 @@ export type Database = {
           },
         ]
       }
+      health_daily: {
+        Row: {
+          burned_kcal: number
+          id: string
+          logged_date: string
+          steps: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          burned_kcal?: number
+          id?: string
+          logged_date: string
+          steps?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          burned_kcal?: number
+          id?: string
+          logged_date?: string
+          steps?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       indian_foods: {
         Row: {
           calcium: number | null
