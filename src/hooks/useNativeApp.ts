@@ -50,8 +50,8 @@ export const useNativeApp = () => {
         document.body.style.paddingBottom = '0px';
       });
 
-      // 4. Tapping a checklist reminder opens the Checklist page
-      LocalNotifications.addListener('localNotificationActionPerformed', () => navigate('/checklist'));
+      // 4. Tapping a habit reminder opens the Habits page
+      LocalNotifications.addListener('localNotificationActionPerformed', () => navigate('/habits'));
     };
 
     initNativeHooks();

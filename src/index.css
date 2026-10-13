@@ -156,6 +156,15 @@
 
 @layer components {
   /* Elevation e1 · card — the default surface for stat cards, meal rows, list items */
+  /* Habit colour (set --c via colorStyle): darkened toward the text colour so it reads on both themes */
+  .habit-ink {
+    color: color-mix(in srgb, var(--c) 78%, hsl(var(--foreground)));
+  }
+  .habit-tint {
+    color: color-mix(in srgb, var(--c) 78%, hsl(var(--foreground)));
+    background: color-mix(in srgb, var(--c) 16%, transparent);
+  }
+
   .elevation-card {
     @apply bg-card border border-border rounded-xl;
     box-shadow:

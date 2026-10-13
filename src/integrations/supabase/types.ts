@@ -41,20 +41,29 @@ export type Database = {
       checklist_checks: {
         Row: {
           checked_date: string
+          count: number | null
           created_at: string
           item_id: string
+          note: string | null
+          status: string
           user_id: string
         }
         Insert: {
           checked_date: string
+          count?: number | null
           created_at?: string
           item_id: string
+          note?: string | null
+          status?: string
           user_id: string
         }
         Update: {
           checked_date?: string
+          count?: number | null
           created_at?: string
           item_id?: string
+          note?: string | null
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -70,31 +79,64 @@ export type Database = {
       checklist_items: {
         Row: {
           archived_at: string | null
+          category: string | null
+          color: string
           created_at: string
+          icon: string
           id: string
+          interval_days: number | null
+          kind: string
           name: string
           note: string | null
+          per_week: number | null
           position: number
+          reminder_times: string[]
+          schedule: string
+          target: number
+          time_of_day: string
+          unit: string | null
           user_id: string
           weekdays: number[]
         }
         Insert: {
           archived_at?: string | null
+          category?: string | null
+          color?: string
           created_at?: string
+          icon?: string
           id?: string
+          interval_days?: number | null
+          kind?: string
           name: string
           note?: string | null
+          per_week?: number | null
           position?: number
+          reminder_times?: string[]
+          schedule?: string
+          target?: number
+          time_of_day?: string
+          unit?: string | null
           user_id: string
           weekdays?: number[]
         }
         Update: {
           archived_at?: string | null
+          category?: string | null
+          color?: string
           created_at?: string
+          icon?: string
           id?: string
+          interval_days?: number | null
+          kind?: string
           name?: string
           note?: string | null
+          per_week?: number | null
           position?: number
+          reminder_times?: string[]
+          schedule?: string
+          target?: number
+          time_of_day?: string
+          unit?: string | null
           user_id?: string
           weekdays?: number[]
         }

@@ -1,16 +1,16 @@
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { requestReminderPermission, type ReminderSettings } from '@/lib/checklistReminder';
+import { requestReminderPermission, type ReminderSettings } from '@/lib/habitReminders';
 
-interface ChecklistReminderSheetProps {
+interface HabitReminderSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   settings: ReminderSettings;
   onChange: (next: ReminderSettings) => void;
 }
 
-const ChecklistReminderSheet = ({ open, onOpenChange, settings, onChange }: ChecklistReminderSheetProps) => {
+const HabitReminderSheet = ({ open, onOpenChange, settings, onChange }: HabitReminderSheetProps) => {
   const { toast } = useToast();
 
   const setEnabled = async (enabled: boolean) => {
@@ -32,7 +32,7 @@ const ChecklistReminderSheet = ({ open, onOpenChange, settings, onChange }: Chec
         <div className="space-y-4 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
           <div className="font-display text-lg font-semibold tracking-tight text-foreground">Daily reminder</div>
           <p className="text-sm text-muted-foreground">
-            One notification listing what's left. Skipped on days you've ticked everything.
+            One notification listing the habits still open. Skipped on days you've finished everything. Habits can also have their own reminder times.
           </p>
 
           <label className="flex items-center justify-between gap-3">
@@ -55,4 +55,4 @@ const ChecklistReminderSheet = ({ open, onOpenChange, settings, onChange }: Chec
   );
 };
 
-export default ChecklistReminderSheet;
+export default HabitReminderSheet;
