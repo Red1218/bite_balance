@@ -6,10 +6,6 @@ export type VoiceState = 'idle' | 'recording' | 'transcribing';
 
 const MAX_SECONDS = 120;
 const MIN_MS = 500;
-// Peak RMS (0..1) a clip must reach to count as speech. Room noise on the
-// test phone (SM-E066B) sits well below this; normal speech well above.
-// ponytail: one fixed threshold; calibrate per device if quiet speakers get dropped.
-const SILENCE_RMS = 0.02;
 
 const extFor = (mime: string) =>
   mime.includes('ogg') ? 'ogg' : mime.includes('mp4') ? 'm4a' : 'webm';
@@ -102,36 +98,7 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
       startingRef.current = false;
     }
 
-    // Mic level meter for the silence gate. If it can't be set up, skip the gate.
-    let peak = Infinity;
-    let meter: ReturnType<typeof setInterval> | undefined;
-    let audioCtx: AudioContext | undefined;
-    try {
-      audioCtx = new AudioContext();
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      audioCtx.createMediaStreamSource(stream).connect(analyser);
-      const samples = new Float32Array(analyser.fftSize);
-      peak = 0;
-      meter = setInterval(() => {
-        analyser.getFloatTimeDomainData(samples);
-        let sum = 0;
-        for (const s of samples) sum += s * s;
-        peak = Math.max(peak, Math.sqrt(sum / samples.length));
-      }, 100);
-    } catch (err) {
-      console.warn('Silence gate unavailable:', err);
-      void audioCtx?.close();
-      audioCtx = undefined;
-      peak = Infinity;
-    }
-    const release = () => {
-      clearInterval(meter);
-      meter = undefined;
-      if (audioCtx) void audioCtx.close();
-      audioCtx = undefined;
-      stream.getTracks().forEach((t) => t.stop());
-    };
+    const release = () => stream.getTracks().forEach((t) => t.stop());
     if (cancelStartRef.current) {
       release();
       return;
@@ -173,12 +140,6 @@ export function useVoiceRecorder(onTranscript: (text: string) => void) {
         return;
       }
       if (!chunks.length) {
-        setState('idle');
-        toast({ title: "Didn't catch anything" });
-        return;
-      }
-      console.log(`voice: peak rms ${peak.toFixed(4)}`); // calibration aid; read via adb logcat
-      if (peak < SILENCE_RMS) {
         setState('idle');
         toast({ title: "Didn't catch anything" });
         return;
