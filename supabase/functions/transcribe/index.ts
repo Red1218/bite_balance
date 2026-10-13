@@ -11,6 +11,11 @@ const corsHeaders = {
 };
 
 const TRANSCRIBE_MODEL = 'gpt-4o-transcribe';
+// Silence detector only: on the test phone, silent clips came back empty from
+// this model but as made-up text ("Meal description.", Chinese, "Thank you.")
+// from the others. Its words are never shown -- gpt-4o-transcribe + PROMPT
+// heard quiet dish names ("two idli") that the mini model got wrong.
+const SILENCE_CHECK_MODEL = 'gpt-4o-mini-transcribe';
 const MAX_BYTES = 2 * 1024 * 1024;
 // Vocabulary hint -- the model spells dish names and units the way it saw
 // them here instead of guessing ("idly", "4 grams" for "katori", ...).
@@ -22,6 +27,25 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+
+const transcribeWith = async (audio: File, model: string, prompt?: string) => {
+  const form = new FormData();
+  form.append('file', audio, audio.name || 'voice.webm');
+  form.append('model', model);
+  form.append('language', 'en');
+  if (prompt) form.append('prompt', prompt);
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}` },
+    body: form,
+  });
+  if (!res.ok) {
+    console.error(`OpenAI transcription failed (${model})`, res.status, await res.text());
+    throw new Error(`OpenAI ${res.status}`);
+  }
+  const data = await res.json();
+  return String(data.text ?? '').trim();
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -46,30 +70,22 @@ serve(async (req) => {
     return json({ error: 'Audio too large' }, 400);
   }
 
-  const upstream = new FormData();
-  upstream.append('file', audio, audio.name || 'voice.webm');
-  upstream.append('model', TRANSCRIBE_MODEL);
-  upstream.append('language', 'en');
-  upstream.append('prompt', PROMPT);
-
-  try {
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}` },
-      body: upstream,
-    });
-    if (!res.ok) {
-      console.error('OpenAI transcription failed', res.status, await res.text());
-      return json({ error: 'Transcription failed' }, 502);
-    }
-
-    const data = await res.json();
-    const text = String(data.text ?? '').trim();
-    const echo = isPromptEcho(text, PROMPT);
-    if (echo) console.log('transcribe: dropped prompt echo');
-    return json({ text: echo ? '' : text });
-  } catch (err) {
-    console.error('OpenAI transcription request failed', err);
+  const clip = audio;
+  const [main, check] = await Promise.allSettled([
+    transcribeWith(clip, TRANSCRIBE_MODEL, PROMPT),
+    transcribeWith(clip, SILENCE_CHECK_MODEL),
+  ]);
+  if (main.status === 'rejected') {
+    console.error('OpenAI transcription request failed', main.reason);
     return json({ error: 'Transcription failed' }, 502);
   }
+  // If the silence check itself failed, fall back to the main transcript alone.
+  if (check.status === 'fulfilled' && !check.value) {
+    console.log('transcribe: silence check heard nothing');
+    return json({ text: '' });
+  }
+  const text = main.value;
+  const echo = isPromptEcho(text, PROMPT);
+  if (echo) console.log('transcribe: dropped prompt echo');
+  return json({ text: echo ? '' : text });
 });
