@@ -1,63 +1,55 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { addDays, dayProgress, isDueOn } from '@/lib/habits';
+import { Link } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import { addDays, dayProgress } from '@/lib/habits';
 import { useHabits, useLocalToday } from '@/hooks/useHabits';
-import HabitRow from './HabitRow';
-import { Ring } from './habitUi';
 
-// Dashboard card: today's habits, tickable in place.
+const MAX_DOTS = 12;
+
+// Today's one-line habit summary; ticking happens on the Habits tab.
 const HabitsCard = () => {
-  const navigate = useNavigate();
   const today = useLocalToday();
-  // A year of history, so the streaks on the rows match the Habits page.
-  const { habits, idx, loading, error, writeLog } = useHabits(addDays(today, -364), today);
+  // A year of history, the same window the Habits page reads, so per-week schedules agree.
+  const { habits, idx, loading, error } = useHabits(addDays(today, -364), today);
   const active = habits.filter((h) => !h.archived_at);
-  const due = active.filter((h) => isDueOn(h, idx, today, today));
   const p = dayProgress(habits, idx, today, today);
   const allDone = p.due > 0 && p.done === p.due;
 
-  return (
-    <div className="elevation-card flex flex-col gap-1 p-[14px]">
-      <div className="flex items-center justify-between">
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Habits</span>
-        <div className="flex items-center gap-3">
-          {p.due > 0 && (
-            <span className={cn('flex items-center gap-1.5 font-mono text-xs font-semibold', allDone ? 'text-chart-fiber' : 'text-muted-foreground')}>
-              <Ring value={p.pct / 100} size={16} stroke={3} />
-              {allDone ? 'All done' : `${p.done} / ${p.due}`}
-            </span>
-          )}
-          <Link to="/habits" className="-my-3 flex h-11 items-center text-xs font-medium text-primary">
-            All
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      </div>
+  const summary = loading
+    ? 'Loading…'
+    : error
+      ? 'Couldn’t load habits'
+      : active.length === 0
+        ? 'Track supplements, water, steps and more'
+        : p.due === 0
+          ? 'Nothing scheduled today'
+          : allDone
+            ? `All ${p.due} done`
+            : `${p.done} of ${p.due} done`;
 
-      {loading ? (
-        <div className="flex h-12 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : error ? (
-        <p className="text-sm text-destructive">{error}</p>
-      ) : active.length === 0 ? (
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <p className="text-sm text-muted-foreground">Track supplements, water, steps and more</p>
-          <Link to="/habits" className="flex h-11 flex-none items-center rounded-full bg-primary px-4 text-xs font-semibold text-primary-foreground">
-            Start
-          </Link>
-        </div>
-      ) : due.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing scheduled today</p>
-      ) : (
-        <div className="-mx-[14px] -mb-2 divide-y divide-border">
-          {due.map((h) => (
-            <HabitRow key={h.id} habit={h} idx={idx} date={today} today={today} onWrite={(next) => writeLog(h.id, today, next)} onOpen={() => navigate(`/habits/${h.id}`)} />
+  return (
+    <Link to="/habits" className="flex min-h-[64px] items-center gap-3.5 rounded-[20px] bg-card px-4 py-3.5 transition-transform active:scale-[.98]">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <span className="text-[15px] font-semibold text-foreground">
+          Habits <span className={allDone ? 'font-normal text-chart-fiber' : 'font-normal text-muted-foreground'}>{summary}</span>
+        </span>
+        {p.due > 0 &&
+          (p.due <= MAX_DOTS ? (
+            <span className="flex gap-[5px]" aria-hidden>
+              {Array.from({ length: p.due }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-[18px] rounded-full transition-colors duration-300 ${i < p.done ? 'bg-chart-fiber' : 'bg-border'}`}
+                />
+              ))}
+            </span>
+          ) : (
+            <span className="h-1.5 overflow-hidden rounded-full bg-border" aria-hidden>
+              <span className="block h-full rounded-full bg-chart-fiber" style={{ width: `${p.pct}%` }} />
+            </span>
           ))}
-        </div>
-      )}
-    </div>
+      </div>
+      <ChevronRight className="h-5 w-5 flex-none text-muted-foreground" />
+    </Link>
   );
 };
 

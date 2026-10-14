@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { RefreshCw, Flame, Activity } from 'lucide-react';
+import { RefreshCw, Activity } from 'lucide-react';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 
 const STEPS_GOAL = 10000;
@@ -23,7 +23,7 @@ const StepsSection = () => {
 
   if (!isConnected) {
     return (
-      <div className="elevation-card col-span-2 flex flex-col items-center gap-3 p-5 text-center animate-fade-in-up">
+      <div className="elevation-card col-span-2 flex flex-col items-center gap-3 p-5 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
           <Activity className="h-6 w-6" />
         </div>
@@ -54,58 +54,36 @@ const StepsSection = () => {
 
   const steps = healthData?.steps ?? 0;
   const percentage = Math.min(Math.round((steps / STEPS_GOAL) * 100), 100);
-  const recentSteps = (healthData?.history?.steps ?? []).slice(-7);
-  const maxRecent = Math.max(steps, ...recentSteps.map((d) => d.steps), 1);
 
   return (
-    <div className="elevation-card flex flex-col gap-[10px] p-[14px] animate-fade-in-up">
+    <div className="flex flex-col gap-2.5 rounded-[20px] bg-card p-3.5">
       <div className="flex items-center justify-between">
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Steps
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-chart-steps">
-            <Flame className="h-3 w-3" />
-            {Math.round(healthData?.activeCalories ?? 0)} kcal
-          </span>
-          <button
-            type="button"
-            onClick={handleRefreshData}
-            disabled={isRefreshing}
-            aria-label="Refresh steps"
-            className="text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+        <span className="text-sm text-muted-foreground">Steps</span>
+        <button
+          type="button"
+          onClick={handleRefreshData}
+          disabled={isRefreshing}
+          aria-label="Refresh steps"
+          className="-m-3 flex h-11 w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      <div className="font-mono text-[26px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
-        {steps.toLocaleString()}
-      </div>
+      <div className="font-display text-[28px] font-bold leading-none text-foreground">{steps.toLocaleString()}</div>
+      <p className="text-[13px] text-faint">of {STEPS_GOAL.toLocaleString()} today</p>
 
-      {recentSteps.length > 0 ? (
-        <div className="flex h-[22px] items-end gap-[3px]">
-          {recentSteps.map((day, i) => (
-            <div
-              key={day.date ?? i}
-              className="flex-1 rounded-sm bg-chart-steps/70"
-              style={{ height: `${Math.max((day.steps / maxRecent) * 100, 8)}%` }}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="h-[22px] w-full overflow-hidden rounded-sm bg-muted">
+      <div className="mt-auto flex flex-col gap-2">
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-sm bg-chart-steps transition-all duration-500 ease-out"
-            style={{ width: `${percentage}%` }}
+            className="h-full rounded-full bg-chart-steps"
+            style={{ width: `${percentage}%`, transition: 'width 900ms var(--ease-settle) 300ms' }}
           />
         </div>
-      )}
-
-      <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
-        {percentage}% of {STEPS_GOAL.toLocaleString()}
-      </p>
+        <span className="text-[13px] text-muted-foreground">
+          Burned <strong className="font-semibold text-foreground">{Math.round(healthData?.activeCalories ?? 0)}</strong> kcal
+        </span>
+      </div>
     </div>
   );
 };

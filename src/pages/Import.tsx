@@ -10,6 +10,7 @@ import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import MealReviewList, { ChatMealItem, MealTime, chatMealItemToRow } from '@/components/MealReviewList';
 import { parseMealLogFile } from '@/lib/importMealLog';
 import { fmtLocalDate } from '@/lib/utils';
+import MenuButton from '@/components/MenuButton';
 
 const Import = () => {
   const { user } = useAuth();
@@ -92,7 +93,7 @@ const Import = () => {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="import-date" className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor="import-date" className="text-xs text-muted-foreground">
             Log to date
           </Label>
           {/* The file's own date (if any) is just the default -- change it to log
@@ -123,9 +124,7 @@ const Import = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-primary/12 border border-primary/28">
-          <FileSpreadsheet className="h-4 w-4 text-primary" />
-        </div>
+        <MenuButton />
         <div>
           <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Import log</h1>
           <p className="text-xs text-muted-foreground">Import a day's meals from an Excel sheet.</p>

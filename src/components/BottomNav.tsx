@@ -11,6 +11,13 @@ const TABS = [
   { path: '/profile', icon: User, label: 'You' },
 ] as const;
 
+/** Position of the tab that owns this path (a habit's detail page belongs to Habits), or -1 for drawer pages. */
+export const tabIndex = (pathname: string) =>
+  TABS.findIndex((t) => t.path === pathname || (t.path !== '/' && pathname.startsWith(`${t.path}/`)));
+
+// Habits has its own "New habit" button and Chat has its own input, so the add-meal button would compete there.
+const NO_FAB = ['/habits', '/chat'];
+
 const PAD = 4; // track padding (px); the capsule's slots sit inside it
 const SLOT = `(100% - ${PAD * 2}px) / ${TABS.length}`;
 const SPRING =
@@ -27,7 +34,8 @@ const BottomNav = () => {
   const [dragLeft, setDragLeft] = useState<number | null>(null);
   const [moving, setMoving] = useState(false);
   // A habit's detail page (/habits/:id) keeps the Habits tab lit; -1 on drawer pages: capsule hidden.
-  const idx = TABS.findIndex((t) => t.path === pathname || (t.path !== '/' && pathname.startsWith(`${t.path}/`)));
+  const idx = tabIndex(pathname);
+  const showFab = !NO_FAB.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const lens = moving || dragLeft !== null;
 
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -84,7 +92,10 @@ const BottomNav = () => {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        className="nav-glass relative flex h-16 max-w-[292px] flex-1 touch-none select-none rounded-full p-1 [-webkit-touch-callout:none]"
+        className={cn(
+          'nav-glass relative flex h-16 flex-1 touch-none select-none rounded-full p-1 [-webkit-touch-callout:none]',
+          showFab ? 'max-w-[292px]' : 'max-w-[360px]'
+        )}
       >
         <div
           aria-hidden
@@ -116,14 +127,16 @@ const BottomNav = () => {
           </Link>
         ))}
       </div>
+      {showFab && (
       <button
         type="button"
-        onClick={openAddMeal}
+        onClick={() => openAddMeal()}
         aria-label="Add meal"
         className="flex h-16 w-16 flex-none items-center justify-center rounded-full border border-primary-foreground/20 bg-primary shadow-[inset_0_1px_0_hsl(0_0%_100%/0.28),0_14px_30px_-12px_hsl(var(--primary)/0.95)] transition-transform active:scale-[.94]"
       >
         <Plus className="h-6 w-6 text-primary-foreground" strokeWidth={2.4} />
       </button>
+      )}
     </nav>
   );
 };

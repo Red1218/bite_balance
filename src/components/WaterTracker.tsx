@@ -5,63 +5,51 @@ const WaterTracker = () => {
   const { glasses, goal, loading, addGlass, removeGlass } = useWaterTracker();
 
   if (loading) {
-    return (
-      <div className="elevation-card flex h-[164px] items-center justify-center p-[14px]">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
+    return <div className="h-[176px] rounded-[20px] bg-card" />;
   }
 
   return (
-    <div className="elevation-card flex flex-col gap-[10px] p-[14px] animate-fade-in-up">
-      <div className="flex items-center justify-between">
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Water
-        </span>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={removeGlass}
-            disabled={glasses <= 0}
-            aria-label="Remove glass"
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-muted text-muted-foreground disabled:opacity-40"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={addGlass}
-            disabled={glasses >= 20}
-            aria-label="Add glass"
-            className="flex h-6 w-6 items-center justify-center rounded-lg bg-chart-water/14 text-chart-water disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-2.5 rounded-[20px] bg-card p-3.5">
+      <span className="text-sm text-muted-foreground">Water</span>
 
-      <div className="font-mono text-[26px] font-bold leading-none tracking-[-0.03em] tabular-nums text-foreground">
+      <div className="font-display text-[28px] font-bold leading-none text-foreground">
         {glasses}
-        <span className="font-sans text-xs font-medium text-muted-foreground"> / {goal} glasses</span>
+        <span className="text-[15px] font-medium text-faint"> / {goal}</span>
       </div>
 
-      <div className="flex gap-1">
+      {/* Each glass fills from the bottom with a little overshoot, like water settling. */}
+      <div className="flex items-end gap-1" aria-hidden>
         {Array.from({ length: goal }).map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => (i < glasses ? removeGlass() : addGlass())}
-            aria-label={`Glass ${i + 1}`}
-            className={`h-[22px] flex-1 rounded-[4px] transition-colors ${
-              i < glasses ? 'bg-chart-water/80' : 'bg-muted'
-            }`}
-          />
+          <span key={i} className="relative h-[22px] flex-1 overflow-hidden rounded-b-[5px] border-[1.5px] border-t-0 border-border">
+            <span
+              className="absolute inset-x-0 bottom-0 bg-chart-water"
+              style={{ height: i < glasses ? '100%' : '0%', transition: 'height 520ms cubic-bezier(.34,1.4,.64,1)' }}
+            />
+          </span>
         ))}
       </div>
 
-      <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
-        {glasses} of {goal} glasses
-      </p>
+      <div className="mt-auto flex gap-2">
+        <button
+          type="button"
+          onClick={removeGlass}
+          disabled={glasses <= 0}
+          aria-label="Remove a glass"
+          className="flex h-11 w-11 flex-none items-center justify-center rounded-[14px] bg-muted text-foreground transition-transform active:scale-95 disabled:opacity-40"
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={addGlass}
+          disabled={glasses >= 20}
+          aria-label="Add a glass"
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-chart-water/15 text-sm font-semibold text-chart-water transition-transform active:scale-95 disabled:opacity-40"
+        >
+          <Plus className="h-4 w-4" strokeWidth={2.4} />
+          Glass
+        </button>
+      </div>
     </div>
   );
 };

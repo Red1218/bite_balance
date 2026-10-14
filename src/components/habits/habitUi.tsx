@@ -28,20 +28,21 @@ export const CATEGORY_LABEL: Record<HabitCategory, string> = {
   supplements: 'Supplements', fitness: 'Fitness', nutrition: 'Nutrition', mind: 'Mind', sleep: 'Sleep',
 };
 
-export const HabitTile = ({ habit, size = 36 }: { habit: Pick<Habit, 'icon' | 'color'>; size?: number }) => {
-  const Icon = ICONS[habit.icon] ?? Check;
+// A plain check on a tile reads as "already done", so a habit without a real icon shows its initial.
+export const HabitTile = ({ habit, size = 36 }: { habit: Pick<Habit, 'icon' | 'color' | 'name'>; size?: number }) => {
+  const Icon = habit.icon === 'check' ? null : ICONS[habit.icon];
   return (
     <span
-      className="habit-tint flex flex-none items-center justify-center rounded-[10px]"
-      style={{ ...colorStyle(habit.color), width: size, height: size }}
+      className="habit-tint flex flex-none items-center justify-center rounded-[10px] font-display font-bold"
+      style={{ ...colorStyle(habit.color), width: size, height: size, fontSize: size * 0.44 }}
     >
-      <Icon style={{ width: size / 2, height: size / 2 }} />
+      {Icon ? <Icon style={{ width: size / 2, height: size / 2 }} /> : (habit.name.trim()[0] ?? '·').toUpperCase()}
     </span>
   );
 };
 
 export const SectionLabel = ({ children, className }: { children: ReactNode; className?: string }) => (
-  <h2 className={cn('font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground', className)}>{children}</h2>
+  <h2 className={cn('font-sans text-[12px] font-semibold text-muted-foreground', className)}>{children}</h2>
 );
 
 export const Streak = ({ value, unit = 'd', className }: { value: number; unit?: 'd' | 'wk'; className?: string }) => (

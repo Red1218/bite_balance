@@ -19,9 +19,10 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        display: ['"Space Grotesk"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        sans: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Bricolage Grotesque"', '"Instrument Sans"', 'system-ui', 'sans-serif'],
+        // Numbers keep their own class but share the body face; tabular figures come from index.css.
+        mono: ['"Instrument Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',

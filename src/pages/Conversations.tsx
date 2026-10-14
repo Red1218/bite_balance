@@ -4,6 +4,7 @@ import { ChevronRight, MessagesSquare, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtLocalDate } from '@/lib/utils';
+import MenuButton from '@/components/MenuButton';
 
 interface DayThread {
   date: string;
@@ -74,7 +75,7 @@ const Conversations = () => {
           return {
             date,
             title: truncate(firstUser.content, 60),
-            subtitle: truncate(last.content, 70),
+            subtitle: truncate(last.content.replace(/\*\*/g, ''), 70), // the reply's bold markers aren't rendered here
             lastTime: last.created_at,
             kcal: Math.round(kcalByDate.get(date) ?? 0),
             itemCount: countByDate.get(date) ?? 0,
@@ -120,8 +121,9 @@ const Conversations = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Conversations</h1>
+      <div className="flex items-center gap-3">
+        <MenuButton />
+        <h1 className="flex-1 font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Conversations</h1>
         <button
           type="button"
           onClick={() => navigate('/chat')}
@@ -157,7 +159,7 @@ const Conversations = () => {
         <div className="space-y-5">
           {groups.map((group) => (
             <div key={group.label} className="space-y-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-[12px] font-semibold text-muted-foreground">
                 {group.label}
               </span>
               <div className="space-y-2">

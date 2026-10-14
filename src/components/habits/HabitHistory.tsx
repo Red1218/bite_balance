@@ -67,7 +67,7 @@ export const WeekGrid = ({ habits, idx, days, today, selected, onSelect, onShift
               aria-pressed={d === selected}
               className={cn('flex h-11 flex-col items-center justify-center rounded-t-lg', d === selected && 'bg-primary/10')}
             >
-              <span className="text-[9px] font-semibold uppercase leading-none text-muted-foreground">{shortDate(d, { weekday: 'narrow' })}</span>
+              <span className="text-[12px] font-semibold leading-none text-muted-foreground">{shortDate(d, { weekday: 'narrow' })}</span>
               <span className={cn('font-mono text-[11px] leading-tight', d === today && 'font-semibold text-primary')}>{Number(d.slice(8))}</span>
             </button>
           ))}
@@ -127,7 +127,7 @@ export const MonthHeatmap = ({ habits, idx, month, today, selected, onSelect, on
           <NavButton label="Next month" disabled={month >= monthStartOf(today)} onClick={() => onShift(1)}><ChevronRight className="h-[18px] w-[18px]" /></NavButton>
         </div>
       </div>
-      <div className="mb-1.5 grid grid-cols-7 gap-1.5 text-center text-[9px] font-semibold uppercase text-muted-foreground">
+      <div className="mb-1.5 grid grid-cols-7 gap-1.5 text-center text-[12px] font-semibold text-muted-foreground">
         {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i}>{d}</span>)}
       </div>
       <div className="grid grid-cols-7 gap-1.5">

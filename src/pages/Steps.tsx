@@ -4,6 +4,7 @@ import { Activity, Footprints, Calendar as CalendarIcon, RefreshCw } from 'lucid
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import ActivityCalendarDrawer from '@/components/ActivityCalendarDrawer';
+import MenuButton from '@/components/MenuButton';
 
 const STEP_GOAL = 10000;
 
@@ -13,7 +14,7 @@ const glassTooltipStyle = {
   background: 'hsl(var(--card) / 0.85)',
   backdropFilter: 'blur(20px) saturate(1.4)',
   color: 'hsl(var(--foreground))',
-  fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+  fontFamily: '"Instrument Sans", system-ui, sans-serif',
   fontSize: 12,
   boxShadow: '0 1px 0 hsl(0 0% 100% / 0.07) inset, 0 24px 48px -20px hsl(0 0% 0% / 0.9)',
 };
@@ -39,8 +40,9 @@ const Steps = () => {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
+      <div className="flex items-center gap-3">
+        <MenuButton />
+        <h1 className="flex-1 font-display text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
         {isConnected && healthData && (
           <div className="flex-none rounded-full border border-border bg-card px-3 py-1.5 font-sans text-[11px] font-medium text-muted-foreground">
             Synced {new Date(healthData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -85,7 +87,7 @@ const Steps = () => {
             <div className="elevation-glass flex flex-col gap-[15px] rounded-[20px] p-[18px]">
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="flex items-center gap-2 font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <div className="flex items-center gap-2 font-sans text-[12px] font-semibold text-muted-foreground">
                     <Footprints className="h-3.5 w-3.5" />
                     Steps today
                     <button
@@ -140,7 +142,7 @@ const Steps = () => {
             {last7Steps.length > 0 && (
               <div className="elevation-card flex flex-col gap-3.5 p-[15px]">
                 <div className="flex items-baseline justify-between">
-                  <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <div className="font-sans text-[12px] font-semibold text-muted-foreground">
                     Last 7 days
                   </div>
                   <div className="font-mono text-[11px] tabular-nums text-muted-foreground">
@@ -157,7 +159,7 @@ const Steps = () => {
                         dataKey="day"
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={10}
-                        fontFamily='"IBM Plex Mono", ui-monospace, monospace'
+                        fontFamily='"Instrument Sans", system-ui, sans-serif'
                         tickLine={false}
                         axisLine={false}
                       />
@@ -178,7 +180,7 @@ const Steps = () => {
                 className="elevation-card flex w-full flex-col gap-3.5 p-[15px] text-left"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <div className="flex items-center gap-2 font-sans text-[12px] font-semibold text-muted-foreground">
                     <CalendarIcon className="h-3.5 w-3.5" />
                     Goal met
                   </div>
@@ -188,7 +190,9 @@ const Steps = () => {
                 </div>
                 <div className="grid grid-cols-7 gap-1.5">
                   {goalDays.slice(-14).map((d) => {
-                    const opacity = Math.max(0.14, Math.min(d.steps / STEP_GOAL, 1));
+                    // Only days that reached the goal are filled, so the grid agrees with the "of N days" count.
+                    const met = d.steps >= STEP_GOAL;
+                    const opacity = met ? 1 : 0.12;
                     const isToday = new Date(d.date).toDateString() === new Date().toDateString();
                     return (
                       <div
@@ -196,7 +200,7 @@ const Steps = () => {
                         className="flex aspect-square items-center justify-center rounded-lg font-mono text-xs tabular-nums"
                         style={{
                           background: `hsl(var(--chart-steps) / ${opacity})`,
-                          color: opacity > 0.55 ? 'hsl(var(--primary-foreground))' : 'hsl(var(--foreground))',
+                          color: met ? 'hsl(var(--background))' : 'hsl(var(--muted-foreground))',
                           boxShadow: isToday ? '0 0 0 2px hsl(var(--foreground) / 0.5)' : undefined,
                         }}
                       >

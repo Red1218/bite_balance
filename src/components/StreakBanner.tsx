@@ -8,21 +8,11 @@ const StreakBanner = () => {
 
   const isHighStreak = streak >= 7;
 
-  if (streak === 0) {
-    return (
-      <div className="elevation-card flex items-center gap-3 px-4 py-3 animate-fade-in-up">
-        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
-          <Flame className="h-[18px] w-[18px]" />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Log your first meal to start your streak!
-        </p>
-      </div>
-    );
-  }
+  // With no streak yet, the empty meal slots above already say what to do.
+  if (streak === 0) return null;
 
   return (
-    <div className="flex items-center gap-[13px] rounded-xl border border-chart-steps/26 bg-chart-steps/9 px-[15px] py-[13px] animate-fade-in-up">
+    <div className="flex items-center gap-[13px] rounded-xl border border-chart-steps/26 bg-chart-steps/9 px-[15px] py-[13px]">
       <div className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-chart-steps/16 text-chart-steps">
         {isHighStreak ? (
           <Trophy className="h-[18px] w-[18px]" />

@@ -200,7 +200,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-xs uppercase tracking-wide text-muted-foreground">Meal Name *</Label>
+          <Label htmlFor="name" className="text-xs text-muted-foreground">Meal Name *</Label>
           <Input
             id="name"
             value={formData.name}
@@ -297,7 +297,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="calories" className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor="calories" className="text-xs text-muted-foreground">
             {buildMode === 'foods' ? 'Total calories (from selected foods)' : 'Calories *'}
           </Label>
           <Input
@@ -316,7 +316,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
         <div className="grid grid-cols-4 gap-3">
           {MACRO_FIELDS.map((f) => (
             <div key={f.key} className="space-y-2">
-              <Label htmlFor={f.key} className={`text-[10px] uppercase tracking-wide ${f.color}`}>{f.label}</Label>
+              <Label htmlFor={f.key} className={`text-[12px] ${f.color}`}>{f.label}</Label>
               <Input
                 id={f.key}
                 type="number"
@@ -333,7 +333,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="tags" className="text-xs uppercase tracking-wide text-muted-foreground">Tags</Label>
+          <Label htmlFor="tags" className="text-xs text-muted-foreground">Tags</Label>
           <div className="flex gap-2">
             <Input
               id="tags"
@@ -377,7 +377,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="notes" className="text-xs uppercase tracking-wide text-muted-foreground">Notes</Label>
+          <Label htmlFor="notes" className="text-xs text-muted-foreground">Notes</Label>
           <Textarea
             id="notes"
             value={formData.notes}

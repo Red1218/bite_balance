@@ -31,7 +31,7 @@ function mapNutrients<T>(f: (k: NutrientKey) => T) {
 const AddMeal = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { closeAddMeal, notifyMealsLogged } = useAddMealSheet();
+  const { closeAddMeal, notifyMealsLogged, initialMealTime } = useAddMealSheet();
   const [loading, setLoading] = useState(false);
   const [autoFilling, setAutoFilling] = useState(false);
 
@@ -55,7 +55,7 @@ const AddMeal = () => {
   >(null);
   const [portionWeight, setPortionWeight] = useState<string>('100');
 
-  const emptyMeal = () => ({ name: '', mealTime: defaultSlotForNow(), ...mapNutrients(() => '') });
+  const emptyMeal = () => ({ name: '', mealTime: initialMealTime ?? defaultSlotForNow(), ...mapNutrients(() => '') });
   const [mealData, setMealData] = useState(emptyMeal);
 
   const handlePortionWeightChange = (newWeightStr: string) => {
@@ -223,26 +223,29 @@ const AddMeal = () => {
 
   return (
     <div className="px-4 pb-6 pt-2">
-      {/* Meal slot chips */}
-      <div className="flex gap-2 mb-6">
-          {MEAL_ORDER.map((slot) => {
-            const isActive = mealData.mealTime === slot;
-            return (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => setMealData({ ...mealData, mealTime: slot })}
-                className={
-                  isActive
-                    ? 'rounded-full px-[13px] py-2 text-xs font-medium bg-primary/16 border border-primary/34 text-primary'
-                    : 'rounded-full px-[13px] py-2 text-xs font-medium bg-muted border border-border text-muted-foreground'
-                }
-              >
-                {MEAL_LABEL[slot]}
-              </button>
-            );
-          })}
-        </div>
+      {/* Meal slot picker: one pill slides to the chosen slot */}
+      <div role="radiogroup" aria-label="Meal" className="relative mb-6 grid h-11 grid-cols-4 rounded-full bg-muted p-1">
+        <span
+          aria-hidden
+          className="absolute bottom-1 left-1 top-1 rounded-full bg-foreground transition-transform duration-[420ms] [transition-timing-function:var(--ease-pop)]"
+          style={{ width: 'calc((100% - 8px) / 4)', transform: `translateX(${Math.max(0, MEAL_ORDER.indexOf(mealData.mealTime as (typeof MEAL_ORDER)[number])) * 100}%)` }}
+        />
+        {MEAL_ORDER.map((slot) => {
+          const isActive = mealData.mealTime === slot;
+          return (
+            <button
+              key={slot}
+              type="button"
+              role="radio"
+              aria-checked={isActive}
+              onClick={() => setMealData({ ...mealData, mealTime: slot })}
+              className={`relative rounded-full text-[13px] font-semibold transition-colors ${isActive ? 'text-background' : 'text-muted-foreground'}`}
+            >
+              {MEAL_LABEL[slot]}
+            </button>
+          );
+        })}
+      </div>
 
             <div className="elevation-card space-y-4 p-4">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -254,15 +257,15 @@ const AddMeal = () => {
                       : 'border-border bg-muted'
                   }`}
                 >
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                  <span className="text-[12px] font-semibold text-muted-foreground">
                     Meal name
                   </span>
                   <input
                     id="name"
                     value={mealData.name}
                     onChange={(e) => setMealData({ ...mealData, name: e.target.value })}
-                    placeholder="e.g., 150g Chicken Breast"
-                    className="block w-full bg-transparent text-lg font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+                    placeholder="Chicken breast, 150 g"
+                    className="block w-full bg-transparent text-lg font-medium text-foreground placeholder:text-faint focus:outline-none"
                     required
                   />
 
@@ -326,7 +329,7 @@ const AddMeal = () => {
                 {/* Portion + Calories */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="space-y-2 rounded-2xl border border-border bg-muted/60 p-3.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                    <span className="text-[12px] font-semibold text-muted-foreground">
                       Portion
                     </span>
                     <div className="flex items-baseline gap-1.5">
@@ -353,7 +356,7 @@ const AddMeal = () => {
                     }`}
                   >
                     <span
-                      className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${
+                      className={`text-[12px] font-semibold ${
                         mealData.calories ? 'text-primary/75' : 'text-muted-foreground'
                       }`}
                     >
@@ -387,7 +390,7 @@ const AddMeal = () => {
                 {/* Macronutrients */}
                 <div className="space-y-2">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <span className="text-[12px] font-semibold text-muted-foreground">
                       Macronutrients
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground">grams</span>

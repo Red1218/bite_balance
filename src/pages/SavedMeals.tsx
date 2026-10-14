@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSavedMeals, SavedMeal } from '@/hooks/useSavedMeals';
 import { useDailyMeals } from '@/hooks/useDailyMeals';
@@ -13,6 +12,7 @@ import EditMealDialog from '@/components/EditMealDialog';
 import AddSavedMealForm from '@/components/AddSavedMealForm';
 import AddFoodForm from '@/components/AddFoodForm';
 import MealTimeSelector from '@/components/MealTimeSelector';
+import MenuButton from '@/components/MenuButton';
 
 // Merge saved meals and custom foods into one chronological list -- both are
 // "things I saved to reuse later", just with different shapes and actions.
@@ -282,15 +282,7 @@ const SavedMeals = () => {
       <div className="max-w-md mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Link to="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-xl bg-card border border-border text-muted-foreground hover:bg-accent"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <MenuButton />
           <h1 className="flex-1 text-xl font-display font-semibold text-foreground">Saved</h1>
           <div className="flex items-baseline gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
             <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
@@ -404,7 +396,7 @@ const SavedMeals = () => {
           {groups.map((group) => (
             <div key={group.label} className="space-y-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="font-mono text-[10px] font-semibold tracking-widest uppercase text-muted-foreground/70 whitespace-nowrap">
+                <div className="font-mono text-[12px] font-semibold text-muted-foreground/70 whitespace-nowrap">
                   {group.label}
                 </div>
                 <div className="flex-1 h-px bg-border" />
@@ -421,7 +413,7 @@ const SavedMeals = () => {
                       onClick={selectMode ? () => toggleSelected(itemKey(item)) : undefined}
                       aria-pressed={selectMode ? selectedKeys.has(itemKey(item)) : undefined}
                       className={cn(
-                        'elevation-card border-l-[3px] border-l-primary p-3.5 flex flex-col gap-2.5',
+                        'elevation-card p-3.5 flex flex-col gap-2.5',
                         selectMode && 'cursor-pointer',
                         selectMode && selectedKeys.has(itemKey(item)) && 'ring-2 ring-primary/50'
                       )}
@@ -433,7 +425,7 @@ const SavedMeals = () => {
                             <div className="font-display font-semibold text-base leading-tight text-foreground truncate">
                               {item.meal.name}
                             </div>
-                            <div className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                            <div className="font-mono text-[12px] text-muted-foreground">
                               Saved meal
                             </div>
                           </div>
@@ -442,7 +434,7 @@ const SavedMeals = () => {
                           <div className="font-mono font-semibold text-lg tabular-nums text-foreground">
                             {Math.round(item.meal.calories)}
                           </div>
-                          <div className="text-[9px] tracking-wider text-muted-foreground uppercase">kcal</div>
+                          <div className="text-[12px] text-muted-foreground">kcal</div>
                         </div>
                       </div>
 
@@ -560,7 +552,7 @@ const SavedMeals = () => {
                         <div className="font-mono font-medium text-sm tabular-nums text-foreground/80">
                           {Math.round(item.food.calories)}
                         </div>
-                        <div className="text-[8px] tracking-wider text-muted-foreground uppercase">kcal</div>
+                        <div className="text-[8px] text-muted-foreground">kcal</div>
                       </div>
                       {!selectMode && (
                         <>
