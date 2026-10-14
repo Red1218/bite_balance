@@ -4,6 +4,7 @@ import { Activity, Footprints, Calendar as CalendarIcon, RefreshCw } from 'lucid
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import ActivityCalendarDrawer from '@/components/ActivityCalendarDrawer';
+import MenuButton from '@/components/MenuButton';
 
 const STEP_GOAL = 10000;
 
@@ -39,8 +40,9 @@ const Steps = () => {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
+      <div className="flex items-center gap-3">
+        <MenuButton />
+        <h1 className="flex-1 font-display text-2xl font-semibold tracking-tight text-foreground">Activity</h1>
         {isConnected && healthData && (
           <div className="flex-none rounded-full border border-border bg-card px-3 py-1.5 font-sans text-[11px] font-medium text-muted-foreground">
             Synced {new Date(healthData.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -12,6 +12,7 @@ import { useHealthConnect } from '@/hooks/useHealthConnect';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import { MICRO } from '@/components/MealReviewList';
+import MenuButton from '@/components/MenuButton';
 
 const WATER_GOAL_GLASSES = 8; // matches useWaterTracker's fixed daily goal
 const STEP_GOAL = 10000; // matches Steps.tsx
@@ -466,7 +467,8 @@ const Profile = () => {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <MenuButton />
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">You</h1>
       </div>
 

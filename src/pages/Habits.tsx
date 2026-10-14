@@ -15,6 +15,7 @@ import HabitEditList, { initialOrder, orderToSave, withRestored } from '@/compon
 import HabitReminderSheet from '@/components/habits/HabitReminderSheet';
 import { MonthHeatmap, WeekGrid, fmtMonthShift, monthStartOf, shortDate } from '@/components/habits/HabitHistory';
 import { Ring, SectionLabel, StateMark, TIME_LABEL } from '@/components/habits/habitUi';
+import MenuButton from '@/components/MenuButton';
 
 const Habits = () => {
   const navigate = useNavigate();
@@ -82,7 +83,8 @@ const Habits = () => {
 
   const header = (
     <div className="flex h-14 items-center gap-1">
-      <h1 className="flex-1 font-display text-2xl font-semibold tracking-tight">{editOrder ? 'Edit list' : 'Habits'}</h1>
+      <MenuButton />
+      <h1 className="ml-2 flex-1 font-display text-2xl font-semibold tracking-tight">{editOrder ? 'Edit list' : 'Habits'}</h1>
       {editOrder ? (
         <button type="button" onClick={finishEditing} className="h-11 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground">
           Done

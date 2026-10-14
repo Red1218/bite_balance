@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSavedMeals, SavedMeal } from '@/hooks/useSavedMeals';
 import { useDailyMeals } from '@/hooks/useDailyMeals';
@@ -13,6 +12,7 @@ import EditMealDialog from '@/components/EditMealDialog';
 import AddSavedMealForm from '@/components/AddSavedMealForm';
 import AddFoodForm from '@/components/AddFoodForm';
 import MealTimeSelector from '@/components/MealTimeSelector';
+import MenuButton from '@/components/MenuButton';
 
 // Merge saved meals and custom foods into one chronological list -- both are
 // "things I saved to reuse later", just with different shapes and actions.
@@ -282,15 +282,7 @@ const SavedMeals = () => {
       <div className="max-w-md mx-auto px-4 py-6 space-y-5">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Link to="/">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-xl bg-card border border-border text-muted-foreground hover:bg-accent"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <MenuButton />
           <h1 className="flex-1 text-xl font-display font-semibold text-foreground">Saved</h1>
           <div className="flex items-baseline gap-1.5 rounded-full border border-border bg-card px-3 py-1.5">
             <span className="font-mono text-xs font-semibold tabular-nums text-foreground">

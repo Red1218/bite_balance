@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, Sparkles, Mic, Plus, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Mic, Plus, Loader2, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,7 @@ import { useSavedMeals, type SavedMeal } from '@/hooks/useSavedMeals';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { defaultSlotForNow } from '@/lib/mealTime';
 import { cn, fmtLocalDate } from '@/lib/utils';
+import MenuButton from '@/components/MenuButton';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -412,9 +413,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         className="sticky z-30 -mx-4 flex items-center gap-2.5 border-b border-border bg-background px-4 pb-3 pt-2"
         style={{ top: 'env(safe-area-inset-top, 0px)' }}
       >
-        <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl border border-primary/28 bg-primary/12">
-          <Sparkles className="h-4 w-4 text-primary" />
-        </div>
+        <MenuButton />
         <div className="min-w-0 flex-1 space-y-1">
           <h1 className="truncate font-display text-lg font-bold leading-tight text-foreground">{title}</h1>
           <p className="text-[13px] text-muted-foreground">{subtitle}</p>

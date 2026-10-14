@@ -4,6 +4,7 @@ import { ChevronRight, MessagesSquare, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { fmtLocalDate } from '@/lib/utils';
+import MenuButton from '@/components/MenuButton';
 
 interface DayThread {
   date: string;
@@ -120,8 +121,9 @@ const Conversations = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Conversations</h1>
+      <div className="flex items-center gap-3">
+        <MenuButton />
+        <h1 className="flex-1 font-display text-2xl font-bold leading-tight tracking-tight text-foreground">Conversations</h1>
         <button
           type="button"
           onClick={() => navigate('/chat')}

@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import EditMealDialog from '@/components/EditMealDialog';
 import { MEAL_ORDER, MEAL_LABEL } from '@/components/MealReviewList';
+import MenuButton from '@/components/MenuButton';
 
 interface MealInfo {
   id: string;
@@ -286,8 +287,9 @@ const History = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">History</h1>
+      <div className="flex items-center gap-3">
+        <MenuButton />
+        <h1 className="flex-1 font-display text-2xl font-semibold tracking-tight text-foreground">History</h1>
         <div className="flex gap-[2px] rounded-full bg-muted p-[3px]">
           {(['week', 'month'] as const).map((mode) => (
             <button
