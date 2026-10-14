@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Calendar, Home, MessageCircle, Plus, User } from 'lucide-react';
+import { Home, ListChecks, MessageCircle, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const TABS = [
   { path: '/', icon: Home, label: 'Today' },
   { path: '/chat', icon: MessageCircle, label: 'Chat' },
-  { path: '/history', icon: Calendar, label: 'History' },
+  { path: '/habits', icon: ListChecks, label: 'Habits' },
   { path: '/profile', icon: User, label: 'You' },
 ] as const;
 
@@ -26,7 +26,8 @@ const BottomNav = () => {
   const timer = useRef<number>();
   const [dragLeft, setDragLeft] = useState<number | null>(null);
   const [moving, setMoving] = useState(false);
-  const idx = TABS.findIndex((t) => t.path === pathname); // -1 on drawer pages: capsule hidden
+  // A habit's detail page (/habits/:id) keeps the Habits tab lit; -1 on drawer pages: capsule hidden.
+  const idx = TABS.findIndex((t) => t.path === pathname || (t.path !== '/' && pathname.startsWith(`${t.path}/`)));
   const lens = moving || dragLeft !== null;
 
   useEffect(() => () => clearTimeout(timer.current), []);
