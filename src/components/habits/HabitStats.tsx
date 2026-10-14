@@ -57,6 +57,13 @@ const HabitStats = ({ habits, idx, today }: { habits: Habit[]; idx: LogIndex; to
   const ranked = dow.filter((d) => d.value !== null).sort((a, b) => b.value! - a.value!);
   const best = ranked[0];
   const worst = ranked[ranked.length - 1];
+  // Ties are common (two 100% days), so name every day that shares the top or bottom score.
+  const tops = best ? ranked.filter((d) => d.value === best.value).map((d) => d.w) : [];
+  const bottoms = worst && worst.value !== best?.value ? ranked.filter((d) => d.value === worst.value).map((d) => d.w) : [];
+  const dayList = (ws: number[]) => {
+    const names = ws.map((w) => `${DAY_NAMES[w]}s`);
+    return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  };
 
   const leaders = habits
     .filter((h) => !h.archived_at)
@@ -121,7 +128,7 @@ const HabitStats = ({ habits, idx, today }: { habits: Habit[]; idx: LogIndex; to
         </div>
         <div className="mt-1.5 flex gap-2">
           {bars.map((b) => (
-            <span key={b.key} className={cn('flex-1 text-center text-[10px] font-semibold uppercase', b.open ? 'text-primary' : 'text-muted-foreground')}>{b.label}</span>
+            <span key={b.key} className={cn('flex-1 text-center text-[12px] font-semibold', b.open ? 'text-primary' : 'text-muted-foreground')}>{b.label}</span>
           ))}
         </div>
       </section>
@@ -129,15 +136,17 @@ const HabitStats = ({ habits, idx, today }: { habits: Habit[]; idx: LogIndex; to
       {best && (
         <section className="elevation-card rounded-2xl p-3.5">
           <SectionLabel>Best day of the week</SectionLabel>
-          <div className="mt-1 font-display text-lg font-semibold">{DAY_NAMES[best.w]}s are your strongest</div>
-          {worst && worst.w !== best.w && <div className="mb-2.5 text-[13px] text-muted-foreground">{DAY_NAMES[worst.w]}s slip most. Last 12 weeks.</div>}
+          <div className="mt-1 font-display text-lg font-semibold">{dayList(tops)} are your strongest</div>
+          <div className="mb-2.5 text-[13px] text-muted-foreground">
+            {bottoms.length > 0 ? `${dayList(bottoms)} slip most, over the last 12 weeks.` : 'Over the last 12 weeks.'}
+          </div>
           {dow.map((d) => (
             <div key={d.w} className="grid h-[26px] grid-cols-[34px_minmax(0,1fr)_40px] items-center gap-2.5 text-xs">
-              <span className="text-[10px] font-semibold uppercase">{DAY_NAMES[d.w].slice(0, 3)}</span>
+              <span className="text-[12px] font-semibold">{DAY_NAMES[d.w].slice(0, 3)}</span>
               <span className="h-2.5 overflow-hidden rounded-full bg-muted">
-                <span className={cn('block h-full rounded-full', d.w === best.w ? 'bg-chart-fiber' : 'bg-muted-foreground/45')} style={{ width: `${d.value ?? 0}%` }} />
+                <span className={cn('block h-full origin-left rounded-full motion-grow', tops.includes(d.w) ? 'bg-chart-fiber' : 'bg-muted-foreground/45')} style={{ width: `${d.value ?? 0}%` }} />
               </span>
-              <span className={cn('text-right font-mono', d.w === best.w && 'font-semibold')}>{d.value === null ? '–' : `${d.value}%`}</span>
+              <span className={cn('text-right font-mono', tops.includes(d.w) && 'font-semibold')}>{d.value === null ? '–' : `${d.value}%`}</span>
             </div>
           ))}
         </section>

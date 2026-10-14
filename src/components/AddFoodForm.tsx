@@ -129,7 +129,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="food-name" className="text-xs uppercase tracking-wide text-muted-foreground">Food Name *</Label>
+          <Label htmlFor="food-name" className="text-xs text-muted-foreground">Food Name *</Label>
           <Input
             id="food-name"
             value={formData.name}
@@ -142,7 +142,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
 
         <div className="grid grid-cols-2 gap-2.5">
           <div className="space-y-2">
-            <Label htmlFor="food-category" className="text-[10px] uppercase tracking-wide text-muted-foreground">Category</Label>
+            <Label htmlFor="food-category" className="text-[12px] text-muted-foreground">Category</Label>
             <Select
               value={formData.category}
               onValueChange={(val) => setFormData({ ...formData, category: val })}
@@ -160,7 +160,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
             </Select>
           </div>
           <div className="space-y-2">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Serving</Label>
+            <Label className="text-[12px] text-muted-foreground">Serving</Label>
             <div className="flex gap-1.5">
               <Input
                 type="number"
@@ -181,7 +181,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="food-calories" className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor="food-calories" className="text-xs text-muted-foreground">
             Calories for this serving *
           </Label>
           <Input
@@ -198,7 +198,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
         <div className="grid grid-cols-4 gap-3">
           {MACRO_FIELDS.map((f) => (
             <div key={f.key} className="space-y-2">
-              <Label htmlFor={`food-${f.key}`} className={`text-[10px] uppercase tracking-wide ${f.color}`}>{f.label}</Label>
+              <Label htmlFor={`food-${f.key}`} className={`text-[12px] ${f.color}`}>{f.label}</Label>
               <Input
                 id={`food-${f.key}`}
                 type="number"
@@ -215,7 +215,7 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
         {!food && (
           <div className="space-y-2">
             <div className="flex items-baseline justify-between">
-              <Label htmlFor="food-alias-draft" className="text-xs uppercase tracking-wide text-muted-foreground">Aliases</Label>
+              <Label htmlFor="food-alias-draft" className="text-xs text-muted-foreground">Aliases</Label>
               <span className="text-[10px] text-muted-foreground">optional</span>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-input p-2">

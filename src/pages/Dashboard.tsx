@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import type { LayoutContext } from '@/components/AppLayout';
 import { useDailyMeals, DailyMeal } from '@/hooks/useDailyMeals';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
 import EditMealDialog from '@/components/EditMealDialog';
 import StepsSection from '@/components/StepsSection';
-import MacronutrientsTracker from '@/components/MacronutrientsTracker';
 import DailySummary from '@/components/DailySummary';
 import DashboardHeader from '@/components/DashboardHeader';
 import TodaysMealsSection from '@/components/TodaysMealsSection';
@@ -20,6 +21,7 @@ const Dashboard = () => {
   const { meals, loading, totals, updateMeal, deleteMeal, refetch } = useDailyMeals();
   const { healthData } = useHealthConnect();
   const { mealsLoggedAt } = useAddMealSheet();
+  const { openDrawer } = useOutletContext<LayoutContext>();
 
   // The Add Meal sheet is an overlay, not a route change -- Dashboard stays
   // mounted underneath it, so it needs this nudge to see meals logged there.
@@ -59,12 +61,7 @@ const Dashboard = () => {
   };
 
   const todayData = {
-    date: new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }),
+    date: new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
   };
 
   if (loading) {
@@ -75,9 +72,9 @@ const Dashboard = () => {
           <Skeleton className="h-8 w-48" />
         </div>
 
-        <Skeleton className="h-[154px] w-full rounded-[20px]" />
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-[380px] w-full rounded-[28px]" />
+        <Skeleton className="h-16 w-full rounded-[20px]" />
+        <Skeleton className="h-16 w-full rounded-[20px]" />
         <div className="grid grid-cols-2 gap-[11px]">
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-40 w-full rounded-xl" />
@@ -89,41 +86,28 @@ const Dashboard = () => {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Header */}
-      <DashboardHeader todayDate={todayData.date} />
+      <DashboardHeader todayDate={todayData.date} onOpenMenu={openDrawer} />
 
-      {/* Daily Summary */}
       <DailySummary
         calories={totals.calories}
         goal={dailyGoal}
         caloriesBurned={healthData?.activeCalories ?? 0}
         weightGoal={user?.user_metadata?.weight_goal}
+        totals={totals}
       />
 
-      {/* Streak Banner */}
+      <TodaysMealsSection meals={meals} onEditMeal={handleEditMeal} onDeleteMeal={handleDeleteMeal} />
+
+      <HabitsCard />
+
       <StreakBanner />
 
-      {/* Macronutrients Tracker */}
-      <MacronutrientsTracker totals={totals} />
-
-      {/* Water + Steps */}
-      <div className="grid grid-cols-2 gap-[11px]">
+      <div className="grid grid-cols-2 gap-3">
         <WaterTracker />
         <StepsSection />
       </div>
 
-      {/* Daily weigh-in */}
       <WeightCard />
-
-      {/* Today's habits */}
-      <HabitsCard />
-
-      {/* Today's Meals */}
-      <TodaysMealsSection
-        meals={meals}
-        onEditMeal={handleEditMeal}
-        onDeleteMeal={handleDeleteMeal}
-      />
 
       <EditMealDialog
         meal={editingMeal}

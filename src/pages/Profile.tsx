@@ -77,7 +77,7 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 const SectionLabel = ({ children, onEdit }: { children: ReactNode; onEdit?: () => void }) => (
   <div className="flex h-5 items-center justify-between">
-    <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{children}</div>
+    <div className="font-sans text-[12px] font-semibold text-muted-foreground">{children}</div>
     {onEdit && (
       <button type="button" onClick={onEdit} className="-my-2 px-1 py-2 text-[13px] font-medium text-primary">
         Edit
@@ -612,7 +612,7 @@ const Profile = () => {
 
       {/* Daily goals — read-only breakdown derived from the calorie goal above */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Daily breakdown
         </div>
         <div className="elevation-card space-y-4 p-4">
@@ -672,7 +672,7 @@ const Profile = () => {
         const delta = Math.abs(startWeight - goalWeight).toFixed(1);
         return (
           <div className="space-y-2">
-            <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <div className="font-sans text-[12px] font-semibold text-muted-foreground">
               Progress
             </div>
             <div className="elevation-card space-y-3 p-4">
@@ -697,7 +697,7 @@ const Profile = () => {
 
       {/* Macro goal overrides + Target — always visible now, own explicit save */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Macro goals
         </div>
         <div className="elevation-card p-4">
@@ -719,7 +719,7 @@ const Profile = () => {
       </div>
 
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Target
         </div>
         <div className="elevation-card space-y-4 p-4">
@@ -743,7 +743,7 @@ const Profile = () => {
 
       {/* Appearance */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Appearance
         </div>
         <div className="elevation-card space-y-3.5 p-[15px]">
@@ -773,7 +773,7 @@ const Profile = () => {
 
       {/* Tracking */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Tracking
         </div>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">
@@ -786,7 +786,7 @@ const Profile = () => {
 
       {/* Units & account */}
       <div className="space-y-2">
-        <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
           Units &amp; account
         </div>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">

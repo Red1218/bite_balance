@@ -37,7 +37,7 @@ const HabitStarters = ({ onAdd, onCreate }: { onAdd: (list: HabitValues[]) => Pr
       </div>
 
       <div className="flex items-baseline justify-between px-1 pt-1">
-        <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Suggested</span>
+        <span className="font-sans text-[12px] font-semibold text-muted-foreground">Suggested</span>
         <span className="font-mono text-xs text-muted-foreground">{picked.length} of {STARTERS.length} picked</span>
       </div>
       <div className="elevation-card divide-y divide-border rounded-2xl p-0">

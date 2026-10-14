@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Check, Minus, Pause, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { dayState, habitStreaks, logOn, scheduleLabel, weekProgress, type Habit, type LogIndex } from '@/lib/habits';
@@ -22,6 +23,8 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
   const count = log?.status === 'done' ? (log.count ?? 0) : 0;
   const skipped = state === 'skipped';
   const done = state === 'done';
+  // Only a tap animates: rows that load already done stay still.
+  const [tapped, setTapped] = useState(false);
 
   const setCount = (n: number) => onWrite(n > 0 ? { status: 'done', count: n, note } : note ? { status: 'done', count: 0, note } : null);
 
@@ -52,7 +55,12 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
     } else if (!done && habit.kind !== 'count') {
       parts.push(<span key="s">{scheduleLabel(habit)}</span>);
     }
-    if (streaks.current > 0) parts.push(<Streak key="k" value={streaks.current} unit={streaks.unit} />);
+    if (streaks.current > 0)
+      parts.push(
+        <span key={`k${done && tapped ? 'bump' : ''}`} className={done && tapped ? 'motion-bump' : 'inline-flex'}>
+          <Streak value={streaks.current} unit={streaks.unit} />
+        </span>
+      );
     return parts.flatMap((p, i) => (i ? [<span key={`dot${i}`} aria-hidden className="h-[3px] w-[3px] rounded-full bg-current opacity-60" />, p] : [p]));
   })();
 
@@ -108,13 +116,17 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
         role="checkbox"
         aria-checked={done}
         aria-label={habit.name}
-        onClick={() => onWrite(done ? null : { status: 'done', count: null, note })}
+        onClick={() => {
+          setTapped(true);
+          onWrite(done ? null : { status: 'done', count: null, note });
+        }}
         className={cn(
-          'flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 text-white transition-all active:scale-90',
-          done ? 'border-chart-fiber bg-chart-fiber' : 'border-muted-foreground/45'
+          'flex h-11 w-11 flex-none items-center justify-center rounded-full border-2 transition-colors duration-200 active:scale-90',
+          done ? 'border-chart-fiber bg-chart-fiber text-background' : 'border-muted-foreground/45',
+          done && tapped && 'motion-pop'
         )}
       >
-        {done && <Check className="h-5 w-5 animate-in zoom-in-50" strokeWidth={3} />}
+        {done && <Check className={cn('h-5 w-5', tapped && 'motion-draw')} strokeWidth={3} />}
       </button>
     );
   })();
@@ -130,7 +142,7 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
             <span className="flex items-center gap-1.5">
               <span className="truncate text-[15px] font-medium text-foreground">{habit.name}</span>
               {habit.kind === 'avoid' && (
-                <span className="flex-none rounded-md border border-border px-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <span className="flex-none rounded-md border border-border px-1.5 text-[12px] font-semibold text-muted-foreground">
                   Avoid
                 </span>
               )}

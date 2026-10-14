@@ -74,7 +74,7 @@ const AnimatedMealCard = ({ meal, onEditMeal, onDeleteMeal, subLabel }: Animated
         <div className="font-mono text-[17px] font-semibold tabular-nums text-foreground">
           {meal.calories}
         </div>
-        <div className="mt-1 font-sans text-[9px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        <div className="mt-1 font-sans text-[12px] font-medium text-muted-foreground">
           kcal
         </div>
       </div>

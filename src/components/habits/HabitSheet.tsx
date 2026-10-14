@@ -29,9 +29,9 @@ const valuesOf = (habit: Habit): HabitValues => ({
 const Field = ({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) => (
   <div className="space-y-2">
     {htmlFor ? (
-      <label htmlFor={htmlFor} className="block font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</label>
+      <label htmlFor={htmlFor} className="block font-sans text-[12px] font-semibold text-muted-foreground">{label}</label>
     ) : (
-      <div className="font-sans text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</div>
+      <div className="font-sans text-[12px] font-semibold text-muted-foreground">{label}</div>
     )}
     {children}
   </div>

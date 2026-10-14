@@ -156,7 +156,7 @@ const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, 
                   <button
                     type="button"
                     onClick={() => toggleMicros(it.idx)}
-                    className="flex w-full items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+                    className="flex w-full items-center gap-2 text-[12px] font-semibold text-muted-foreground"
                   >
                     <span>Micronutrients</span>
                     <span className="h-px flex-1 bg-border" />
@@ -189,7 +189,7 @@ const MealReviewList = ({ items, onAccept, onBack, onChangeMealTime, backLabel, 
 
       <div className="elevation-card space-y-2 p-3.5">
         <div className="flex items-baseline justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+          <span className="text-[12px] font-semibold text-muted-foreground">
             Day totals
           </span>
           <span className="font-mono text-lg font-bold tabular-nums text-foreground">{Math.round(dayTotals.calories)} kcal</span>

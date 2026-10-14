@@ -74,7 +74,7 @@ const Conversations = () => {
           return {
             date,
             title: truncate(firstUser.content, 60),
-            subtitle: truncate(last.content, 70),
+            subtitle: truncate(last.content.replace(/\*\*/g, ''), 70), // the reply's bold markers aren't rendered here
             lastTime: last.created_at,
             kcal: Math.round(kcalByDate.get(date) ?? 0),
             itemCount: countByDate.get(date) ?? 0,
@@ -157,7 +157,7 @@ const Conversations = () => {
         <div className="space-y-5">
           {groups.map((group) => (
             <div key={group.label} className="space-y-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-[12px] font-semibold text-muted-foreground">
                 {group.label}
               </span>
               <div className="space-y-2">

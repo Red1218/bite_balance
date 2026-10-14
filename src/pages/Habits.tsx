@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, ChevronLeft, ChevronRight, Loader2, Pause, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -36,6 +36,22 @@ const Habits = () => {
   const active = habits.filter((h) => !h.archived_at);
   const progress = dayProgress(habits, idx, selected, today);
   const dueHabits = active.filter((h) => isDueOn(h, idx, selected, today));
+
+  // When the last of today's habits gets ticked, today's ring in the strip pops once.
+  const todayP = dayProgress(habits, idx, today, today);
+  const todayDone = todayP.due > 0 && todayP.done === todayP.due;
+  const wasDone = useRef<boolean | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
+  useEffect(() => {
+    if (loading) return;
+    if (wasDone.current === false && todayDone) {
+      setCelebrate(true);
+      const t = window.setTimeout(() => setCelebrate(false), 1600);
+      wasDone.current = todayDone;
+      return () => window.clearTimeout(t);
+    }
+    wasDone.current = todayDone;
+  }, [todayDone, loading]);
 
   const changeReminder = (next: ReminderSettings) => {
     setReminder(next);
@@ -164,9 +180,9 @@ const Habits = () => {
               <div className="flex-1 text-center">
                 <div className="font-display text-base font-semibold">{shortDate(selected, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
                 {selected === today ? (
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">Today</div>
+                  <div className="text-[12px] font-semibold text-primary">Today</div>
                 ) : (
-                  <button type="button" onClick={() => select(today)} className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+                  <button type="button" onClick={() => select(today)} className="text-[12px] font-semibold text-primary">
                     Back to today
                   </button>
                 )}
@@ -196,10 +212,15 @@ const Habits = () => {
                       d === selected && 'bg-card shadow-sm ring-2 ring-primary'
                     )}
                   >
-                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">{shortDate(d, { weekday: 'narrow' })}</span>
+                    <span className="text-[12px] font-semibold text-muted-foreground">{shortDate(d, { weekday: 'narrow' })}</span>
                     {p.due > 0 && p.done === p.due ? (
-                      <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-chart-fiber text-white">
-                        <Check className="h-3 w-3" strokeWidth={3.5} />
+                      <span
+                        className={cn(
+                          'flex h-[22px] w-[22px] items-center justify-center rounded-full bg-chart-fiber text-background',
+                          celebrate && d === today && 'motion-celebrate'
+                        )}
+                      >
+                        <Check className={cn('h-3 w-3', celebrate && d === today && 'motion-draw')} strokeWidth={3.5} />
                       </span>
                     ) : (
                       <Ring value={p.pct / 100} size={22} stroke={4} />
@@ -218,7 +239,7 @@ const Habits = () => {
                   {progress.pct}
                   <span className="text-base">%</span>
                 </span>
-                <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                <span className="mt-1 block text-[12px] font-semibold text-muted-foreground">
                   {selected === today ? 'today' : shortDate(selected, { weekday: 'short' })}
                 </span>
               </span>

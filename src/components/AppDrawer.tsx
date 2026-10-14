@@ -50,7 +50,7 @@ const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="left"
-        className="flex w-[300px] max-w-[85vw] flex-col gap-1 border-r border-white/10 bg-background/95 p-4 backdrop-blur-xl"
+        className="flex w-[300px] max-w-[85vw] flex-col gap-1 border-r border-border bg-background/95 p-4 pt-[calc(env(safe-area-inset-top,0px)+16px)] pb-[calc(env(safe-area-inset-bottom,0px)+12px)] backdrop-blur-xl [&>button]:top-[calc(env(safe-area-inset-top,0px)+16px)]"
       >
         <SheetTitle className="sr-only">Navigation</SheetTitle>
         <div className="flex items-center gap-3 px-1 pb-3 pt-2">
@@ -61,7 +61,7 @@ const AppDrawer = ({ open, onOpenChange }: AppDrawerProps) => {
         </div>
         <div className="h-px bg-border" />
         <nav className="flex flex-1 flex-col gap-1 py-3">
-          <div className="px-3 pb-1 font-sans text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="px-3 pb-1 font-sans text-[12px] font-semibold text-muted-foreground">
             More
           </div>
           {navItems.map(renderItem)}

@@ -103,9 +103,9 @@ const WeightCard = () => {
   });
 
   return (
-    <div className="elevation-card flex flex-col gap-[10px] p-[14px] animate-fade-in-up">
+    <div className="elevation-card flex flex-col gap-[10px] p-[14px]">
       <div className="flex items-center justify-between">
-        <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <span className="font-sans text-[12px] font-semibold text-muted-foreground">
           Weight
         </span>
         <span className="font-mono text-[11px] tabular-nums text-muted-foreground">

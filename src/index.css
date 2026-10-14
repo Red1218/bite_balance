@@ -58,42 +58,42 @@
   }
 
   .dark {
-    /* Dark theme — Bite Balance design system v2 */
-    --background: 220 12% 5%;
-    --foreground: 0 0% 96%;
+    /* Dark theme — Bite Balance design system v3: warm "tawa" ground, food-toned accents */
+    --background: 34 19% 7%;
+    --foreground: 37 35% 93%;
 
-    --card: 220 9% 10%;
-    --card-foreground: 0 0% 96%;
+    --card: 33 19% 11%;
+    --card-foreground: 37 35% 93%;
 
-    --popover: 220 9% 10%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 33 19% 11%;
+    --popover-foreground: 37 35% 93%;
 
-    --primary: 0 72% 51%;
+    --primary: 4 65% 50%; /* chili; white text on it is 4.8:1 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 9% 14%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary: 32 18% 14%;
+    --secondary-foreground: 37 35% 93%;
 
-    --muted: 220 9% 14%;
-    --muted-foreground: 220 6% 62%;
+    --muted: 32 18% 14%;
+    --muted-foreground: 36 14% 66%;
 
-    --accent: 220 9% 14%;
-    --accent-foreground: 0 0% 96%;
+    --accent: 32 18% 14%;
+    --accent-foreground: 37 35% 93%;
 
-    --faint: 220 6% 44%;
+    --faint: 35 9% 50%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 8% 18%;
-    --input: 220 8% 18%;
-    --ring: 0 72% 51%;
+    --border: 34 16% 20%;
+    --input: 34 16% 20%;
+    --ring: 38 87% 56%;
 
-    --chart-protein: 0 72% 56%;
-    --chart-carbs: 38 92% 55%;
-    --chart-fat: 262 70% 66%;
-    --chart-fiber: 150 58% 46%;
-    --chart-water: 199 88% 55%;
+    --chart-protein: 9 82% 68%;
+    --chart-carbs: 38 87% 56%;
+    --chart-fat: 257 74% 78%;
+    --chart-fiber: 132 35% 62%;
+    --chart-water: 200 77% 61%;
     --chart-steps: 28 90% 58%;
 
     --chart-vitc: 168 30% 48%;
@@ -130,8 +130,8 @@
     user-select: auto;
   }
 
-  /* Numbers are always tabular mono, per the design system */
-  .font-mono {
+  /* Tabular figures everywhere, so totals don't jiggle while they count */
+  body {
     font-variant-numeric: tabular-nums;
   }
 
@@ -217,32 +217,88 @@
   }
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Motion tokens. One orchestrated moment (the plate on Today) plus motion that answers a tap. */
+:root {
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes glow-out {
+  from { box-shadow: 0 0 0 2px hsl(var(--chart-carbs)); }
+  to { box-shadow: 0 0 0 2px hsl(var(--chart-carbs) / 0); }
+}
+@keyframes pop {
+  from { transform: scale(0.6); }
+  to { transform: scale(1); }
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes bump {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ring-pulse {
+  from { box-shadow: 0 0 0 0 hsl(var(--chart-fiber) / 0.7); }
+  to { box-shadow: 0 0 0 12px hsl(var(--chart-fiber) / 0); }
+}
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateX(calc(var(--page-dir, 0) * 18px)); }
+  to { opacity: 1; transform: none; }
 }
 
-.animate-fade-in-up {
-  animation: fadeInUp 0.6s ease-out;
+/* A meal that just landed in today's list */
+.motion-drop {
+  animation: drop-in 560ms var(--ease-pop) both, glow-out 1800ms ease-out 300ms both;
+}
+.motion-pop {
+  animation: pop 380ms var(--ease-pop) both;
+}
+/* A check mark drawing itself; the path is shorter than 24 */
+.motion-draw path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: draw 260ms var(--ease-settle) 120ms forwards;
+}
+.motion-bump {
+  display: inline-flex;
+  animation: bump 520ms var(--ease-pop) 200ms both;
+}
+.motion-rise {
+  animation: rise 460ms var(--ease-settle) both;
+}
+/* Pops in and sends one ring outward: the last habit of the day */
+.motion-celebrate {
+  border-radius: 9999px;
+  animation: pop 380ms var(--ease-pop) both, ring-pulse 900ms ease-out 250ms both;
+}
+.motion-grow {
+  animation: grow-x 700ms var(--ease-settle) both;
+}
+.motion-page {
+  animation: page-in 320ms var(--ease-settle) both;
 }
 
-.animate-slide-in-right {
-  animation: slideInRight 0.4s ease-out;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+  }
 }

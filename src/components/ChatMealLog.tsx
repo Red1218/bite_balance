@@ -83,7 +83,6 @@ const computeSingleDiff = (prev: ChatMealItem[], next: ChatMealItem[]): string |
   return `${c.name} → ${c.prevGrams}g → ${c.nextGrams}g, ${sign}${c.deltaKcal} kcal`;
 };
 
-const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trim()}…` : s);
 
 // Renders the model's prose reply: a blank line starts a new block, a single
 // newline a new line inside it, and **text** is emphasised. Anything else
@@ -400,11 +399,9 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
   const isFreshConversation = !viewDate && messages.length === 1;
   const threadDay = viewDate ?? fmtLocalDate(new Date());
-  const firstUserMsg = messages.find((m) => m.who === 'user' && fmtLocalDate(new Date(m.createdAt)) === threadDay);
-  const title = firstUserMsg ? truncate(firstUserMsg.text, 40) : 'New conversation';
-  const subtitle = viewDate
-    ? new Date(`${viewDate}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    : `${loggedKcal.toLocaleString()} kcal logged`;
+  // One thread per day, so the day is the title; a first message isn't always from that day.
+  const title = new Date(`${threadDay}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const subtitle = viewDate ? 'Past chat' : `${loggedKcal.toLocaleString()} kcal logged today`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -419,8 +416,8 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
           <Sparkles className="h-4 w-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="truncate text-sm font-medium leading-tight text-foreground">{title}</h1>
-          <p className="font-mono text-[10px] text-muted-foreground">{subtitle}</p>
+          <h1 className="truncate font-display text-lg font-bold leading-tight text-foreground">{title}</h1>
+          <p className="text-[13px] text-muted-foreground">{subtitle}</p>
         </div>
       </div>
 
@@ -480,7 +477,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
 
       {isFreshConversation && (
         <div className="space-y-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Or start from</span>
+          <span className="text-[12px] font-semibold text-muted-foreground">Or start from</span>
           <div className="flex flex-wrap gap-2">
             {(
               [

@@ -1,16 +1,31 @@
-import { lazy, Suspense, useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { lazy, Suspense, useRef, useState, type CSSProperties } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import AppDrawer from './AppDrawer';
-import BottomNav from './BottomNav';
+import BottomNav, { tabIndex } from './BottomNav';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
 const AddMeal = lazy(() => import('../pages/AddMeal'));
 
+export interface LayoutContext {
+  openDrawer: () => void;
+}
+
 const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { open: addMealOpen, closeAddMeal } = useAddMealSheet();
+  const { pathname } = useLocation();
+
+  // Pages slide in from the side of the tab you moved toward; drawer pages just fade.
+  const prevTab = useRef(tabIndex(pathname));
+  const dir = useRef(0);
+  const lastPath = useRef(pathname);
+  if (lastPath.current !== pathname) {
+    const next = tabIndex(pathname);
+    dir.current = next >= 0 && prevTab.current >= 0 ? Math.sign(next - prevTab.current) : 0;
+    prevTab.current = next;
+    lastPath.current = pathname;
+  }
 
   return (
     <div
@@ -22,21 +37,15 @@ const AppLayout = () => {
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
+      {/* The window scrolls, so cover the status-bar strip or content slides under the clock. */}
+      <div aria-hidden className="fixed inset-x-0 top-0 z-30 bg-background" style={{ height: 'env(safe-area-inset-top, 0px)' }} />
+
       <AppDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
 
       <main className="mx-auto w-full max-w-[560px] px-4 pb-28 pt-4">
-        <div className="mb-3 flex justify-end">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Menu className="h-[18px] w-[18px]" />
-          </button>
+        <div key={pathname} className="motion-page" style={{ '--page-dir': dir.current } as CSSProperties}>
+          <Outlet context={{ openDrawer: () => setDrawerOpen(true) } satisfies LayoutContext} />
         </div>
-
-        <Outlet />
       </main>
 
       <BottomNav />
@@ -45,13 +54,7 @@ const AppLayout = () => {
         <DrawerContent className="max-h-[92vh]">
           <DrawerTitle className="sr-only">Add meal</DrawerTitle>
           <div className="overflow-y-auto pb-[env(safe-area-inset-bottom,0px)]">
-            <Suspense
-              fallback={
-                <div className="flex justify-center py-16">
-                  <div className="h-8 w-8 animate-pulse rounded-full bg-primary" />
-                </div>
-              }
-            >
+            <Suspense fallback={<div className="h-64" />}>
               <AddMeal />
             </Suspense>
           </div>

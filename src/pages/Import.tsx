@@ -92,7 +92,7 @@ const Import = () => {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="import-date" className="text-xs uppercase tracking-wide text-muted-foreground">
+          <Label htmlFor="import-date" className="text-xs text-muted-foreground">
             Log to date
           </Label>
           {/* The file's own date (if any) is just the default -- change it to log
