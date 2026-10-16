@@ -62,12 +62,12 @@ export const addDays = (date: string, n: number) => {
   return fmtLocalDate(d);
 };
 
-export const daysBetween = (from: string, to: string) => dayNumber(to) - dayNumber(from);
+const daysBetween = (from: string, to: string) => dayNumber(to) - dayNumber(from);
 
 // Monday of the week containing `date`.
 export const weekStart = (date: string) => addDays(date, -((weekdayOf(date) + 6) % 7));
 
-export const firstDayOf = (habit: Habit) => fmtLocalDate(new Date(habit.created_at));
+const firstDayOf = (habit: Habit) => fmtLocalDate(new Date(habit.created_at));
 
 // ---------- logs ----------
 
@@ -83,7 +83,7 @@ export const isActiveOn = (habit: Habit, date: string) =>
   date >= firstDayOf(habit) && (!habit.archived_at || date < fmtLocalDate(new Date(habit.archived_at)));
 
 // Fixed-schedule habits: is `date` one of its days? (per_week habits can be done any day.)
-export const isScheduled = (habit: Habit, date: string) => {
+const isScheduled = (habit: Habit, date: string) => {
   if (habit.schedule === 'interval') return daysBetween(firstDayOf(habit), date) % (habit.interval_days ?? 1) === 0;
   if (habit.schedule === 'per_week') return true;
   return habit.weekdays.includes(weekdayOf(date));
@@ -245,7 +245,7 @@ export const targetLabel = (habit: Pick<Habit, 'kind' | 'target' | 'unit'>) =>
 
 // ---------- reminders ----------
 
-export const REMINDER_DAYS = 7;
+const REMINDER_DAYS = 7;
 
 export interface ReminderNotice {
   id: number;

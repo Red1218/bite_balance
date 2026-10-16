@@ -16,6 +16,7 @@ import HabitReminderSheet from '@/components/habits/HabitReminderSheet';
 import { MonthHeatmap, WeekGrid, fmtMonthShift, monthStartOf, shortDate } from '@/components/habits/HabitHistory';
 import { Ring, SectionLabel, StateMark, TIME_LABEL } from '@/components/habits/habitUi';
 import MenuButton from '@/components/MenuButton';
+import Segmented from '@/components/Segmented';
 
 const Habits = () => {
   const navigate = useNavigate();
@@ -155,20 +156,7 @@ const Habits = () => {
 
       {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-destructive">{error}</div>}
 
-      <div role="tablist" className="flex h-11 rounded-full bg-muted p-[3px]">
-        {(['today', 'stats'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={cn('flex-1 rounded-full text-[13px] font-semibold capitalize', tab === t ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground')}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <Segmented label="Habits view" options={[['today', 'Today'], ['stats', 'Stats']]} value={tab} onChange={setTab} />
 
       {tab === 'stats' ? (
         <HabitStats habits={habits} idx={idx} today={today} />

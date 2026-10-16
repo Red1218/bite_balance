@@ -1,5 +1,5 @@
 // Self-check for portion.ts. Run: node supabase/functions/parse-meal/portion.check.ts
-import { portionFactor, type FoodPortion } from './portion.ts';
+import { portionFactor, portionOf, type FoodPortion } from './portion.ts';
 
 let failures = 0;
 const eq = (actual: number, expected: number, label: string) => {
@@ -31,6 +31,24 @@ eq(portionFactor('2 spray oil', oil), 2, 'own: 2 sprays');
 eq(portionFactor('120g sourdough', bread), 2, 'own: 120 g of a 60 g serving');
 eq(portionFactor('2 sourdough', bread), 2, 'own: bare count = servings');
 eq(portionFactor('sourdough', bread), 1, 'own: nothing = one serving');
+
+// What the Portion box shows for those totals
+const label = (text: string, food: FoodPortion) => {
+  const p = portionOf(portionFactor(text, food), food);
+  return `${p.amount} ${p.unit}`;
+};
+const same = (actual: string, expected: string, what: string) => {
+  if (actual !== expected) {
+    failures++;
+    console.error(`FAIL ${what}: expected ${expected}, got ${actual}`);
+  }
+};
+same(label('2 eggs', eggs), '2 eggs', 'portion: counted own food');
+same(label('eggs', eggs), '3 eggs', 'portion: no count = one serving');
+same(label('120g sourdough', bread), '120 g', 'portion: grams of a gram serving');
+same(label('2 sourdough', bread), '120 g', 'portion: servings of a gram serving');
+same(label('2 idli', idli), '100 g', 'portion: built-in in grams');
+same(label('2 spray oil', oil), '2 spray', 'portion: unit as saved');
 
 if (failures) process.exitCode = 1;
 else console.log('portion: all checks passed');

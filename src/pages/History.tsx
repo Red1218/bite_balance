@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,6 +7,7 @@ import { cn, fmtLocalDate } from '@/lib/utils';
 import EditMealDialog from '@/components/EditMealDialog';
 import { MEAL_ORDER, MEAL_LABEL } from '@/components/MealReviewList';
 import MenuButton from '@/components/MenuButton';
+import Segmented from '@/components/Segmented';
 
 interface MealInfo {
   id: string;
@@ -87,6 +88,21 @@ const macroBarSegments = (protein: number, carbs: number, fat: number) => {
   return { p: (protein * 4 * 100) / energy, c: (carbs * 4 * 100) / energy, f: (fat * 9 * 100) / energy };
 };
 
+// Calories burned and steps from the watch/phone, with net (eaten − burned) when meals were logged.
+const ActivityLine = ({ burned, steps, net }: { burned: number; steps: number; net?: number }) => (
+  <div className="flex items-baseline justify-between border-t border-border pt-3 font-mono text-[12px] tabular-nums text-muted-foreground">
+    <span>
+      Burned <span className="font-semibold text-chart-steps">{burned.toLocaleString()}</span> kcal
+    </span>
+    <span>{steps.toLocaleString()} steps</span>
+    {net !== undefined && (
+      <span>
+        Net <span className="font-semibold text-foreground">{net.toLocaleString()}</span>
+      </span>
+    )}
+  </div>
+);
+
 const History = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -96,6 +112,8 @@ const History = () => {
   // Every loaded day, including a selected one older than the 7-day strip.
   const [daysByDate, setDaysByDate] = useState<Record<string, DaySummary>>({});
   const [loading, setLoading] = useState(true);
+  // Steps and calories burned per day, saved from Health Connect (health_daily).
+  const [activityByDate, setActivityByDate] = useState<Record<string, { steps: number; burned: number }>>({});
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [editingMeal, setEditingMeal] = useState<MealInfo | null>(null);
 
@@ -108,7 +126,7 @@ const History = () => {
   const [monthData, setMonthData] = useState<Record<string, MonthDay>>({});
   const [monthLoading, setMonthLoading] = useState(true);
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -122,15 +140,28 @@ const History = () => {
       // Load a wider range if the selected date is older than the 7-day strip.
       const fetchStart = selectedDate < startDateStr ? selectedDate : startDateStr;
 
-      const { data, error } = await supabase
-        .from('daily_meals')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('logged_date', fetchStart)
-        .lte('logged_date', endDateStr)
-        .order('logged_at', { ascending: false });
+      const [{ data, error }, { data: activity, error: activityError }] = await Promise.all([
+        supabase
+          .from('daily_meals')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('logged_date', fetchStart)
+          .lte('logged_date', endDateStr)
+          .order('logged_at', { ascending: false }),
+        supabase
+          .from('health_daily')
+          .select('logged_date, steps, burned_kcal')
+          .eq('user_id', user.id)
+          .gte('logged_date', fetchStart)
+          .lte('logged_date', endDateStr),
+      ]);
 
       if (error) throw error;
+      // Activity is extra: without it History still shows meals.
+      if (activityError) console.error('Error loading activity:', activityError);
+      setActivityByDate(
+        Object.fromEntries((activity ?? []).map((a) => [a.logged_date, { steps: a.steps, burned: Math.round(Number(a.burned_kcal)) }]))
+      );
 
       const grouped: Record<string, DaySummary> = {};
       for (const meal of data || []) {
@@ -173,13 +204,13 @@ const History = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, selectedDate]);
 
   useEffect(() => {
     fetchHistory();
-  }, [user, selectedDate]);
+  }, [fetchHistory]);
 
-  const fetchMonthData = async () => {
+  const fetchMonthData = useCallback(async () => {
     if (!user) return;
     setMonthLoading(true);
     try {
@@ -209,11 +240,11 @@ const History = () => {
     } finally {
       setMonthLoading(false);
     }
-  };
+  }, [user, calendarMonth]);
 
   useEffect(() => {
     fetchMonthData();
-  }, [user, calendarMonth]);
+  }, [fetchMonthData]);
 
   const handleDeleteMeal = async (mealId: string, mealName: string) => {
     if (!user || !window.confirm(`Delete "${mealName}"?`)) return;
@@ -248,6 +279,7 @@ const History = () => {
   const selectedDayData = daysByDate[selectedDate] ?? emptyDay(selectedDate);
   const selectedDayDelta = Math.round(selectedDayData.totalCalories - calorieGoal);
   const isSelectedToday = selectedDate === todayStr;
+  const selectedActivity = activityByDate[selectedDate];
 
   const groupedMeals = MEAL_ORDER.map((mt) => ({
     mealTime: mt,
@@ -290,21 +322,13 @@ const History = () => {
       <div className="flex items-center gap-3">
         <MenuButton />
         <h1 className="flex-1 font-display text-2xl font-semibold tracking-tight text-foreground">History</h1>
-        <div className="flex gap-[2px] rounded-full bg-muted p-[3px]">
-          {(['week', 'month'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              className={cn(
-                'rounded-full px-3 py-1.5 font-sans text-[11px] font-semibold capitalize transition-colors',
-                viewMode === mode ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-              )}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="History view"
+          options={[['week', 'Week'], ['month', 'Month']]}
+          value={viewMode}
+          onChange={setViewMode}
+          className="h-9 [&>button]:text-[11px]"
+        />
       </div>
 
       {viewMode === 'week' ? (
@@ -458,6 +482,9 @@ const History = () => {
                 </div>
               ))}
             </div>
+            {selectedActivity && (
+              <ActivityLine {...selectedActivity} net={Math.round(selectedDayData.totalCalories) - selectedActivity.burned} />
+            )}
           </div>
 
           {groupedMeals.length > 0 && (
@@ -518,6 +545,11 @@ const History = () => {
             ).
           </p>
           <p className="text-sm text-muted-foreground">Start logging meals to see your history!</p>
+          {selectedActivity && (
+            <div className="mt-4 text-left">
+              <ActivityLine {...selectedActivity} />
+            </div>
+          )}
         </div>
       )}
 

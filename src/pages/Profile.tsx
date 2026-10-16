@@ -13,6 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import { MICRO } from '@/components/MealReviewList';
 import MenuButton from '@/components/MenuButton';
+import Segmented from '@/components/Segmented';
+import { exportBackup } from '@/lib/exportData';
 
 const WATER_GOAL_GLASSES = 8; // matches useWaterTracker's fixed daily goal
 const STEP_GOAL = 10000; // matches Steps.tsx
@@ -178,24 +180,6 @@ const WeightRuler = ({ value, onChange }: { value: number; onChange: (v: number)
   );
 };
 
-const Segmented = ({ options, value, onChange }: { options: Option[]; value: string; onChange: (v: string) => void }) => (
-  <div className="grid h-11 gap-[3px] rounded-xl bg-muted p-[3px]" style={{ gridTemplateColumns: `repeat(${options.length}, 1fr)` }}>
-    {options.map((o) => (
-      <button
-        key={o.value}
-        type="button"
-        onClick={() => onChange(o.value)}
-        className={cn(
-          'rounded-[9px] text-xs font-medium transition-colors',
-          value === o.value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-        )}
-      >
-        {o.label}
-      </button>
-    ))}
-  </div>
-);
-
 const SegmentedField = ({ label, options, value, base, onChange }: {
   label: string; options: Option[]; value: string; base: string; onChange: (v: string) => void;
 }) => (
@@ -208,7 +192,7 @@ const SegmentedField = ({ label, options, value, base, onChange }: {
         <span className="font-mono text-[10px] text-muted-foreground">{optionOf(options, value)?.hint}</span>
       )}
     </div>
-    <Segmented options={options} value={value} onChange={onChange} />
+    <Segmented label={label} options={options.map((o) => [o.value, o.label] as const)} value={value} onChange={onChange} />
   </div>
 );
 
@@ -219,6 +203,23 @@ const Profile = () => {
   const { isConnected: healthConnected, requestPermissions } = useHealthConnect();
 
   const [microsOpen, setMicrosOpen] = useState(false);
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (!user) return;
+    setExporting(true);
+    try {
+      await exportBackup(user.id);
+    } catch (err) {
+      // Closing the share sheet without picking anything also lands here; that's not a failure.
+      if (!String(err).toLowerCase().includes('cancel')) {
+        console.error('Export failed:', err);
+        toast({ title: 'Export failed', description: 'Could not create your backup. Please try again.', variant: 'destructive' });
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const [profile, setProfile] = useState({
     name: '',
@@ -810,6 +811,15 @@ const Profile = () => {
               ))}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex w-full items-center justify-between px-[15px] py-[13px] text-left disabled:opacity-60"
+          >
+            <span className="text-sm font-medium text-foreground">{exporting ? 'Preparing backup…' : 'Export my data'}</span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
           <button type="button" onClick={() => signOut()} className="flex w-full items-center justify-between px-[15px] py-[13px] text-left">
             <span className="text-sm font-medium text-primary">Sign out</span>
             <ChevronRight className="h-4 w-4 text-primary/60" />

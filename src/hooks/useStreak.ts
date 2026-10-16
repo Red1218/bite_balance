@@ -1,4 +1,4 @@
- import { useState, useEffect } from 'react';
+ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
@@ -10,7 +10,7 @@ export const useStreak = () => {
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const calculateStreak = async () => {
+  const calculateStreak = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -60,16 +60,12 @@ export const useStreak = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    if (!user) return;
-    calculateStreak();
   }, [user]);
 
+  // Recount on sign-in and whenever a meal is logged elsewhere.
   useEffect(() => {
-    if (mealsLoggedAt > 0) calculateStreak();
-  }, [mealsLoggedAt]);
+    calculateStreak();
+  }, [calculateStreak, mealsLoggedAt]);
 
   return { streak, loading };
 };

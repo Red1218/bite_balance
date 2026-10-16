@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +16,7 @@ export const useDailyMeals = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchTodaysMeals = async () => {
+  const fetchTodaysMeals = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -40,7 +40,7 @@ export const useDailyMeals = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const updateMeal = async (id: string, updates: Partial<DailyMeal>) => {
     if (!user) return;
@@ -179,7 +179,7 @@ export const useDailyMeals = () => {
 
   useEffect(() => {
     fetchTodaysMeals();
-  }, [user]);
+  }, [fetchTodaysMeals]);
 
   return {
     meals,

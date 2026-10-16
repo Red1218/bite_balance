@@ -64,5 +64,8 @@ export const useNativeApp = () => {
         LocalNotifications.removeAllListeners();
       }
     };
+    // Register the native listeners once: closeAddMeal is a new function each render, and the
+    // back-button handler reads the sheet state through openRef instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 };

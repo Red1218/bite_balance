@@ -2,13 +2,6 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { X, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -33,7 +26,7 @@ export interface AddFoodFormProps {
   /** When set, the form edits this saved food instead of creating a new one. */
   food?: IndianFood;
   /** Prefill for a new food (e.g. from a meal being logged). Ignored when editing. */
-  initial?: Partial<Record<'name' | 'serving_size' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber', string>>;
+  initial?: Partial<Record<'name' | 'serving_size' | 'serving_unit' | 'calories' | 'protein' | 'carbs' | 'fat' | 'fiber', string>>;
 }
 
 const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, initial }) => {
@@ -143,21 +136,18 @@ const AddFoodForm: React.FC<AddFoodFormProps> = ({ onFoodAdded, onCancel, food, 
         <div className="grid grid-cols-2 gap-2.5">
           <div className="space-y-2">
             <Label htmlFor="food-category" className="text-[12px] text-muted-foreground">Category</Label>
-            <Select
+            <select
+              id="food-category"
               value={formData.category}
-              onValueChange={(val) => setFormData({ ...formData, category: val })}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              <SelectTrigger className="h-11 rounded-xl">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.icon} {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-2">
             <Label className="text-[12px] text-muted-foreground">Serving</Label>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ export const useSavedMeals = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchSavedMeals = async () => {
+  const fetchSavedMeals = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -35,7 +35,7 @@ export const useSavedMeals = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, toast]);
 
   const updateMeal = async (id: string, updates: Partial<SavedMeal>) => {
     if (!user) return;
@@ -129,7 +129,7 @@ export const useSavedMeals = () => {
 
   useEffect(() => {
     fetchSavedMeals();
-  }, [user]);
+  }, [fetchSavedMeals]);
 
   return {
     meals,

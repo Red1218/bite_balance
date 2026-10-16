@@ -13,7 +13,7 @@ const Chat = () => {
   // surfaces bump this same signal -- keep the "kcal logged" header in sync.
   useEffect(() => {
     if (mealsLoggedAt > 0) refetch();
-  }, [mealsLoggedAt]);
+  }, [mealsLoggedAt, refetch]);
 
   const calorieGoal = Number(user?.user_metadata?.calorie_goal) || 2200;
 

@@ -52,19 +52,19 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal, totals }
 
   useEffect(() => {
     introPlayed = true;
-    if (drawn) return;
+    if (!intro) return;
     // Two frames, so the empty ring paints before the arcs transition in.
     let id = requestAnimationFrame(() => {
       id = requestAnimationFrame(() => setDrawn(true));
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [intro]);
 
   const remaining = goal - calories;
   const shownRemaining = useCountUp(drawn ? remaining : goal, intro ? goal : remaining);
   const over = remaining < 0;
 
-  const netCalories = calories - caloriesBurned;
+  const netCalories = Math.round(calories - caloriesBurned);
   // Amber when over the target works against a lose goal. The day is still in
   // progress, so being under is never flagged, and gain/maintain stay neutral.
   const awayFromGoal = netCalories > goal && weightGoal === 'lose';

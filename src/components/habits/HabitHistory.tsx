@@ -18,7 +18,7 @@ export const NavButton = ({ label, onClick, disabled, children }: { label: strin
   </button>
 );
 
-export const StateLegend = () => (
+const StateLegend = () => (
   <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-muted-foreground">
     {(['done', 'partial', 'missed', 'skipped', 'off'] as const).map((s) => (
       <span key={s} className="flex items-center gap-1.5">

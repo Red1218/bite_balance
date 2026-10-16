@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # runs the .ts self-checks directly (type stripping)
           cache: npm
 
       - name: Install dependencies
@@ -28,3 +28,6 @@ jobs:
       # ESLint exits non-zero only on errors; warnings are reported but don't fail the job.
       - name: Lint
         run: npm run lint
+
+      - name: Self-checks
+        run: npm run check

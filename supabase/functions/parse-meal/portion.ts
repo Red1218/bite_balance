@@ -40,3 +40,12 @@ export const portionFactor = (text: string, food: FoodPortion): number => {
   if (grams !== null) return 1;
   return count !== null ? count / per : 1;
 };
+
+// The amount the scaled nutrients cover, for the Portion box: "2 eggs", "120 g".
+// Built-in foods are per 100 g; the user's own foods are per `serving_size serving_unit`.
+export const portionOf = (factor: number, food: FoodPortion): { amount: number; unit: string } => {
+  const own = !!food.user_id;
+  const base = own ? Number(food.serving_size) || 1 : 100;
+  const unit = own ? (food.serving_unit || 'serving').trim() : 'g';
+  return { amount: Math.round(factor * base * 10) / 10, unit: /^g(rams?)?$/i.test(unit) ? 'g' : unit };
+};
