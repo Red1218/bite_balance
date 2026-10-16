@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { X, Plus, Save, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -357,10 +356,9 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-2">
               {tags.map((tag, index) => (
-                <Badge
+                <span
                   key={index}
-                  variant="secondary"
-                  className="flex items-center gap-1 bg-background/50 text-muted-foreground border-border font-normal"
+                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs gap-1 bg-background/50 text-muted-foreground border-border font-normal"
                 >
                   {tag}
                   <button
@@ -370,7 +368,7 @@ const AddSavedMealForm: React.FC<AddSavedMealFormProps> = ({
                   >
                     <X className="w-3 h-3" />
                   </button>
-                </Badge>
+                </span>
               ))}
             </div>
           )}

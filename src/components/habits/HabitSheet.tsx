@@ -10,6 +10,7 @@ import {
   type Habit, type HabitKind, type HabitSchedule, type HabitValues,
 } from '@/lib/habits';
 import { getReminderSettings, requestReminderPermission } from '@/lib/habitReminders';
+import Segmented from '@/components/Segmented';
 import { CATEGORY_LABEL, ICONS, ICON_KEYS, TIME_LABEL, colorStyle } from './habitUi';
 
 // Monday-first, matching the rest of the app's calendars.
@@ -34,26 +35,6 @@ const Field = ({ label, htmlFor, children }: { label: string; htmlFor?: string; 
       <div className="font-sans text-[12px] font-semibold text-muted-foreground">{label}</div>
     )}
     {children}
-  </div>
-);
-
-const Segmented = <T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) => (
-  <div role="radiogroup" aria-label={label} className="flex h-11 rounded-full bg-muted p-[3px]">
-    {options.map(([v, text]) => (
-      <button
-        key={v}
-        type="button"
-        role="radio"
-        aria-checked={value === v}
-        onClick={() => onChange(v)}
-        className={cn(
-          'flex-1 whitespace-nowrap rounded-full px-1.5 text-[13px] font-semibold transition-colors',
-          value === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-        )}
-      >
-        {text}
-      </button>
-    ))}
   </div>
 );
 
@@ -220,6 +201,7 @@ const HabitSheet = ({ open, habit, onOpenChange, onSave }: HabitSheetProps) => {
               value={v.schedule}
               onChange={(schedule) => set({ schedule })}
               options={v.kind === 'avoid' ? [['weekdays', 'Weekdays'], ['interval', 'Every N days']] : [['weekdays', 'Weekdays'], ['per_week', '× per week'], ['interval', 'Every N days']]}
+              className="[&>button]:px-1.5"
             />
             <div className="pt-1.5">
               {v.schedule === 'weekdays' && (

@@ -27,7 +27,7 @@ const Dashboard = () => {
   // mounted underneath it, so it needs this nudge to see meals logged there.
   useEffect(() => {
     if (mealsLoggedAt > 0) refetch();
-  }, [mealsLoggedAt]);
+  }, [mealsLoggedAt, refetch]);
   const [editingMeal, setEditingMeal] = useState<DailyMeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const { toast } = useToast();

@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Segmented from '@/components/Segmented';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import LogoMark from '@/components/LogoMark';
 
 const AuthLanding = () => {
-  const [activeTab, setActiveTab] = useState('signin');
+  const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
@@ -104,13 +104,11 @@ const AuthLanding = () => {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 rounded-xl bg-secondary p-1">
-            <TabsTrigger value="signin" className="rounded-lg">Sign in</TabsTrigger>
-            <TabsTrigger value="signup" className="rounded-lg">Sign up</TabsTrigger>
-          </TabsList>
+        <div className="w-full">
+          <Segmented label="Account" options={[['signin', 'Sign in'], ['signup', 'Sign up']]} value={activeTab} onChange={setActiveTab} />
 
-          <TabsContent value="signin" className="mt-5">
+          {activeTab === 'signin' ? (
+          <div className="mt-5">
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="signin-email">Email</Label>
@@ -152,9 +150,9 @@ const AuthLanding = () => {
                 {loading ? 'Signing in…' : 'Sign in'}
               </Button>
             </form>
-          </TabsContent>
-
-          <TabsContent value="signup" className="mt-5">
+          </div>
+          ) : (
+          <div className="mt-5">
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="signup-name">Name</Label>
@@ -243,8 +241,9 @@ const AuthLanding = () => {
                 {loading ? 'Creating account…' : 'Create free account'}
               </Button>
             </form>
-          </TabsContent>
-        </Tabs>
+          </div>
+          )}
+        </div>
 
         <p className="text-center text-[11px] leading-relaxed text-faint">
           By continuing you agree to our Terms and Privacy Policy.

@@ -46,7 +46,7 @@ export const MICRO = [
   { key: 'zinc', label: 'Zinc', unit: 'mg', goal: 11, dot: 'bg-chart-zinc', text: 'text-chart-zinc' },
 ] as const satisfies readonly { key: keyof ChatMealItem; label: string; unit: string; goal: number; cap?: boolean; dot: string; text: string }[];
 
-export const fmt = (n: number) => (n >= 100 ? Math.round(n).toLocaleString() : Math.round(n * 10) / 10);
+const fmt = (n: number) => (n >= 100 ? Math.round(n).toLocaleString() : Math.round(n * 10) / 10);
 
 export const chatMealItemToRow = (item: ChatMealItem, userId: string, loggedDate: string) => ({
   user_id: userId,

@@ -18,14 +18,14 @@ const MEAL_TIME_KEYWORDS: { mealTime: MealTime; keyword: string }[] = [
 ];
 
 // "Meal 1 - Lunch" -> 'lunch'; no keyword match -> 'snack' (same fallback chat-meal uses).
-export const parseMealTime = (mealCell: unknown): MealTime => {
+const parseMealTime = (mealCell: unknown): MealTime => {
   const text = String(mealCell ?? '').toLowerCase();
   const match = MEAL_TIME_KEYWORDS.find((m) => text.includes(m.keyword));
   return match ? match.mealTime : 'snack';
 };
 
 // "100 g" -> 100. Anything else ("3", "1 spray", a fraction-of-batch note) -> null: not a weight.
-export const parseGrams = (quantity: unknown): number | null => {
+const parseGrams = (quantity: unknown): number | null => {
   const text = String(quantity ?? '').trim();
   const match = text.match(/^(\d+(?:\.\d+)?)\s*g$/i);
   return match ? parseFloat(match[1]) : null;

@@ -2,22 +2,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Activity, Footprints, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import ActivityCalendarDrawer from '@/components/ActivityCalendarDrawer';
 import MenuButton from '@/components/MenuButton';
 
 const STEP_GOAL = 10000;
+const BAR_MAX_PX = 88; // tallest bar in the 7-day chart; the day label and gap sit below it (20px)
 
-const glassTooltipStyle = {
-  borderRadius: 12,
-  border: '1px solid hsl(var(--border))',
-  background: 'hsl(var(--card) / 0.85)',
-  backdropFilter: 'blur(20px) saturate(1.4)',
-  color: 'hsl(var(--foreground))',
-  fontFamily: '"Instrument Sans", system-ui, sans-serif',
-  fontSize: 12,
-  boxShadow: '0 1px 0 hsl(0 0% 100% / 0.07) inset, 0 24px 48px -20px hsl(0 0% 0% / 0.9)',
-};
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
 
 const Steps = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -34,6 +25,7 @@ const Steps = () => {
   };
 
   const last7Steps = healthData?.history?.steps.slice(-7) ?? [];
+  const chartMax = Math.max(STEP_GOAL, ...last7Steps.map((d) => d.steps));
   const goalDays = healthData?.history?.steps ?? [];
   const daysMet = goalDays.filter((d) => d.steps >= STEP_GOAL).length;
 
@@ -152,22 +144,25 @@ const Steps = () => {
                     ).toLocaleString()}
                   </div>
                 </div>
-                <div className="h-32 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={last7Steps.map((d) => ({ ...d, day: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) }))}>
-                      <XAxis
-                        dataKey="day"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={10}
-                        fontFamily='"Instrument Sans", system-ui, sans-serif'
-                        tickLine={false}
-                        axisLine={false}
+                {/* Bars scale to the goal or the best day, whichever is higher; the dashed line is the goal. */}
+                <div className="relative flex h-32 items-end gap-2">
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-x-0 border-t border-dashed border-chart-steps/50"
+                    style={{ bottom: 20 + (STEP_GOAL / chartMax) * BAR_MAX_PX }}
+                  />
+                  {last7Steps.map((d) => (
+                    <div key={d.date} className="flex flex-1 flex-col items-center justify-end gap-1 self-stretch">
+                      <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{compact.format(d.steps)}</span>
+                      <div
+                        className="w-full max-w-[28px] rounded-t bg-chart-steps"
+                        style={{ height: (d.steps / chartMax) * BAR_MAX_PX }}
                       />
-                      <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.3)' }} contentStyle={glassTooltipStyle} />
-                      <ReferenceLine y={STEP_GOAL} stroke="hsl(var(--chart-steps) / 0.5)" strokeDasharray="3 3" />
-                      <Bar dataKey="steps" fill="hsl(var(--chart-steps))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                      <span className="h-4 text-[10px] leading-4 text-muted-foreground">
+                        {new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

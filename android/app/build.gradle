@@ -16,10 +16,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Release signing comes from android/keystore.properties (not in git):
+    //   storeFile=../bite-balance-release.jks  storePassword=...  keyAlias=...  keyPassword=...
+    // Without it, release builds are signed with the debug key so they install over a debug build.
+    def keystoreFile = rootProject.file('keystore.properties')
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                def props = new Properties()
+                keystoreFile.withInputStream { props.load(it) }
+                storeFile file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

@@ -44,6 +44,7 @@ const AddMeal = () => {
     setFoodDraft({
       name: mealData.name,
       serving_size: portionWeight || '100',
+      serving_unit: portionUnit,
       calories: String(Math.round(Number(mealData.calories) || 0)),
       ...Object.fromEntries(
         (['protein', 'carbs', 'fat', 'fiber'] as const).map((k) => [k, String(Math.round((Number(mealData[k]) || 0) * 10) / 10)])
@@ -54,6 +55,8 @@ const AddMeal = () => {
     (Record<NutrientKey, number> & { servingSizeWeight: number }) | null
   >(null);
   const [portionWeight, setPortionWeight] = useState<string>('100');
+  // 'g', or a count unit like 'eggs' when auto-fill matched one of your own foods.
+  const [portionUnit, setPortionUnit] = useState('g');
 
   const emptyMeal = () => ({ name: '', mealTime: initialMealTime ?? defaultSlotForNow(), ...mapNutrients(() => '') });
   const [mealData, setMealData] = useState(emptyMeal);
@@ -105,7 +108,9 @@ const AddMeal = () => {
         // Try to parse weight directly from what they typed, e.g. '150g'
         const weightMatch = text.match(/(\d+(?:\.\d+)?)\s*(g|grams|gram|oz|ounces|ounce)/i);
         let parsedWeight = 100;
-        if (weightMatch) {
+        if (data.portion) {
+          parsedWeight = data.portion.amount;
+        } else if (weightMatch) {
           const val = parseFloat(weightMatch[1]);
           const unit = weightMatch[2].toLowerCase();
           parsedWeight = unit.startsWith('oz') ? Math.round(val * 28.35) : val;
@@ -116,6 +121,7 @@ const AddMeal = () => {
           MICRO_KEYS.some((m) => m === k) ? data[k] ?? 0 : data[k];
         setBaseNutrition({ ...mapNutrients(fromData), servingSizeWeight: parsedWeight });
         setPortionWeight(String(parsedWeight));
+        setPortionUnit(data.portion?.unit ?? 'g');
 
         setMealData({
           ...mealData,
@@ -167,7 +173,7 @@ const AddMeal = () => {
       const item: ChatMealItem = {
         name: mealData.name,
         mealTime: mealData.mealTime,
-        grams: Number(portionWeight),
+        grams: portionUnit === 'g' ? Number(portionWeight) : 0,
         ...mapNutrients((k) => Number(mealData[k]) || 0),
         calories: Number(mealData.calories),
       };
@@ -184,6 +190,7 @@ const AddMeal = () => {
 
       setMealData(emptyMeal());
       setBaseNutrition(null);
+      setPortionUnit('g');
 
       notifyMealsLogged();
       closeAddMeal();
@@ -227,7 +234,7 @@ const AddMeal = () => {
       <div role="radiogroup" aria-label="Meal" className="relative mb-6 grid h-11 grid-cols-4 rounded-full bg-muted p-1">
         <span
           aria-hidden
-          className="absolute bottom-1 left-1 top-1 rounded-full bg-foreground transition-transform duration-[420ms] [transition-timing-function:var(--ease-pop)]"
+          className="absolute bottom-1 left-1 top-1 rounded-full bg-foreground transition-transform [transition-duration:420ms] [transition-timing-function:var(--ease-pop)]"
           style={{ width: 'calc((100% - 8px) / 4)', transform: `translateX(${Math.max(0, MEAL_ORDER.indexOf(mealData.mealTime as (typeof MEAL_ORDER)[number])) * 100}%)` }}
         />
         {MEAL_ORDER.map((slot) => {
@@ -341,11 +348,11 @@ const AddMeal = () => {
                         placeholder="—"
                         className="w-full min-w-0 bg-transparent font-mono text-2xl font-semibold tabular-nums text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
                       />
-                      <span className="flex-none text-xs text-muted-foreground">g</span>
+                      <span className="flex-none text-xs text-muted-foreground">{portionUnit}</span>
                     </div>
                     {baseNutrition && (
                       <p className="font-mono text-[10px] text-muted-foreground">
-                        Base serving: {baseNutrition.servingSizeWeight}g
+                        Base serving: {baseNutrition.servingSizeWeight}{portionUnit === 'g' ? 'g' : ` ${portionUnit}`}
                       </p>
                     )}
                   </div>
@@ -379,7 +386,7 @@ const AddMeal = () => {
                         kcal
                       </span>
                     </div>
-                    {Number(mealData.calories) > 0 && (
+                    {Number(mealData.calories) > 0 && portionUnit === 'g' && (
                       <p className="font-mono text-[10px] text-primary/60">
                         {((Number(mealData.calories) / (Number(portionWeight) || 100)) * 100).toFixed(1)} per 100g
                       </p>

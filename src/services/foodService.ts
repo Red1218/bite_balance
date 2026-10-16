@@ -130,7 +130,7 @@ export async function deleteCustomFoods(ids: string[]): Promise<void> {
  * the current user, across both collections -- so saving from either the Add
  * Meal "reusable food" flow or the Saved Meals form can warn before duplicating.
  */
-export async function findExistingSavedItemByName(
+async function findExistingSavedItemByName(
   name: string
 ): Promise<{ type: 'meal' | 'food'; id: string } | null> {
   const { data: { user } } = await supabase.auth.getUser();

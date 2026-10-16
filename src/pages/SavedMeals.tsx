@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Pencil, Trash2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSavedMeals, SavedMeal } from '@/hooks/useSavedMeals';
@@ -441,13 +440,12 @@ const SavedMeals = () => {
                       {item.meal.tags && item.meal.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                           {item.meal.tags.map((tag, index) => (
-                            <Badge
+                            <span
                               key={index}
-                              variant="secondary"
-                              className="text-[10px] bg-muted text-muted-foreground border-border font-normal"
+                              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] bg-muted text-muted-foreground border-border font-normal"
                             >
                               {tag}
-                            </Badge>
+                            </span>
                           ))}
                         </div>
                       )}
