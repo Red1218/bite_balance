@@ -40,6 +40,8 @@ interface ChatMealItem {
 interface IndianFoodRow {
   id: string;
   name: string;
+  serving_size: number;
+  serving_unit: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -58,9 +60,15 @@ interface IndianFoodRow {
 
 // ponytail: naive word-split token extraction, not real food-entity NLP -- upgrade
 // only if search misses become a real problem in practice.
+const STOPWORDS = new Set([
+  'ate', 'had', 'have', 'for', 'the', 'and', 'with', 'some', 'also', 'plus', 'add', 'was', 'got', 'then',
+]);
+
+// Trailing "s" is stripped so "eggs" finds "Boiled Egg" (ILIKE '%egg%' still matches plurals).
+// ponytail: only plain "s" plurals; "potatoes"/"chutneys" style plurals still miss.
 const extractTokens = (text: string): string[] => {
-  const words = text.toLowerCase().match(/[a-z]{3,}/g) ?? [];
-  return [...new Set(words)];
+  const words = (text.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !STOPWORDS.has(w));
+  return [...new Set(words.map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w)))];
 };
 
 // Looks up real foods matching words in the latest user message, so the reference
@@ -84,7 +92,10 @@ const findMatchedFoods = async (latestUserMessage: string): Promise<IndianFoodRo
 const buildReferenceTable = (foods: IndianFoodRow[]): string => {
   return foods
     .map((d) => {
-      return `${d.name}: cal=${d.calories} pro=${d.protein} carb=${d.carbs} fat=${d.fat} fib=${d.fiber} ` +
+      // serving_size is grams per serving_unit (e.g. Boiled Egg: 1 piece = 50 g), so the model
+      // can turn "3 eggs" into grams instead of guessing.
+      const serving = d.serving_unit === 'g' ? '' : ` [1 ${d.serving_unit} = ${d.serving_size} g]`;
+      return `${d.name}${serving}: cal=${d.calories} pro=${d.protein} carb=${d.carbs} fat=${d.fat} fib=${d.fiber} ` +
         `vitc=${d.vitamin_c ?? 0} vitd=${d.vitamin_d ?? 0} b12=${d.vitamin_b12 ?? 0} iron=${d.iron ?? 0} ` +
         `calcium=${d.calcium ?? 0} potassium=${d.potassium ?? 0} sodium=${d.sodium ?? 0} ` +
         `magnesium=${d.magnesium ?? 0} zinc=${d.zinc ?? 0}`;
@@ -111,7 +122,7 @@ For each item determine:
 - grams: the portion size. Parse an explicit weight/count when given (e.g. "100g", "2 idlis" using a sensible per-piece weight). Use a reasonable default portion when not given.
 - calories, protein, carbs, fat, fiber (grams), vitaminC (mg), vitaminD (mcg), vitaminB12 (mcg), iron (mg), calcium (mg), potassium (mg), sodium (mg), magnesium (mg), zinc (mg) -- all scaled to the item's grams.
 ${referenceTable ? `
-Reference table of real, verified foods (per 100g) -- when an item matches one of these (or a close variant), use these exact values scaled by grams/100 rather than estimating fresh:
+Reference table of real, verified foods (per 100g) -- when an item matches one of these (or a close variant), use these exact values scaled by grams/100 rather than estimating fresh. Where a food shows "[1 piece = N g]", use N g per piece to work out grams (e.g. 3 pieces = 3 x N g):
 ${referenceTable}
 ` : ''}
 ${referenceTable ? 'For anything not in the table, estimate' : 'Estimate'} reasonably from general nutrition knowledge.
@@ -244,11 +255,15 @@ serve(async (req) => {
     // rate-limited -- both are meant to be retried, so give it one more try
     // before failing the whole conversation turn.
     const openaiHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` };
+    const startedAt = Date.now();
     let response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: openaiHeaders,
       body: openaiBody,
+      // Without a timeout a stalled OpenAI call left the chat spinning until Supabase killed the worker (~150 s).
+      signal: AbortSignal.timeout(60_000),
     });
+    console.log(`OpenAI responded with status ${response.status} after ${Date.now() - startedAt} ms`);
     if (response.status === 503 || response.status === 429) {
       console.warn(`OpenAI API returned status ${response.status}, retrying once`);
       await new Promise((r) => setTimeout(r, 1000));
@@ -256,6 +271,7 @@ serve(async (req) => {
         method: 'POST',
         headers: openaiHeaders,
         body: openaiBody,
+        signal: AbortSignal.timeout(60_000),
       });
     }
 
