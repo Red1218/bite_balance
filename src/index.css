@@ -291,6 +291,15 @@
   from { transform: translate(0, 0) rotate(0); opacity: 1; }
   to { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: 0.9; }
 }
+@keyframes float-up {
+  0% { transform: translateY(0) scale(0.7); opacity: 0; }
+  20% { transform: translateY(-6px) scale(1.05); opacity: 1; }
+  100% { transform: translateY(-38px); opacity: 0; }
+}
+@keyframes menu-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
 @keyframes page-in {
   from { opacity: 0; transform: translateX(calc(var(--page-dir, 0) * 18px)); }
   to { opacity: 1; transform: none; }
@@ -341,8 +350,18 @@
 .motion-seed {
   animation: seed-fall var(--dur) cubic-bezier(0.3, 0.2, 0.6, 1) var(--delay) both;
 }
+/* "+290" rising off a button that just added something */
+.motion-float {
+  animation: float-up 900ms var(--ease-settle) both;
+}
+.motion-menu {
+  transform-origin: bottom right;
+  animation: menu-in 220ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+/* "backwards", not "both": a transform held after the animation would make this wrapper the
+   containing block for fixed elements inside pages (docked buttons, composers) */
 .motion-page {
-  animation: page-in 320ms var(--ease-settle) both;
+  animation: page-in 320ms var(--ease-settle) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

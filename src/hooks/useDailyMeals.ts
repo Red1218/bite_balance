@@ -105,21 +105,25 @@ export const useDailyMeals = () => {
     }
   };
 
-  // Inserts one row into today's log, refreshes the list, and confirms with a toast.
-  const addToToday = async (row: Omit<TablesInsert<'daily_meals'>, 'user_id' | 'logged_date'>) => {
-    if (!user) return;
+  // Inserts one row into today's log and refreshes the list. Returns the new row's id, so the
+  // caller can confirm it and offer Undo; null when it failed (an error toast is shown here).
+  const addToToday = async (row: Omit<TablesInsert<'daily_meals'>, 'user_id' | 'logged_date'>): Promise<string | null> => {
+    if (!user) return null;
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('daily_meals')
-        .insert({ ...row, user_id: user.id, logged_date: fmtLocalDate(new Date()) });
+        .insert({ ...row, user_id: user.id, logged_date: fmtLocalDate(new Date()) })
+        .select('id')
+        .single();
       if (error) throw error;
 
       await fetchTodaysMeals();
-      toast({ title: 'Success', description: `${row.name} added to today's meals` });
+      return data.id;
     } catch (error) {
       console.error('Error adding to today:', error);
       toast({ title: 'Error', description: `Failed to add ${row.name} to today`, variant: 'destructive' });
+      return null;
     }
   };
 
