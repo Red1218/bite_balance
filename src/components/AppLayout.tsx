@@ -1,9 +1,10 @@
-import { lazy, Suspense, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AppDrawer from './AppDrawer';
 import BottomNav, { tabIndex } from './BottomNav';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { closeOnBack } from '@/lib/backButton';
 
 const AddMeal = lazy(() => import('../pages/AddMeal'));
 
@@ -38,6 +39,9 @@ const AppLayout = () => {
       background: 'hsl(var(--background))',
     });
   }, [drawerOpen]);
+
+  // Android Back closes the open sidebar instead of leaving the page (or the app, on Today).
+  useEffect(() => (drawerOpen ? closeOnBack(() => setDrawerOpen(false)) : undefined), [drawerOpen]);
 
   // Pages slide in from the side of the tab you moved toward; drawer pages just fade.
   const prevTab = useRef(tabIndex(pathname));

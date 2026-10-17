@@ -6,6 +6,7 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { closeTopOverlay } from '@/lib/backButton';
 
 export const useNativeApp = () => {
   const navigate = useNavigate();
@@ -28,12 +29,13 @@ export const useNativeApp = () => {
         console.error('StatusBar plugin error:', err);
       }
 
-      // 2. Hardware Back Button Routing -- close the Add Meal sheet first if it's open
+      // 2. Hardware Back Button Routing -- close the Add Meal sheet or the sidebar first if open
       CapacitorApp.addListener('backButton', () => {
         if (openRef.current) {
           closeAddMeal();
           return;
         }
+        if (closeTopOverlay()) return;
         if (window.history.state && window.history.state.idx > 0) {
           window.history.back();
         } else {
