@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState, type CSSProperties } from 'react';
+import { lazy, Suspense, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AppDrawer from './AppDrawer';
 import BottomNav, { tabIndex } from './BottomNav';
@@ -15,6 +15,29 @@ const AppLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { open: addMealOpen, closeAddMeal } = useAddMealSheet();
   const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const [push, setPush] = useState<CSSProperties>();
+
+  // Shrink around the middle of the screen, and clip to what's on screen so the rest of a long
+  // page doesn't show above and below. The clip stays until the page has slid back.
+  // ponytail: fixed elements inside a page (docked buttons) move with the page while the menu is open.
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    if (!drawerOpen) {
+      setPush((p) => p && { ...p, transform: 'none', filter: 'none' });
+      return;
+    }
+    const r = main.getBoundingClientRect();
+    const vh = window.innerHeight;
+    setPush({
+      transform: 'translateX(62%) scale(.86)',
+      transformOrigin: `50% ${vh / 2 - r.top}px`,
+      clipPath: `inset(${Math.max(0, -r.top)}px 0 ${Math.max(0, r.bottom - vh)}px 0 round 28px)`,
+      filter: 'brightness(.55)',
+      background: 'hsl(var(--background))',
+    });
+  }, [drawerOpen]);
 
   // Pages slide in from the side of the tab you moved toward; drawer pages just fade.
   const prevTab = useRef(tabIndex(pathname));
@@ -29,7 +52,8 @@ const AppLayout = () => {
 
   return (
     <div
-      className="min-h-screen w-full bg-background"
+      className="min-h-screen w-full overflow-x-clip bg-background"
+      data-menu={drawerOpen ? 'open' : 'closed'}
       style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
@@ -42,7 +66,14 @@ const AppLayout = () => {
 
       <AppDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
 
-      <main className="mx-auto w-full max-w-[560px] px-4 pb-28 pt-4">
+      <main
+        ref={mainRef}
+        className="motion-push mx-auto w-full max-w-[560px] px-4 pb-28 pt-4"
+        style={push}
+        onTransitionEnd={(e) => {
+          if (e.target === e.currentTarget && e.propertyName === 'transform' && !drawerOpen) setPush(undefined);
+        }}
+      >
         <div key={pathname} className="motion-page" style={{ '--page-dir': dir.current } as CSSProperties}>
           <Outlet context={{ openDrawer: () => setDrawerOpen(true) } satisfies LayoutContext} />
         </div>

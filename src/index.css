@@ -364,6 +364,20 @@
   animation: page-in 320ms var(--ease-settle) backwards;
 }
 
+/* The menu: the page slides right and shrinks to uncover it, and the tab bar drops away */
+.motion-push {
+  transition:
+    transform 480ms var(--ease-settle),
+    filter 480ms ease,
+    clip-path 480ms var(--ease-settle);
+}
+[data-menu] > nav {
+  transition: transform 360ms var(--ease-settle);
+}
+[data-menu='open'] > nav {
+  transform: translateY(calc(100% + 12px + env(safe-area-inset-bottom, 0px) + 24px));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
