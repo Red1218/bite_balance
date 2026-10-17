@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { FLIGHT_MS } from '@/lib/flyToPlate';
+import Odometer from './Odometer';
 
 interface DailySummaryProps {
   calories: number;
@@ -15,37 +17,17 @@ const GAP = 4; // px of track left between macro arcs
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
+// Eight sparks spread evenly around the ring, 130px out from the centre.
+const SPARKS = Array.from({ length: 8 }, (_, i) => ({
+  x: `${Math.round(Math.cos((i / 8) * 2 * Math.PI) * 130)}px`,
+  y: `${Math.round(Math.sin((i / 8) * 2 * Math.PI) * 130)}px`,
+}));
+
 // The plate draws itself once per app launch; after that it only moves when the numbers do.
 let introPlayed = false;
 
-/** Counts from the last shown value to `target` with an ease-out, so totals visibly settle. */
-const useCountUp = (target: number, from: number) => {
-  const [shown, setShown] = useState(from);
-  const shownRef = useRef(from);
-  useEffect(() => {
-    const start = shownRef.current;
-    if (start === target || reducedMotion()) {
-      shownRef.current = target;
-      setShown(target);
-      return;
-    }
-    const t0 = performance.now();
-    let raf = 0;
-    const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / 900);
-      const v = Math.round(start + (target - start) * (1 - Math.pow(1 - k, 3)));
-      shownRef.current = v;
-      setShown(v);
-      if (k < 1) raf = requestAnimationFrame(step);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [target]);
-  return shown;
-};
-
 // Today's plate: the ring fills with protein, carbs and fat in proportion to what was eaten.
-const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal, totals }: DailySummaryProps) => {
+const DailySummary = ({ calories: liveCalories, goal, caloriesBurned = 0, weightGoal, totals: liveTotals }: DailySummaryProps) => {
   const { user } = useAuth();
   const [intro] = useState(() => !introPlayed);
   const [drawn, setDrawn] = useState(!intro);
@@ -60,8 +42,33 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal, totals }
     return () => cancelAnimationFrame(id);
   }, [intro]);
 
+  // A newly logged meal flies up from the list first; the plate takes the new totals as it lands,
+  // dips, and sends out a ring of sparks. Removals and edits apply at once.
+  const [landed, setLanded] = useState({ calories: liveCalories, totals: liveTotals });
+  const [burst, setBurst] = useState(0);
+  const ringRef = useRef<HTMLDivElement>(null);
+  const liveKey = `${liveCalories}|${liveTotals.protein}|${liveTotals.carbs}|${liveTotals.fat}|${liveTotals.fiber ?? 0}`;
+  useEffect(() => {
+    const next = { calories: liveCalories, totals: liveTotals };
+    if (liveCalories <= landed.calories || reducedMotion()) {
+      setLanded(next);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setLanded(next);
+      setBurst((b) => b + 1);
+      ringRef.current?.animate(
+        [{ transform: 'scale(1)' }, { transform: 'scale(.93)', offset: 0.35 }, { transform: 'scale(1)' }],
+        { duration: 520, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+      );
+    }, FLIGHT_MS);
+    return () => window.clearTimeout(t);
+    // liveKey stands for the live totals; landed is what the plate shows, not an input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveKey]);
+  const { calories, totals } = landed;
+
   const remaining = goal - calories;
-  const shownRemaining = useCountUp(drawn ? remaining : goal, intro ? goal : remaining);
   const over = remaining < 0;
 
   const netCalories = Math.round(calories - caloriesBurned);
@@ -104,7 +111,7 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal, totals }
 
   return (
     <section aria-label="Today's calories" className="flex flex-col items-center gap-4 rounded-[28px] bg-card p-5">
-      <div className="relative h-[220px] w-[220px]">
+      <div ref={ringRef} id="plate-ring" className="relative h-[220px] w-[220px]">
         <svg width="220" height="220" viewBox="0 0 220 220" aria-hidden className="absolute inset-0">
           <circle cx="110" cy="110" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="18" />
           {calories > 0 &&
@@ -126,10 +133,23 @@ const DailySummary = ({ calories, goal, caloriesBurned = 0, weightGoal, totals }
               />
             ))}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`font-display text-[52px] font-bold leading-none tracking-[-0.03em] ${over ? 'text-chart-carbs' : 'text-foreground'}`}>
-            {Math.abs(shownRemaining).toLocaleString()}
+        {burst > 0 && (
+          <span key={burst} aria-hidden className="pointer-events-none absolute inset-0">
+            <span className="motion-burst absolute inset-0 rounded-full shadow-[0_0_0_3px_hsl(var(--chart-carbs))]" />
+            {SPARKS.map((sp, i) => (
+              <span
+                key={i}
+                className="motion-spark absolute left-1/2 top-1/2 -ml-[3px] -mt-[3px] h-1.5 w-1.5 rounded-full"
+                style={{ '--sx': sp.x, '--sy': sp.y, background: i % 2 ? 'hsl(var(--chart-carbs))' : 'hsl(var(--foreground))' } as CSSProperties}
+              />
+            ))}
           </span>
+        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <Odometer
+            value={drawn ? remaining : goal}
+            className={`font-display text-[52px] font-bold tracking-[-0.03em] ${over ? 'text-chart-carbs' : 'text-foreground'}`}
+          />
           <span className="mt-1 text-sm text-muted-foreground">
             kcal {over ? 'over' : 'left of'} {over ? '' : goal.toLocaleString()}
           </span>

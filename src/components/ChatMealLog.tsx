@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, Mic, Plus, Loader2, ArrowLeft } from 'lucide-react';
+import { Send, Mic, Plus, Loader2, ArrowLeft, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +11,8 @@ import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { defaultSlotForNow } from '@/lib/mealTime';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import MenuButton from '@/components/MenuButton';
+import { showLoggedToast } from '@/components/LoggedToast';
+import { useCountUp } from '@/hooks/useCountUp';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -134,6 +136,11 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [logging, setLogging] = useState(false);
+  // The log button turns into a green "Logged" check for a beat before the items clear.
+  const [justLogged, setJustLogged] = useState(false);
+  // Messages from before this screen opened appear as they are; new ones rise in.
+  const openedAt = useRef(Date.now());
+  const shownKcal = useCountUp(loggedKcal);
   const [chipLoading, setChipLoading] = useState<'yesterday' | 'dinner' | 'most' | null>(null);
   const [showSavedMeals, setShowSavedMeals] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -356,8 +363,11 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       const today = fmtLocalDate(new Date());
       const rows = items.map((it) => chatMealItemToRow(it, user.id, today));
 
-      const { error } = await supabase.from('daily_meals').insert(rows);
+      const { data: inserted, error } = await supabase.from('daily_meals').insert(rows).select('id');
       if (error) throw error;
+      setJustLogged(true);
+      await new Promise((r) => window.setTimeout(r, 800));
+      setJustLogged(false);
 
       const confirmations = MEAL_ORDER.filter((mt) => items.some((it) => it.mealTime === mt)).map((mt) => {
         const group = items.filter((it) => it.mealTime === mt);
@@ -365,10 +375,11 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         return `Logged ${MEAL_LABEL[mt].toLowerCase()} · ${group.length} item${group.length === 1 ? '' : 's'} · ${kcal} kcal.`;
       });
       const totalKcal = Math.round(items.reduce((s, it) => s + it.calories, 0));
-      toast({
-        title: 'Logged',
-        description: `${items.length} item${items.length === 1 ? '' : 's'} · ${totalKcal} kcal`,
-      });
+      showLoggedToast(
+        `${items.length} item${items.length === 1 ? '' : 's'}, ${totalKcal} kcal`,
+        (inserted ?? []).map((r) => r.id),
+        notifyMealsLogged
+      );
       notifyMealsLogged();
 
       setItems([]);
@@ -402,7 +413,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   const threadDay = viewDate ?? fmtLocalDate(new Date());
   // One thread per day, so the day is the title; a first message isn't always from that day.
   const title = new Date(`${threadDay}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const subtitle = viewDate ? 'Past chat' : `${loggedKcal.toLocaleString()} kcal logged today`;
+  const subtitle = viewDate ? 'Past chat' : `${shownKcal.toLocaleString()} kcal logged today`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -434,13 +445,13 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       <div className="flex flex-col gap-[18px]">
         {messages.map((m) =>
           m.who === 'user' ? (
-            <div key={m.id} className="flex justify-end">
+            <div key={m.id} className={cn('flex justify-end', Date.parse(m.createdAt) > openedAt.current && 'motion-rise')}>
               <div className="max-w-[84%] whitespace-pre-wrap rounded-[20px] bg-muted px-[15px] py-3 text-sm leading-normal text-foreground">
                 {m.text}
               </div>
             </div>
           ) : (
-            <div key={m.id} className="space-y-3">
+            <div key={m.id} className={cn('space-y-3', Date.parse(m.createdAt) > openedAt.current && 'motion-rise')}>
               {m.diff ? (
                 <div className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2.5">
                   <span className="flex-1 font-mono text-xs text-muted-foreground">{m.diff.split(/(→)/).map((part, i) => part === '→' ? <span key={i} className="mx-1 text-muted-foreground/60">{part}</span> : part)}</span>
@@ -467,9 +478,9 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         )}
         {sending && (
           <div className="flex items-center gap-1 py-1.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+            <span className="motion-typing h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+            <span className="motion-typing h-1.5 w-1.5 rounded-full bg-muted-foreground [animation-delay:150ms]" />
+            <span className="motion-typing h-1.5 w-1.5 rounded-full bg-muted-foreground [animation-delay:300ms]" />
           </div>
         )}
       </div>
@@ -525,10 +536,24 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
             type="button"
             onClick={handleLogAll}
             disabled={logging}
-            className="flex h-[38px] items-center gap-[7px] rounded-[11px] bg-primary px-[15px] text-[13px] font-semibold text-primary-foreground shadow-[0_8px_18px_-10px_hsl(var(--primary)/0.8)] disabled:opacity-60"
+            className={cn(
+              'flex h-11 items-center gap-[7px] rounded-full px-4 text-[14px] font-semibold transition-colors duration-300',
+              justLogged
+                ? 'bg-chart-fiber text-background'
+                : 'bg-primary text-primary-foreground shadow-[0_8px_18px_-10px_hsl(var(--primary)/0.8)] disabled:opacity-60'
+            )}
           >
-            {logging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-            {logging ? 'Logging...' : `Log these ${items.length}`}
+            {justLogged ? (
+              <span className="motion-pop flex items-center gap-[7px]">
+                <Check className="motion-draw h-4 w-4" strokeWidth={3} />
+                Logged
+              </span>
+            ) : (
+              <>
+                {logging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {logging ? 'Logging...' : `Log these ${items.length}`}
+              </>
+            )}
           </button>
           <button
             type="button"

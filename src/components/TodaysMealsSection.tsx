@@ -1,8 +1,9 @@
-import { useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { DailyMeal } from '@/hooks/useDailyMeals';
 import { Link } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { flyToPlate } from '@/lib/flyToPlate';
 import AnimatedMealCard from './AnimatedMealCard';
 
 const GROUPS = [
@@ -11,6 +12,30 @@ const GROUPS = [
   ['dinner', 'Dinner'],
   ['snack', 'Snacks'],
 ] as const;
+
+// The token takes the color of whichever macro gives the meal most of its calories.
+const toneOf = (m: DailyMeal) => {
+  const p = (m.protein || 0) * 4;
+  const c = (m.carbs || 0) * 4;
+  const f = (m.fat || 0) * 9;
+  if (f > p && f > c) return 'hsl(var(--chart-fat))';
+  return p > c ? 'hsl(var(--chart-protein))' : 'hsl(var(--chart-carbs))';
+};
+
+// A meal logged while Today is open drops into the list and sends a token up into the plate.
+const LandingMeal = ({ meal, children }: { meal: DailyMeal; children: ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) flyToPlate(ref.current.getBoundingClientRect(), (meal.name.trim()[0] ?? '·').toUpperCase(), toneOf(meal));
+    // Once, when the meal first appears; a refetch hands over a new meal object but must not fly it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div ref={ref} className="motion-drop rounded-xl">
+      {children}
+    </div>
+  );
+};
 
 interface TodaysMealsSectionProps {
   meals: DailyMeal[];
@@ -63,11 +88,16 @@ const TodaysMealsSection = ({ meals, onEditMeal, onDeleteMeal }: TodaysMealsSect
               <span className="font-semibold text-foreground">{label}</span>
               <span className="text-muted-foreground">{totalCalories.toLocaleString()} kcal</span>
             </div>
-            {group.map((meal) => (
-              <div key={meal.id} className={initial.current?.has(meal.id) ? undefined : 'motion-drop rounded-xl'}>
-                <AnimatedMealCard meal={meal} onEditMeal={onEditMeal} onDeleteMeal={onDeleteMeal} />
-              </div>
-            ))}
+            {group.map((meal) => {
+              const card = <AnimatedMealCard meal={meal} onEditMeal={onEditMeal} onDeleteMeal={onDeleteMeal} />;
+              return initial.current?.has(meal.id) ? (
+                <div key={meal.id}>{card}</div>
+              ) : (
+                <LandingMeal key={meal.id} meal={meal}>
+                  {card}
+                </LandingMeal>
+              );
+            })}
           </div>
         );
       })}
