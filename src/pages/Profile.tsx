@@ -1,17 +1,22 @@
-import { useState, useEffect, useRef, type ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Moon, Sun, Monitor, ChevronRight, ChevronDown, ChevronUp, Minus, Plus } from 'lucide-react';
+import {
+  Activity, ChevronDown, ChevronRight, ChevronUp, Download, Droplet, Flame, Footprints, LogOut, Minus, Moon, Plus, Scale, Sparkles,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useHealthConnect } from '@/hooks/useHealthConnect';
+import { useStreak } from '@/hooks/useStreak';
+import { useWeightLogs, type WeightLog } from '@/hooks/useWeightLogs';
+import { useLogStats } from '@/hooks/useLogStats';
+import { useCountUp } from '@/hooks/useCountUp';
 import { supabase } from '@/integrations/supabase/client';
 import { cn, fmtLocalDate } from '@/lib/utils';
 import { MICRO } from '@/components/MealReviewList';
+import MacroRing from '@/components/MacroRing';
 import MenuButton from '@/components/MenuButton';
 import Segmented from '@/components/Segmented';
 import { exportBackup } from '@/lib/exportData';
@@ -27,13 +32,6 @@ const MICRO_GOALS = MICRO.map((m) => ({
   value: `${'cap' in m ? '≤ ' : ''}${m.goal.toLocaleString('en-US')} ${m.unit}`,
   dot: m.dot,
 }));
-
-const MACRO_GOAL_FIELDS = [
-  { key: 'protein', label: 'Protein', dot: 'bg-chart-protein' },
-  { key: 'carbs', label: 'Carbs', dot: 'bg-chart-carbs' },
-  { key: 'fat', label: 'Fat', dot: 'bg-chart-fat' },
-  { key: 'fiber', label: 'Fibre', dot: 'bg-chart-fiber' },
-] as const;
 
 const ACTIVITY_MULTIPLIERS ={ sedentary: 1.2, active: 1.55, very_active: 1.725 };
 
@@ -67,38 +65,51 @@ const ACTIVITY_OPTIONS: Option[] = [
   { value: 'very_active', label: 'Very active', hint: '6–7 workouts / wk' },
 ];
 const GOAL_OPTIONS: Option[] = [
-  { value: 'lose', label: 'Lose', long: 'Lose weight' },
-  { value: 'maintain', label: 'Maintain', long: 'Maintain weight' },
-  { value: 'gain', label: 'Gain', long: 'Gain weight' },
+  { value: 'lose', label: 'Lose', long: 'Lose weight', hint: '500 kcal under what you burn, about 0.45 kg a week' },
+  { value: 'maintain', label: 'Maintain', long: 'Maintain weight', hint: 'Matches what you burn each day' },
+  { value: 'gain', label: 'Gain', long: 'Gain weight', hint: '500 kcal over what you burn, about 0.45 kg a week' },
 ];
 const optionOf = (options: Option[], value: string) => options.find((o) => o.value === value);
 
-// What the Body/Goal sheets edit. Weight is held in the display unit (kg or lb)
+// Macro splits as % of calories. Balanced is the automatic split, so choosing it clears the overrides.
+const SPLITS = {
+  balanced: { label: 'Balanced', p: 30, c: 45, f: 25 },
+  high_protein: { label: 'High protein', p: 35, c: 40, f: 25 },
+  low_carb: { label: 'Low carb', p: 35, c: 25, f: 40 },
+} as const;
+type SplitKey = keyof typeof SPLITS | 'custom';
+const gramsFor = (kcal: number, s: { p: number; c: number; f: number }) => ({
+  protein: Math.round((kcal * s.p) / 400),
+  carbs: Math.round((kcal * s.c) / 400),
+  fat: Math.round((kcal * s.f) / 900),
+});
+const MACRO_LABEL = { protein: 'Protein', carbs: 'Carbs', fat: 'Fat', fiber: 'Fibre' } as const;
+type MacroStrings = { protein: string; carbs: string; fat: string; fiber: string };
+// The preset whose grams the saved overrides match, so reopening the sheet shows the same choice.
+const splitOf = (m: MacroStrings, kcal: number): SplitKey => {
+  if (!m.protein && !m.carbs && !m.fat) return 'balanced';
+  const match = (Object.keys(SPLITS) as (keyof typeof SPLITS)[]).find((k) => {
+    const g = gramsFor(kcal, SPLITS[k]);
+    return Number(m.protein) === g.protein && Number(m.carbs) === g.carbs && Number(m.fat) === g.fat;
+  });
+  return match ?? 'custom';
+};
+
+// What the Body/Plan sheets edit. Weight is held in the display unit (kg or lb)
 // so the stepper and ruler move in clean 0.1 steps of whatever the user reads.
 interface Draft { weight: number; height: number; age: number; gender: string; activityLevel: string; goal: string }
+interface PlanDraft { split: SplitKey; macros: MacroStrings; targetWeight: string; targetDate: string }
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-const SectionLabel = ({ children, onEdit }: { children: ReactNode; onEdit?: () => void }) => (
-  <div className="flex h-5 items-center justify-between">
-    <div className="font-sans text-[12px] font-semibold text-muted-foreground">{children}</div>
-    {onEdit && (
-      <button type="button" onClick={onEdit} className="-my-2 px-1 py-2 text-[13px] font-medium text-primary">
-        Edit
-      </button>
-    )}
-  </div>
-);
+const rise = (i: number): CSSProperties => ({ animationDelay: `${Math.min(i, 6) * 60}ms` });
 
-const ReadRow = ({ label, value, unit }: { label: string; value: ReactNode; unit?: string }) => (
-  <div className="flex h-[52px] items-center justify-between px-[14px]">
-    <span className="text-sm text-muted-foreground">{label}</span>
-    {unit ? (
-      <span className="flex items-baseline gap-1">
-        <span className="font-mono text-base font-medium tabular-nums text-foreground">{value}</span>
-        <span className="font-mono text-[11px] text-muted-foreground">{unit}</span>
-      </span>
-    ) : (
-      <span className="text-sm text-foreground">{value}</span>
+const SectionLabel = ({ children, onEdit, editLabel = 'Edit' }: { children: ReactNode; onEdit?: () => void; editLabel?: string }) => (
+  <div className="flex h-5 items-center justify-between">
+    <div className="font-display text-[15px] font-semibold text-foreground">{children}</div>
+    {onEdit && (
+      <button type="button" onClick={onEdit} className="-my-2 px-1 py-2 text-[13px] font-semibold text-primary">
+        {editLabel}
+      </button>
     )}
   </div>
 );
@@ -184,23 +195,178 @@ const SegmentedField = ({ label, options, value, base, onChange }: {
   label: string; options: Option[]; value: string; base: string; onChange: (v: string) => void;
 }) => (
   <div className="space-y-2">
-    <div className="flex items-baseline justify-between">
+    <div className="flex items-baseline justify-between gap-3">
       <span className="text-sm text-foreground">{label}</span>
       {value !== base ? (
         <span className="font-mono text-[10px] text-chart-carbs">was {optionOf(options, base)?.label ?? base}</span>
       ) : (
-        <span className="font-mono text-[10px] text-muted-foreground">{optionOf(options, value)?.hint}</span>
+        <span className="truncate font-mono text-[10px] text-muted-foreground">{optionOf(options, value)?.hint}</span>
       )}
     </div>
     <Segmented label={label} options={options.map((o) => [o.value, o.label] as const)} value={value} onChange={onChange} />
   </div>
 );
 
+// Small pill switch for settings rows (theme, units).
+const MiniSeg = <T extends string>({ label, options, value, onChange }: {
+  label: string; options: readonly (readonly [T, string])[]; value: T; onChange: (v: T) => void;
+}) => (
+  <div role="radiogroup" aria-label={label} className="flex flex-none gap-0.5 rounded-full bg-muted p-0.5">
+    {options.map(([v, text]) => (
+      <button
+        key={v}
+        type="button"
+        role="radio"
+        aria-checked={value === v}
+        onClick={() => onChange(v)}
+        className={cn(
+          'rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors',
+          value === v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+        )}
+      >
+        {text}
+      </button>
+    ))}
+  </div>
+);
+
+// Initials ringed by this week's logging: seven segments, Monday first, lit on days with a meal.
+const AVATAR = 64;
+const AVATAR_R = 29;
+const WeekAvatar = ({ initials, week }: { initials: string; week: boolean[] }) => {
+  const c = 2 * Math.PI * AVATAR_R;
+  const seg = c / 7;
+  return (
+    <div className="relative flex-none" style={{ width: AVATAR, height: AVATAR }}>
+      <svg width={AVATAR} height={AVATAR} viewBox={`0 0 ${AVATAR} ${AVATAR}`} aria-hidden className="absolute inset-0">
+        {week.map((on, i) => (
+          <circle
+            key={i}
+            cx={AVATAR / 2}
+            cy={AVATAR / 2}
+            r={AVATAR_R}
+            fill="none"
+            stroke={on ? 'hsl(var(--primary))' : 'hsl(var(--foreground) / 0.14)'}
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeDasharray={`${seg - 6} ${c}`}
+            strokeDashoffset={-i * seg - 3}
+            transform={`rotate(-90 ${AVATAR / 2} ${AVATAR / 2})`}
+          />
+        ))}
+      </svg>
+      <span className="absolute inset-[7px] flex items-center justify-center rounded-full bg-muted font-display text-lg font-bold text-foreground">
+        {initials}
+      </span>
+    </div>
+  );
+};
+
+const Stat = ({ value, label }: { value: number; label: string }) => {
+  const shown = useCountUp(value);
+  return (
+    <div className="flex flex-col gap-0.5 rounded-2xl bg-background/40 px-2.5 py-2.5">
+      <span className="font-display text-[22px] font-bold leading-none tracking-tight text-foreground">{shown.toLocaleString()}</span>
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+    </div>
+  );
+};
+
+const JOURNEY_DAYS = 30;
+const LINE_W = 300;
+const LINE_H = 74;
+
+// Last 30 days of weigh-ins as a line. Only drawn with two or more readings; nothing is filled in.
+const WeightLine = ({ logs }: { logs: WeightLog[] }) => {
+  const start = new Date();
+  start.setDate(start.getDate() - (JOURNEY_DAYS - 1));
+  const startDay = fmtLocalDate(start);
+  const t0 = Date.parse(`${startDay}T00:00:00`);
+  const kgs = logs.map((l) => l.weight_kg);
+  const lo = Math.min(...kgs);
+  const hi = Math.max(...kgs);
+  const pad = Math.max(0.5, (hi - lo) * 0.2);
+  const pts = logs.map((l) => {
+    const x = ((Date.parse(`${l.logged_date}T00:00:00`) - t0) / 86_400_000 / (JOURNEY_DAYS - 1)) * LINE_W;
+    const y = 6 + ((hi + pad - l.weight_kg) / (hi - lo + 2 * pad)) * (LINE_H - 14);
+    return `${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  const line = `M${pts.join(' L')}`;
+  const first = pts[0].split(' ')[0];
+  const last = pts[pts.length - 1].split(' ')[0];
+  return (
+    <svg viewBox={`0 0 ${LINE_W} ${LINE_H}`} preserveAspectRatio="none" aria-hidden className="my-2 block h-[74px] w-full">
+      <defs>
+        <linearGradient id="weight-fill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="hsl(var(--chart-fiber))" stopOpacity="0.35" />
+          <stop offset="1" stopColor="hsl(var(--chart-fiber))" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`${line} L${last} ${LINE_H} L${first} ${LINE_H} Z`} fill="url(#weight-fill)" />
+      <path
+        d={line}
+        pathLength={1}
+        fill="none"
+        stroke="hsl(var(--chart-fiber))"
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: 'draw 1200ms var(--ease-settle) 200ms forwards' }}
+      />
+    </svg>
+  );
+};
+
+// BMI 15..35 mapped across the scale; the colour bands follow the standard cut-offs.
+const bmiCategory = (bmi: number) => (bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Healthy' : bmi < 30 ? 'Overweight' : 'Obese');
+const BMI_SCALE =
+  'linear-gradient(90deg, hsl(var(--chart-water)) 0 17.5%, hsl(var(--chart-fiber)) 17.5% 50%, hsl(var(--chart-carbs)) 50% 75%, hsl(var(--primary)) 75%)';
+
+const Tile = ({ label, children, onClick }: { label: string; children: ReactNode; onClick: () => void }) => (
+  <button type="button" onClick={onClick} className="elevation-card flex flex-col gap-1 p-3 text-left">
+    <span className="text-[11px] text-muted-foreground">{label}</span>
+    {children}
+  </button>
+);
+
+const TileValue = ({ value, unit }: { value: string; unit?: string }) => (
+  <span className="font-display text-[22px] font-bold leading-tight tracking-tight text-foreground">
+    {value}
+    {unit && <span className="ml-0.5 font-sans text-[11px] font-medium text-faint">{unit}</span>}
+  </span>
+);
+
+const SettingRow = ({ icon, tint, label, sub, children, onClick, danger }: {
+  icon: ReactNode; tint: string; label: string; sub?: string; children?: ReactNode; onClick?: () => void; danger?: boolean;
+}) => {
+  const body = (
+    <>
+      <span className={cn('flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[10px]', tint)}>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className={cn('block text-sm font-medium', danger ? 'text-primary' : 'text-foreground')}>{label}</span>
+        {sub && <span className="block truncate text-[11px] text-faint">{sub}</span>}
+      </span>
+      {children}
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 px-[14px] py-3 text-left disabled:opacity-60">
+      {body}
+    </button>
+  ) : (
+    <div className="flex items-center gap-3 px-[14px] py-3">{body}</div>
+  );
+};
+
 const Profile = () => {
   const { toast } = useToast();
   const { user, signOut } = useAuth();
   const { preference: themePreference, setTheme } = useTheme();
   const { isConnected: healthConnected, requestPermissions } = useHealthConnect();
+  const { streak } = useStreak();
+  const logStats = useLogStats();
+  const { logs: weightLogs, latest: latestWeight } = useWeightLogs();
 
   const [microsOpen, setMicrosOpen] = useState(false);
 
@@ -231,15 +397,9 @@ const Profile = () => {
     goal: 'maintain',
   });
 
-  const [targetWeight, setTargetWeight] = useState('');
-  const [targetDate, setTargetDate] = useState('');
   const [savedTarget, setSavedTarget] = useState<{ targetWeight: number; targetDate: string; startWeight: number } | null>(null);
-
-  const [macroGoals, setMacroGoals] = useState({ protein: '', carbs: '', fat: '', fiber: '' });
+  const [macroGoals, setMacroGoals] = useState<MacroStrings>({ protein: '', carbs: '', fat: '', fiber: '' });
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lb'>('kg');
-
-
-  const [savingAdvanced, setSavingAdvanced] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -259,8 +419,6 @@ const Profile = () => {
           goal: meta.weight_goal || 'maintain',
         });
         if (meta.target_weight && meta.target_date && meta.goal_start_weight) {
-          setTargetWeight(String(meta.target_weight));
-          setTargetDate(meta.target_date);
           setSavedTarget({
             targetWeight: Number(meta.target_weight),
             targetDate: meta.target_date,
@@ -304,10 +462,11 @@ const Profile = () => {
     updateMeta({ weight_unit: unit });
   };
 
+  const toDisplay = (kg: number) => (weightUnit === 'lb' ? kg * 2.20462 : kg);
   const kgToDisplay = (kgStr: string) => {
     const kg = parseFloat(kgStr);
     if (!kgStr || isNaN(kg)) return '';
-    return (weightUnit === 'lb' ? kg * 2.20462 : kg).toFixed(1);
+    return toDisplay(kg).toFixed(1);
   };
   const displayToKg = (displayStr: string) => {
     const v = parseFloat(displayStr);
@@ -315,21 +474,23 @@ const Profile = () => {
     return weightUnit === 'lb' ? v / 2.20462 : v;
   };
 
-  // The saved goal (what Today/History use). It changes only when Body/Goal is saved here,
+  // The saved goal (what Today/History use). It changes only when Body/Plan is saved here,
   // not when a weigh-in updates profiles.weight.
   const calorieGoal = Number(user?.user_metadata?.calorie_goal) || computeCalorieGoal(profile, 2200);
 
-  // Body/Goal are read-only on the page; each card's Edit opens one sheet that
-  // edits the whole card and saves once. `base` is the card as it was when the
-  // sheet opened, so every changed field can show its old value.
-  const [editing, setEditing] = useState<'body' | 'goal' | null>(null);
+  // Body and plan are read-only on the page; Edit opens one sheet that edits the
+  // whole section and saves once. `base` is the section as it was when the sheet
+  // opened, so every changed field can show its old value.
+  const [editing, setEditing] = useState<'body' | 'plan' | null>(null);
   const [base, setBase] = useState<Draft | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [planBase, setPlanBase] = useState<PlanDraft | null>(null);
+  const [plan, setPlan] = useState<PlanDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
 
   const weightLimits = weightUnit === 'lb' ? [66, 550] : [30, 250];
 
-  const openEditor = (section: 'body' | 'goal') => {
+  const openEditor = (section: 'body' | 'plan') => {
     const start: Draft = {
       weight: parseFloat(kgToDisplay(profile.weight)) || (weightUnit === 'lb' ? 154 : 70),
       height: parseInt(profile.height) || 170,
@@ -338,12 +499,21 @@ const Profile = () => {
       activityLevel: profile.activityLevel,
       goal: profile.goal,
     };
+    const planStart: PlanDraft = {
+      split: splitOf(macroGoals, calorieGoal),
+      macros: macroGoals,
+      targetWeight: savedTarget ? String(savedTarget.targetWeight) : '',
+      targetDate: savedTarget?.targetDate ?? '',
+    };
     setBase(start);
     setDraft(start);
+    setPlanBase(planStart);
+    setPlan(planStart);
     setEditing(section);
   };
 
   const patchDraft = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const patchPlan = (patch: Partial<PlanDraft>) => setPlan((p) => (p ? { ...p, ...patch } : p));
   const setDraftWeight = (v: number) => patchDraft({ weight: clamp(Math.round(v * 10) / 10, weightLimits[0], weightLimits[1]) });
 
   const changedKeys = draft && base ? (Object.keys(draft) as (keyof Draft)[]).filter((k) => draft[k] !== base[k]) : [];
@@ -359,8 +529,8 @@ const Profile = () => {
   const draftKcal = draftProfile ? computeCalorieGoal(draftProfile, calorieGoal) : calorieGoal;
   const draftBmi = draftProfile && (parseFloat(draftProfile.weight) / Math.pow(draft.height / 100, 2)).toFixed(1);
 
-  // Writes only the fields that changed -- so opening the Goal sheet on a
-  // profile with no weight yet never saves the sheet's placeholder weight.
+  // Writes only the fields that changed -- so opening a sheet on a profile with
+  // no weight yet never saves the sheet's placeholder weight.
   const saveDraft = async () => {
     if (!user || !draftProfile || changedKeys.length === 0) return;
     const changed = (k: keyof Draft) => changedKeys.includes(k);
@@ -409,42 +579,62 @@ const Profile = () => {
     setEditing(null);
   };
 
-
-  const handleSaveAdvanced = async () => {
-    if (!user) return;
-    setSavingAdvanced(true);
-
-    try {
-      const targetChanged = targetWeight && (!savedTarget || savedTarget.targetWeight !== parseFloat(targetWeight));
-      const goalStartWeight = targetChanged
-        ? parseFloat(profile.weight) || 0
-        : (savedTarget?.startWeight ?? (parseFloat(profile.weight) || 0));
-
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          target_weight: targetWeight ? parseFloat(targetWeight) : null,
-          target_date: targetDate || null,
-          goal_start_weight: targetWeight ? goalStartWeight : null,
-          protein_goal: macroGoals.protein ? Number(macroGoals.protein) : null,
-          carbs_goal: macroGoals.carbs ? Number(macroGoals.carbs) : null,
-          fat_goal: macroGoals.fat ? Number(macroGoals.fat) : null,
-          fiber_goal: macroGoals.fiber ? Number(macroGoals.fiber) : null,
-        },
-      });
-
-      if (error) throw error;
-
-      setSavedTarget(targetWeight && targetDate ? { targetWeight: parseFloat(targetWeight), targetDate, startWeight: goalStartWeight } : null);
-
-      toast({ title: 'Saved', description: 'Your macro and target settings have been updated.' });
-    } catch (error) {
-      console.error('Error saving advanced settings:', error);
-      toast({ title: 'Error', description: 'Failed to save. Please try again.', variant: 'destructive' });
-    } finally {
-      setSavingAdvanced(false);
+  // Grams the plan sheet would save for protein/carbs/fat; null means "use the automatic split".
+  const planMacros = (p: PlanDraft, kcal: number) => {
+    if (p.split === 'balanced') return { protein: null, carbs: null, fat: null };
+    if (p.split === 'custom') {
+      const n = (s: string) => (s ? Number(s) : null);
+      return { protein: n(p.macros.protein), carbs: n(p.macros.carbs), fat: n(p.macros.fat) };
     }
+    return gramsFor(kcal, SPLITS[p.split]);
+  };
+  const planChanged =
+    !!plan && !!planBase && (changedKeys.includes('goal') || JSON.stringify(plan) !== JSON.stringify(planBase));
+
+  // One write for the whole plan: the goal (and the calorie target it sets), the macro split,
+  // and the target weight/date -- the same user_metadata fields the old page saved separately.
+  const savePlan = async () => {
+    if (!user || !plan || !draftProfile || !planChanged) return;
+    const goalChanged = changedKeys.includes('goal');
+    const macros = planMacros(plan, draftKcal);
+    const fiber = plan.split === 'custom' ? plan.macros.fiber : macroGoals.fiber;
+    const targetChanged = plan.targetWeight && (!savedTarget || savedTarget.targetWeight !== parseFloat(plan.targetWeight));
+    const goalStartWeight = targetChanged
+      ? parseFloat(profile.weight) || 0
+      : (savedTarget?.startWeight ?? (parseFloat(profile.weight) || 0));
+
+    setSavingDraft(true);
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        ...(goalChanged && { weight_goal: draft!.goal, calorie_goal: draftKcal }),
+        target_weight: plan.targetWeight ? parseFloat(plan.targetWeight) : null,
+        target_date: plan.targetDate || null,
+        goal_start_weight: plan.targetWeight ? goalStartWeight : null,
+        protein_goal: macros.protein,
+        carbs_goal: macros.carbs,
+        fat_goal: macros.fat,
+        fiber_goal: fiber ? Number(fiber) : null,
+      },
+    });
+    setSavingDraft(false);
+    if (error) {
+      console.error('Error saving plan:', error);
+      toast({ title: 'Error', description: 'Failed to save. Please try again.', variant: 'destructive' });
+      return;
+    }
+    const str = (n: number | null) => (n ? String(n) : '');
+    if (goalChanged) setProfile((p) => ({ ...p, goal: draft!.goal }));
+    setMacroGoals({ protein: str(macros.protein), carbs: str(macros.carbs), fat: str(macros.fat), fiber: fiber || '' });
+    setSavedTarget(
+      plan.targetWeight && plan.targetDate
+        ? { targetWeight: parseFloat(plan.targetWeight), targetDate: plan.targetDate, startWeight: goalStartWeight }
+        : null
+    );
+    setEditing(null);
+    toast({ title: 'Plan saved', description: `${draftKcal.toLocaleString()} kcal a day.` });
   };
 
+  const firstName = profile.name.trim().split(/\s+/)[0];
   const initials = (profile.name || user?.email || 'U')
     .trim()
     .split(/\s+/)
@@ -457,67 +647,272 @@ const Profile = () => {
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : null;
 
-  const proteinGoal = Math.round(Number(user?.user_metadata?.protein_goal) || (calorieGoal * 0.3) / 4);
-  const carbsGoal = Math.round(Number(user?.user_metadata?.carbs_goal) || (calorieGoal * 0.45) / 4);
-  const fatGoal = Math.round(Number(user?.user_metadata?.fat_goal) || (calorieGoal * 0.25) / 9);
-  const fiberGoal = Math.round(Number(user?.user_metadata?.fiber_goal) || 25);
+  const proteinGoal = Math.round(Number(macroGoals.protein) || (calorieGoal * 0.3) / 4);
+  const carbsGoal = Math.round(Number(macroGoals.carbs) || (calorieGoal * 0.45) / 4);
+  const fatGoal = Math.round(Number(macroGoals.fat) || (calorieGoal * 0.25) / 9);
+  const fiberGoal = Math.round(Number(macroGoals.fiber) || 25);
+  const macroKcal = proteinGoal * 4 + carbsGoal * 4 + fatGoal * 9;
   const waterGoalLiters = (WATER_GOAL_GLASSES * 0.25).toFixed(1);
 
-  const inputClass = 'h-12 rounded-xl border-border bg-background text-foreground placeholder:text-muted-foreground';
+  // Weight journey: the current weight is the latest weigh-in, else the profile weight.
+  const journeyStart = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - (JOURNEY_DAYS - 1));
+    return fmtLocalDate(d);
+  })();
+  const journeyLogs = weightLogs.filter((l) => l.logged_date >= journeyStart);
+  const currentKg = latestWeight?.weight_kg ?? (parseFloat(profile.weight) || null);
+  const journeyDelta = journeyLogs.length >= 2 ? journeyLogs[journeyLogs.length - 1].weight_kg - journeyLogs[0].weight_kg : null;
+  const targetPct = (() => {
+    if (!savedTarget || currentKg === null) return null;
+    const span = savedTarget.startWeight - savedTarget.targetWeight;
+    return span !== 0 ? clamp(Math.round(((savedTarget.startWeight - currentKg) / span) * 100), 0, 100) : 0;
+  })();
+
+  const bmi = parseFloat(profile.weight) && parseFloat(profile.height)
+    ? parseFloat(profile.weight) / Math.pow(parseFloat(profile.height) / 100, 2)
+    : null;
+
+  const shownKcal = useCountUp(calorieGoal);
+  const goalOption = optionOf(GOAL_OPTIONS, profile.goal);
+
+  const previewSplit = plan
+    ? plan.split === 'custom'
+      ? (() => {
+          const p = Number(plan.macros.protein) * 4 || 0;
+          const c = Number(plan.macros.carbs) * 4 || 0;
+          const f = Number(plan.macros.fat) * 9 || 0;
+          const t = p + c + f;
+          return t ? { p: Math.round((p / t) * 100), c: Math.round((c / t) * 100), f: Math.round((f / t) * 100) } : SPLITS.balanced;
+        })()
+      : SPLITS[plan.split]
+    : SPLITS.balanced;
+  const previewGrams = plan && plan.split !== 'custom' ? gramsFor(draftKcal, SPLITS[plan.split]) : null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <MenuButton />
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">You</h1>
       </div>
 
-      {/* Identity */}
-      <div className="elevation-card flex items-center gap-3.5 p-4">
-        <div className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-full border border-primary/32 bg-primary/16 font-display text-xl font-semibold text-primary">
-          {initials}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-display text-lg font-semibold tracking-tight text-foreground">
-            {profile.name || 'Your name'}
+      {/* Identity: who you are, this week's logging, and the all-time numbers */}
+      <section
+        className="motion-rise relative flex flex-col gap-3.5 overflow-hidden rounded-[28px] p-4"
+        style={{
+          ...rise(0),
+          background:
+            'radial-gradient(120% 90% at 0% 0%, hsl(var(--primary) / 0.28), transparent 60%), radial-gradient(90% 80% at 100% 100%, hsl(var(--chart-carbs) / 0.14), transparent 60%), hsl(var(--card))',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <WeekAvatar initials={initials} week={logStats?.week ?? Array(7).fill(false)} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-display text-[21px] font-bold leading-tight tracking-tight text-foreground">
+              {firstName || 'Your name'}
+            </div>
+            {memberSince && <div className="mt-0.5 text-[11px] text-muted-foreground">Member since {memberSince}</div>}
+            {streak > 0 && (
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-chart-fiber/20 px-2 py-1 text-[11px] font-semibold text-chart-fiber">
+                <Flame className="h-3 w-3" />
+                {streak}-day streak
+              </span>
+            )}
           </div>
-          <div className="mt-1.5 truncate text-xs text-muted-foreground">{user?.email}</div>
-          {memberSince && (
-            <div className="mt-1.5 font-mono text-[11px] text-muted-foreground">Member since {memberSince}</div>
-          )}
         </div>
-      </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          <Stat value={logStats?.daysLogged ?? 0} label="Days logged" />
+          <Stat value={logStats?.meals ?? 0} label="Meals" />
+          <Stat value={logStats?.bestStreak ?? 0} label="Best streak" />
+        </div>
+      </section>
 
-      {/* Body — read-only; Edit opens one sheet for the whole card */}
-      <div className="space-y-2">
+      {/* Weight journey */}
+      <section className="elevation-card motion-rise space-y-1 p-4" style={rise(1)}>
+        <div className="flex items-center justify-between">
+          <span className="font-display text-[15px] font-semibold text-foreground">Weight journey</span>
+          <span className="text-[11px] text-faint">Last {JOURNEY_DAYS} days</span>
+        </div>
+        {currentKg !== null ? (
+          <div className="flex items-center justify-between pt-1">
+            <span className="flex items-baseline gap-1.5">
+              <span className="font-display text-[34px] font-bold leading-none tracking-tight text-foreground">{toDisplay(currentKg).toFixed(1)}</span>
+              <span className="text-sm text-muted-foreground">{weightUnit}</span>
+            </span>
+            {journeyDelta !== null && Math.abs(journeyDelta) >= 0.05 && (
+              <span className="rounded-full bg-chart-fiber/20 px-2 py-1 text-[11px] font-bold text-chart-fiber">
+                {journeyDelta < 0 ? '↓' : '↑'} {toDisplay(Math.abs(journeyDelta)).toFixed(1)} {weightUnit}
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="pt-1 text-sm text-muted-foreground">Log your weight on Today to start the line.</p>
+        )}
+        {journeyLogs.length >= 2 && <WeightLine logs={journeyLogs} />}
+        {savedTarget && targetPct !== null ? (
+          <div className="pt-2">
+            <div className="relative h-2 rounded-full bg-muted">
+              <div
+                className="motion-grow absolute inset-y-0 left-0 origin-left rounded-full bg-chart-fiber"
+                style={{ width: `${targetPct}%`, animationDelay: '300ms' }}
+              />
+              <div
+                className="motion-pop absolute top-1/2 -ml-2 -mt-2 h-4 w-4 rounded-full border-[3px] border-card bg-foreground"
+                style={{ left: `${targetPct}%`, animationDelay: '900ms' }}
+              />
+            </div>
+            <div className="mt-2 flex justify-between text-[11px] text-faint">
+              <span>Start <b className="font-semibold text-foreground">{toDisplay(savedTarget.startWeight).toFixed(1)}</b></span>
+              <span>{targetPct}% there</span>
+              <span>
+                Goal <b className="font-semibold text-foreground">{toDisplay(savedTarget.targetWeight).toFixed(1)}</b> by{' '}
+                {new Date(savedTarget.targetDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => openEditor('plan')} className="pt-1 text-[13px] font-semibold text-primary">
+            Set a target weight
+          </button>
+        )}
+      </section>
+
+      {/* Your daily plan */}
+      <section className="elevation-card motion-rise space-y-3 p-4" style={rise(2)}>
+        <SectionLabel onEdit={() => openEditor('plan')} editLabel="Edit plan">Your daily plan</SectionLabel>
+        <div className="flex items-center gap-3.5">
+          <MacroRing protein={proteinGoal} carbs={carbsGoal} fat={fatGoal} size={108} stroke={11} animate>
+            <span className="font-display text-[25px] font-bold leading-none tracking-tight text-foreground">{shownKcal.toLocaleString()}</span>
+            <span className="text-[10px] text-muted-foreground">kcal a day</span>
+          </MacroRing>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="self-start rounded-full bg-primary/20 px-2.5 py-1 text-[11px] font-bold text-primary">
+              {goalOption?.long ?? 'Maintain weight'}
+            </span>
+            <p className="text-xs leading-snug text-muted-foreground">
+              Worked out from your body and activity. {goalOption?.hint}.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { label: 'Protein', grams: proteinGoal, share: (proteinGoal * 4) / macroKcal, bar: 'bg-chart-protein' },
+            { label: 'Carbs', grams: carbsGoal, share: (carbsGoal * 4) / macroKcal, bar: 'bg-chart-carbs' },
+            { label: 'Fat', grams: fatGoal, share: (fatGoal * 9) / macroKcal, bar: 'bg-chart-fat' },
+            { label: 'Fibre', grams: fiberGoal, share: 1, bar: 'bg-chart-fiber' },
+          ].map((m, i) => (
+            <div key={m.label} className="flex flex-col gap-1.5 rounded-2xl bg-muted p-2.5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] text-muted-foreground">{m.label}</span>
+                <span className="font-display text-[17px] font-bold text-foreground">{m.grams} g</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-background/40">
+                <div
+                  className={cn('motion-grow h-full origin-left rounded-full', m.bar)}
+                  style={{ width: `${Math.round(m.share * 100)}%`, animationDelay: `${i * 90}ms` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { icon: <Droplet className="h-3.5 w-3.5" />, tint: 'bg-chart-water/20 text-chart-water', value: `${waterGoalLiters} L`, label: 'Water' },
+            { icon: <Footprints className="h-3.5 w-3.5" />, tint: 'bg-chart-steps/20 text-chart-steps', value: STEP_GOAL.toLocaleString(), label: 'Steps' },
+            { icon: <Sparkles className="h-3.5 w-3.5" />, tint: 'bg-chart-fat/20 text-chart-fat', value: String(MICRO_GOALS.length), label: 'Micros' },
+          ].map((c) => (
+            <div key={c.label} className="flex items-center gap-2 rounded-[14px] bg-muted px-2.5 py-2">
+              <span className={cn('flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[7px]', c.tint)}>{c.icon}</span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold text-foreground">{c.value}</span>
+                <span className="block text-[10px] text-faint">{c.label}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setMicrosOpen((v) => !v)}
+          aria-expanded={microsOpen}
+          className="flex w-full items-center justify-between border-t border-border pt-3"
+        >
+          <span className="text-[13px] text-foreground">Micronutrient goals</span>
+          <span className="flex items-center gap-2 text-muted-foreground">
+            <span className="flex gap-[3px]">
+              {MICRO_GOALS.slice(0, 5).map((m) => (
+                <span key={m.label} className={cn('h-1.5 w-1.5 rounded-full', m.dot)} />
+              ))}
+            </span>
+            {microsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </span>
+        </button>
+        {microsOpen && (
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+            {MICRO_GOALS.map((row) => (
+              <div key={row.label} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={cn('h-[7px] w-[7px] rounded-sm', row.dot)} />
+                  <span className="text-xs text-foreground">{row.label}</span>
+                </div>
+                <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Body as tiles; Edit (or any tile) opens the body sheet */}
+      <section className="motion-rise space-y-2" style={rise(3)}>
         <SectionLabel onEdit={() => openEditor('body')}>Body</SectionLabel>
-        <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <ReadRow label="Weight" value={kgToDisplay(profile.weight) || '—'} unit={weightUnit} />
-          <ReadRow label="Height" value={profile.height || '—'} unit="cm" />
-          <ReadRow label="Age" value={profile.age || '—'} unit="yrs" />
-          <ReadRow label="Gender" value={optionOf(GENDER_OPTIONS, profile.gender)?.label ?? '—'} />
-          <ReadRow label="Activity" value={optionOf(ACTIVITY_OPTIONS, profile.activityLevel)?.label ?? '—'} />
+        <div className="grid grid-cols-2 gap-1.5">
+          <Tile label="Weight" onClick={() => openEditor('body')}>
+            <TileValue value={kgToDisplay(profile.weight) || '—'} unit={weightUnit} />
+          </Tile>
+          <Tile label="Height" onClick={() => openEditor('body')}>
+            <TileValue value={profile.height || '—'} unit="cm" />
+          </Tile>
+          <Tile label={`Age · ${optionOf(GENDER_OPTIONS, profile.gender)?.label ?? '—'}`} onClick={() => openEditor('body')}>
+            <TileValue value={profile.age || '—'} unit="yrs" />
+          </Tile>
+          <Tile label={bmi ? `BMI · ${bmiCategory(bmi)}` : 'BMI'} onClick={() => openEditor('body')}>
+            <TileValue value={bmi ? bmi.toFixed(1) : '—'} />
+            {bmi && (
+              <span className="relative mt-1.5 block h-1.5 rounded-full" style={{ background: BMI_SCALE }}>
+                <span
+                  className="absolute -top-[3px] h-3 w-[3px] -translate-x-1/2 rounded-sm bg-foreground"
+                  style={{ left: `${clamp(((bmi - 15) / 20) * 100, 0, 100)}%` }}
+                />
+              </span>
+            )}
+          </Tile>
         </div>
-      </div>
-
-      {/* Goal — read-only; the daily target is derived from Body + Goal */}
-      <div className="space-y-2">
-        <SectionLabel onEdit={() => openEditor('goal')}>Goal</SectionLabel>
-        <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <ReadRow label="Goal" value={optionOf(GOAL_OPTIONS, profile.goal)?.long ?? '—'} />
-          <ReadRow label="Daily target" value={calorieGoal.toLocaleString()} unit="kcal" />
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={() => openEditor('body')}
+          className="elevation-card flex w-full items-center justify-between px-[14px] py-3 text-left"
+        >
+          <span>
+            <span className="block text-[11px] text-muted-foreground">Activity</span>
+            <span className="block text-sm font-semibold text-foreground">
+              {optionOf(ACTIVITY_OPTIONS, profile.activityLevel)?.label ?? '—'}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 text-[11px] text-faint">
+            {optionOf(ACTIVITY_OPTIONS, profile.activityLevel)?.hint}
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        </button>
+      </section>
 
       <Drawer open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
-        <DrawerContent className="rounded-t-[26px] border-border bg-card">
-          <DrawerTitle className="sr-only">{editing === 'goal' ? 'Edit goal' : 'Edit body'}</DrawerTitle>
-          {draft && base && (
-            <div className="space-y-3.5 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
+        <DrawerContent className="max-h-[92vh] rounded-t-[26px] border-border bg-card">
+          <DrawerTitle className="sr-only">{editing === 'plan' ? 'Edit plan' : 'Edit body'}</DrawerTitle>
+          {draft && base && plan && (
+            <div className="space-y-3.5 overflow-y-auto px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
               <div className="flex h-7 items-center justify-between">
                 <div className="font-display text-lg font-semibold tracking-tight text-foreground">
-                  {editing === 'goal' ? 'Edit goal' : 'Edit body'}
+                  {editing === 'plan' ? 'Edit plan' : 'Edit body'}
                 </div>
                 <button type="button" onClick={() => setEditing(null)} className="py-2 text-[13px] font-medium text-muted-foreground">
                   Discard
@@ -580,253 +975,178 @@ const Profile = () => {
                     base={base.activityLevel}
                     onChange={(activityLevel) => patchDraft({ activityLevel })}
                   />
+                  <button
+                    type="button"
+                    onClick={saveDraft}
+                    disabled={changedKeys.length === 0 || savingDraft}
+                    className={cn(
+                      'h-[52px] w-full rounded-[14px] text-sm',
+                      changedKeys.length
+                        ? 'bg-primary font-semibold text-primary-foreground active:bg-primary/90'
+                        : 'border border-border bg-muted font-medium text-muted-foreground'
+                    )}
+                  >
+                    {savingDraft
+                      ? 'Saving…'
+                      : changedKeys.length
+                        ? `Save ${changedKeys.length} change${changedKeys.length === 1 ? '' : 's'} · ${draftKcal.toLocaleString()} kcal`
+                        : 'Saved · nothing pending'}
+                  </button>
                 </>
               ) : (
-                <SegmentedField
-                  label="Goal"
-                  options={GOAL_OPTIONS}
-                  value={draft.goal}
-                  base={base.goal}
-                  onChange={(goal) => patchDraft({ goal })}
-                />
-              )}
+                <>
+                  <SegmentedField
+                    label="Goal"
+                    options={GOAL_OPTIONS}
+                    value={draft.goal}
+                    base={base.goal}
+                    onChange={(goal) => patchDraft({ goal })}
+                  />
 
-              <button
-                type="button"
-                onClick={saveDraft}
-                disabled={changedKeys.length === 0 || savingDraft}
-                className={cn(
-                  'h-[52px] w-full rounded-[14px] text-sm',
-                  changedKeys.length
-                    ? 'bg-primary font-semibold text-primary-foreground active:bg-primary/90'
-                    : 'border border-border bg-muted font-medium text-muted-foreground'
-                )}
-              >
-                {savingDraft
-                  ? 'Saving…'
-                  : changedKeys.length
-                    ? `Save ${changedKeys.length} change${changedKeys.length === 1 ? '' : 's'} · ${draftKcal.toLocaleString()} kcal`
-                    : 'Saved · nothing pending'}
-              </button>
+                  <div className="space-y-2">
+                    <span className="text-sm text-foreground">Macro split</span>
+                    <div className="flex h-[34px] gap-0.5 overflow-hidden rounded-xl">
+                      {([['P', previewSplit.p, 'bg-chart-protein'], ['C', previewSplit.c, 'bg-chart-carbs'], ['F', previewSplit.f, 'bg-chart-fat']] as const).map(
+                        ([k, pct, bg]) =>
+                          pct > 0 && (
+                            <div
+                              key={k}
+                              className={cn('flex items-center justify-center text-[11px] font-bold text-black/75 transition-[flex-grow] duration-300', bg)}
+                              style={{ flexGrow: pct }}
+                            >
+                              {k} {pct}%
+                            </div>
+                          )
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {([...Object.entries(SPLITS).map(([k, s]) => [k, s.label]), ['custom', 'Custom']] as [SplitKey, string][]).map(([k, label]) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() =>
+                            patchPlan({
+                              split: k,
+                              // Custom starts from the split shown now, so there's something to adjust.
+                              ...(k === 'custom' && plan.split !== 'custom' && previewGrams && {
+                                macros: { ...plan.macros, protein: String(previewGrams.protein), carbs: String(previewGrams.carbs), fat: String(previewGrams.fat) },
+                              }),
+                            })
+                          }
+                          className={cn(
+                            'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+                            plan.split === k ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {previewGrams ? (
+                      <p className="font-mono text-[11px] text-muted-foreground">
+                        Protein {previewGrams.protein} g · Carbs {previewGrams.carbs} g · Fat {previewGrams.fat} g
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2">
+                        {(['protein', 'carbs', 'fat', 'fiber'] as const).map((k) => (
+                          <label key={k} className="space-y-1">
+                            <span className="block text-[10px] text-muted-foreground">{MACRO_LABEL[k]} (g)</span>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              value={plan.macros[k]}
+                              onChange={(e) => patchPlan({ macros: { ...plan.macros, [k]: e.target.value } })}
+                              placeholder={k === 'fiber' ? '25' : String(gramsFor(draftKcal, SPLITS.balanced)[k])}
+                              className="h-10 rounded-lg border-border bg-background px-2 text-sm"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <label className="space-y-1.5">
+                      <span className="block text-sm text-foreground">Target weight (kg)</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        value={plan.targetWeight}
+                        onChange={(e) => patchPlan({ targetWeight: e.target.value })}
+                        placeholder="Kilograms"
+                        className="h-11 rounded-xl border-border bg-background"
+                      />
+                    </label>
+                    <label className="space-y-1.5">
+                      <span className="block text-sm text-foreground">By</span>
+                      <Input
+                        type="date"
+                        value={plan.targetDate}
+                        min={fmtLocalDate(new Date())}
+                        onChange={(e) => patchPlan({ targetDate: e.target.value })}
+                        className="h-11 rounded-xl border-border bg-background"
+                      />
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={savePlan}
+                    disabled={!planChanged || savingDraft}
+                    className={cn(
+                      'h-[52px] w-full rounded-full text-sm',
+                      planChanged
+                        ? 'bg-primary font-semibold text-primary-foreground active:bg-primary/90'
+                        : 'border border-border bg-muted font-medium text-muted-foreground'
+                    )}
+                  >
+                    {savingDraft ? 'Saving…' : planChanged ? `Save · ${draftKcal.toLocaleString()} kcal a day` : 'Saved · nothing pending'}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </DrawerContent>
       </Drawer>
 
-      {/* Daily goals — read-only breakdown derived from the calorie goal above */}
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Daily breakdown
-        </div>
-        <div className="elevation-card space-y-4 p-4">
-          <div className="space-y-2.5">
-            {[
-              { label: 'Protein', value: `${proteinGoal} g`, dot: 'bg-chart-protein' },
-              { label: 'Carbs', value: `${carbsGoal} g`, dot: 'bg-chart-carbs' },
-              { label: 'Fat', value: `${fatGoal} g`, dot: 'bg-chart-fat' },
-              { label: 'Fibre', value: `${fiberGoal} g`, dot: 'bg-chart-fiber' },
-              { label: 'Water', value: `${waterGoalLiters} L`, dot: 'bg-chart-water' },
-              { label: 'Steps', value: STEP_GOAL.toLocaleString(), dot: 'bg-chart-steps' },
-            ].map((row) => (
-              <div key={row.label} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={cn('h-[7px] w-[7px] rounded-sm', row.dot)} />
-                  <span className="font-sans text-sm text-foreground">{row.label}</span>
-                </div>
-                <span className="font-mono text-sm font-medium tabular-nums text-muted-foreground">{row.value}</span>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => setMicrosOpen((v) => !v)}
-            className="flex w-full items-center justify-between border-t border-border pt-3.5"
-          >
-            <span className="font-sans text-sm text-foreground">Micronutrients</span>
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              9 tracked
-              {microsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </span>
-          </button>
-          {microsOpen && (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-1">
-              {MICRO_GOALS.map((row) => (
-                <div key={row.label} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={cn('h-[7px] w-[7px] rounded-sm', row.dot)} />
-                    <span className="font-sans text-xs text-foreground">{row.label}</span>
-                  </div>
-                  <span className="font-mono text-xs font-medium tabular-nums text-muted-foreground">{row.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Target progress — always visible once a target is set */}
-      {savedTarget && profile.weight && (() => {
-        const current = parseFloat(profile.weight);
-        const { targetWeight: goalWeight, startWeight, targetDate: goalDate } = savedTarget;
-        const span = startWeight - goalWeight;
-        const progressed = startWeight - current;
-        const pct = span !== 0 ? Math.max(0, Math.min(100, Math.round((progressed / span) * 100))) : 0;
-        const verb = goalWeight < startWeight ? 'Lose' : 'Gain';
-        const delta = Math.abs(startWeight - goalWeight).toFixed(1);
-        return (
-          <div className="space-y-2">
-            <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-              Progress
-            </div>
-            <div className="elevation-card space-y-3 p-4">
-              <div className="flex items-baseline justify-between">
-                <div className="font-sans text-sm font-medium text-foreground">
-                  {verb} {delta} kg by {new Date(goalDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </div>
-                <div className="font-mono text-sm font-semibold tabular-nums text-chart-fiber">{pct}%</div>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-chart-fiber transition-all duration-500" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="flex justify-between font-mono text-[11px] tabular-nums text-muted-foreground">
-                <span>Start {startWeight.toFixed(1)}</span>
-                <span>Now {current.toFixed(1)}</span>
-                <span>Goal {goalWeight.toFixed(1)}</span>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Macro goal overrides + Target — always visible now, own explicit save */}
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Macro goals
-        </div>
-        <div className="elevation-card p-4">
-          <p className="mb-4 text-xs text-muted-foreground">
-            Override the auto-calculated macro splits. Leave blank to use values derived from your calorie goal.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {MACRO_GOAL_FIELDS.map((f) => (
-              <div key={f.key} className="space-y-2">
-                <Label htmlFor={`${f.key}Goal`} className="flex items-center gap-1.5 text-sm text-foreground">
-                  <span className={`inline-block h-2 w-2 rounded-full ${f.dot}`} />
-                  {f.label} (g/day)
-                </Label>
-                <Input id={`${f.key}Goal`} type="number" min="0" value={macroGoals[f.key]} onChange={(e) => setMacroGoals({ ...macroGoals, [f.key]: e.target.value })} placeholder={String({ protein: proteinGoal, carbs: carbsGoal, fat: fatGoal, fiber: fiberGoal }[f.key])} className={inputClass} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Target
-        </div>
-        <div className="elevation-card space-y-4 p-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="targetWeight" className="text-sm text-foreground">Target weight (kg)</Label>
-              <Input id="targetWeight" type="number" step="0.1" value={targetWeight} onChange={(e) => setTargetWeight(e.target.value)} placeholder="Kilograms" className={inputClass} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="targetDate" className="text-sm text-foreground">Target date</Label>
-              <Input id="targetDate" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} min={fmtLocalDate(new Date())} className={inputClass} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <Button onClick={handleSaveAdvanced} className="h-12 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" disabled={savingAdvanced}>
-        <Save className="mr-2 h-4 w-4" />
-        {savingAdvanced ? 'Saving...' : 'Save macro & target settings'}
-      </Button>
-
-      {/* Appearance */}
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Appearance
-        </div>
-        <div className="elevation-card space-y-3.5 p-[15px]">
-          <div className="text-sm font-medium text-foreground">Theme</div>
-          <div className="flex gap-2 rounded-xl border border-border bg-muted p-1">
-            {([
-              { value: 'dark', label: 'Dark', icon: Moon },
-              { value: 'light', label: 'Light', icon: Sun },
-              { value: 'system', label: 'System', icon: Monitor },
-            ] as const).map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTheme(value)}
-                className={cn(
-                  'flex h-[38px] flex-1 items-center justify-center gap-1.5 rounded-[9px] text-xs font-semibold transition-colors',
-                  themePreference === value ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Tracking */}
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Tracking
-        </div>
+      {/* Settings */}
+      <section className="motion-rise space-y-2" style={rise(4)}>
+        <SectionLabel>Settings</SectionLabel>
         <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <div className="flex items-center justify-between px-[15px] py-[13px]">
-            <span className="text-sm font-medium text-foreground">Google Fit sync</span>
+          <SettingRow icon={<Moon className="h-4 w-4" />} tint="bg-chart-fat/20 text-chart-fat" label="Theme">
+            <MiniSeg
+              label="Theme"
+              options={[['dark', 'Dark'], ['light', 'Light'], ['system', 'Auto']] as const}
+              value={themePreference}
+              onChange={setTheme}
+            />
+          </SettingRow>
+          <SettingRow
+            icon={<Activity className="h-4 w-4" />}
+            tint="bg-chart-fiber/20 text-chart-fiber"
+            label="Google Fit"
+            sub={healthConnected ? 'Steps and calories from Health Connect' : 'Not connected'}
+          >
             <Switch checked={healthConnected} onCheckedChange={handleGoogleFitChange} />
-          </div>
-        </div>
-      </div>
-
-      {/* Units & account */}
-      <div className="space-y-2">
-        <div className="font-sans text-[12px] font-semibold text-muted-foreground">
-          Units &amp; account
-        </div>
-        <div className="elevation-card divide-y divide-border overflow-hidden p-0">
-          <div className="flex items-center justify-between px-[15px] py-[13px]">
-            <span className="text-sm font-medium text-foreground">Weight unit</span>
-            <div className="flex gap-1 rounded-full border border-border bg-muted p-0.5">
-              {(['kg', 'lb'] as const).map((unit) => (
-                <button
-                  key={unit}
-                  type="button"
-                  onClick={() => handleWeightUnitChange(unit)}
-                  className={cn(
-                    'rounded-full px-2.5 py-1 font-mono text-xs',
-                    weightUnit === unit ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
-                  )}
-                >
-                  {unit}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex w-full items-center justify-between px-[15px] py-[13px] text-left disabled:opacity-60"
+          </SettingRow>
+          <SettingRow icon={<Scale className="h-4 w-4" />} tint="bg-chart-carbs/20 text-chart-carbs" label="Weight unit">
+            <MiniSeg label="Weight unit" options={[['kg', 'kg'], ['lb', 'lb']] as const} value={weightUnit} onChange={handleWeightUnitChange} />
+          </SettingRow>
+          <SettingRow
+            icon={<Download className="h-4 w-4" />}
+            tint="bg-chart-water/20 text-chart-water"
+            label={exporting ? 'Preparing backup…' : 'Export my data'}
+            sub="All meals, habits and weights as a file"
+            onClick={exporting ? undefined : handleExport}
           >
-            <span className="text-sm font-medium text-foreground">{exporting ? 'Preparing backup…' : 'Export my data'}</span>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </button>
-          <button type="button" onClick={() => signOut()} className="flex w-full items-center justify-between px-[15px] py-[13px] text-left">
-            <span className="text-sm font-medium text-primary">Sign out</span>
-            <ChevronRight className="h-4 w-4 text-primary/60" />
-          </button>
+            <ChevronRight className="h-4 w-4 text-faint" />
+          </SettingRow>
+          <SettingRow icon={<LogOut className="h-4 w-4" />} tint="bg-primary/20 text-primary" label="Sign out" danger onClick={() => signOut()} />
         </div>
         <p className="pt-1 text-center font-mono text-[11px] text-faint">Bite Balance 2.0.1 · build 214</p>
-      </div>
+      </section>
     </div>
   );
 };
