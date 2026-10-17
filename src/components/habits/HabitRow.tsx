@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { Check, Minus, Pause, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { dayState, habitStreaks, logOn, scheduleLabel, weekProgress, type Habit, type LogIndex } from '@/lib/habits';
@@ -14,7 +14,11 @@ interface HabitRowProps {
   onOpen?: () => void; // opens the habit's detail page
 }
 
+const SWIPE = 96; // px of drag that commits a swipe
+const damp = (x: number) => (x > 140 ? 140 + (x - 140) * 0.25 : x < -140 ? -140 + (x + 140) * 0.25 : x);
+
 // One habit on a day. Rows never reorder when ticked, so the list doesn't jump under a thumb.
+// Swipe right to finish it, left to skip it (or un-skip); a tap on the circle still works.
 const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) => {
   const log = logOn(idx, habit.id, date);
   const state = dayState(habit, idx, date, today);
@@ -25,6 +29,50 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
   const done = state === 'done';
   // Only a tap animates: rows that load already done stay still.
   const [tapped, setTapped] = useState(false);
+
+  // Horizontal drags only: a mostly vertical move is left to the page scroll.
+  const swipeable = habit.kind !== 'avoid';
+  const [dx, setDx] = useState(0);
+  const dxRef = useRef(0);
+  const drag = useRef<{ x0: number; y0: number; active: boolean } | null>(null);
+  const justDragged = useRef(false);
+  const moveTo = (x: number) => {
+    dxRef.current = x;
+    setDx(x);
+  };
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (swipeable) drag.current = { x0: e.clientX, y0: e.clientY, active: false };
+  };
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const mx = e.clientX - d.x0;
+    const my = e.clientY - d.y0;
+    if (!d.active) {
+      if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) drag.current = null;
+      if (Math.abs(mx) <= 10 || Math.abs(mx) <= Math.abs(my)) return;
+      d.active = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    moveTo(damp(mx));
+  };
+  const onPointerUp = () => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.active) return;
+    justDragged.current = true;
+    window.setTimeout(() => (justDragged.current = false), 0);
+    const x = dxRef.current;
+    moveTo(0);
+    if (x > SWIPE && !done) {
+      setTapped(true);
+      if (habit.kind === 'count') setCount(habit.target);
+      else onWrite({ status: 'done', count: null, note });
+    } else if (x < -SWIPE) {
+      onWrite(skipped ? null : { status: 'skipped', count: null, note });
+    }
+  };
+  const pull = Math.min(1, Math.abs(dx) / SWIPE);
 
   const setCount = (n: number) => onWrite(n > 0 ? { status: 'done', count: n, note } : note ? { status: 'done', count: 0, note } : null);
 
@@ -134,8 +182,40 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
   const avoidPick = (status: 'done' | 'slipped') => onWrite(log?.status === status ? null : { status, count: null, note });
 
   return (
-    <div className="flex flex-col gap-2.5 py-2.5 pl-3 pr-2.5" style={colorStyle(habit.color)}>
-      <div className="flex min-h-11 items-center gap-3">
+    <div className="relative overflow-hidden" style={colorStyle(habit.color)}>
+      {swipeable && dx !== 0 && (
+        <div
+          aria-hidden
+          className={cn('absolute inset-0 flex items-center px-6 text-background', dx > 0 ? 'justify-start bg-chart-fiber' : 'justify-end bg-chart-water')}
+        >
+          {dx > 0 ? (
+            <Check className="h-6 w-6" strokeWidth={3} style={{ opacity: pull, transform: `scale(${0.5 + pull * 0.7}) rotate(${(pull - 1) * 30}deg)` }} />
+          ) : (
+            <span className="text-sm font-bold" style={{ opacity: pull, transform: `scale(${0.7 + pull * 0.3})` }}>
+              {skipped ? 'Undo skip' : 'Skip'}
+            </span>
+          )}
+        </div>
+      )}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onClickCapture={(e) => {
+          if (justDragged.current) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+        className="relative flex touch-pan-y flex-col gap-2.5 bg-card py-2.5 pl-3 pr-2.5"
+        style={{
+          transform: dx ? `translateX(${dx}px) rotate(${dx / 80}deg)` : undefined,
+          transition: drag.current?.active ? 'none' : 'transform 480ms cubic-bezier(.34,1.45,.64,1)',
+        }}
+      >
+      {done && tapped && <span aria-hidden className="motion-grow pointer-events-none absolute inset-0 origin-left bg-chart-fiber/10" />}
+      <div className="relative flex min-h-11 items-center gap-3">
         <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left" aria-label={`Open ${habit.name}`}>
           <HabitTile habit={habit} />
           <span className="min-w-0 flex-1">
@@ -182,6 +262,7 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 };

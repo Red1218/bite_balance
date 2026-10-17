@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, ChevronLeft, ChevronRight, Loader2, Pause, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,36 @@ import { MonthHeatmap, WeekGrid, fmtMonthShift, monthStartOf, shortDate } from '
 import { Ring, SectionLabel, StateMark, TIME_LABEL } from '@/components/habits/habitUi';
 import MenuButton from '@/components/MenuButton';
 import Segmented from '@/components/Segmented';
+
+// Seeds that fall across the screen when the last habit of the day is ticked.
+const SEED_COLORS = ['--chart-fiber', '--chart-carbs', '--chart-fat', '--chart-protein', '--foreground'];
+// The longest seed (1,900 ms + 300 ms delay) is gone by SEEDS_MS, when the layer is removed.
+const SEEDS_MS = 2300;
+const SEEDS = Array.from({ length: 20 }, (_, i) => ({
+  left: `${(i * 37) % 100}%`,
+  background: `hsl(var(${SEED_COLORS[i % 5]}))`,
+  '--drift': `${((i * 53) % 120) - 60}px`,
+  '--spin': `${((i * 97) % 720) - 360}deg`,
+  '--dur': `${1400 + ((i * 71) % 500)}ms`,
+  '--delay': `${(i * 43) % 300}ms`,
+})) as CSSProperties[];
+
+// Seeds fall at most once a day, even if the last habit is unticked and ticked again.
+const SEEDS_KEY = 'habits-seeds-day';
+const seedsShownOn = (day: string) => {
+  try {
+    return localStorage.getItem(SEEDS_KEY) === day;
+  } catch {
+    return false;
+  }
+};
+const markSeedsShown = (day: string) => {
+  try {
+    localStorage.setItem(SEEDS_KEY, day);
+  } catch {
+    // Storage blocked: worst case the seeds can fall again today.
+  }
+};
 
 const Habits = () => {
   const navigate = useNavigate();
@@ -44,16 +74,26 @@ const Habits = () => {
   const todayDone = todayP.due > 0 && todayP.done === todayP.due;
   const wasDone = useRef<boolean | null>(null);
   const [celebrate, setCelebrate] = useState(false);
+  const [seeds, setSeeds] = useState(false);
   useEffect(() => {
     if (loading) return;
     if (wasDone.current === false && todayDone) {
       setCelebrate(true);
+      const fall = !seedsShownOn(today);
+      if (fall) {
+        markSeedsShown(today);
+        setSeeds(true);
+      }
       const t = window.setTimeout(() => setCelebrate(false), 1600);
+      const s = fall ? window.setTimeout(() => setSeeds(false), SEEDS_MS) : 0;
       wasDone.current = todayDone;
-      return () => window.clearTimeout(t);
+      return () => {
+        window.clearTimeout(t);
+        window.clearTimeout(s);
+      };
     }
     wasDone.current = todayDone;
-  }, [todayDone, loading]);
+  }, [todayDone, loading, today]);
 
   const changeReminder = (next: ReminderSettings) => {
     setReminder(next);
@@ -153,6 +193,13 @@ const Habits = () => {
   return (
     <div className="space-y-3.5">
       {header}
+      {seeds && (
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+          {SEEDS.map((sd, i) => (
+            <span key={i} className="motion-seed absolute -top-5 h-3.5 w-2 rounded-full" style={sd} />
+          ))}
+        </div>
+      )}
 
       {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-destructive">{error}</div>}
 

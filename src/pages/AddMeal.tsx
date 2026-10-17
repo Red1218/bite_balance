@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { showLoggedToast } from '@/components/LoggedToast';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -177,23 +178,22 @@ const AddMeal = () => {
         ...mapNutrients((k) => Number(mealData[k]) || 0),
         calories: Number(mealData.calories),
       };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('daily_meals')
-        .insert(chatMealItemToRow(item, user.id, fmtLocalDate(new Date())));
+        .insert(chatMealItemToRow(item, user.id, fmtLocalDate(new Date())))
+        .select('id')
+        .single();
 
       if (error) throw error;
-
-      toast({
-        title: 'Meal added',
-        description: `"${mealData.name}" has been added to your daily log.`,
-      });
 
       setMealData(emptyMeal());
       setBaseNutrition(null);
       setPortionUnit('g');
 
+      // Close at once; the flight into the plate on Today and the toast confirm it.
       notifyMealsLogged();
       closeAddMeal();
+      showLoggedToast(`${Math.round(item.calories)} kcal to ${MEAL_LABEL[item.mealTime].toLowerCase()}`, [data.id], notifyMealsLogged);
     } catch (error) {
       console.error('Error adding meal:', error);
       toast({
