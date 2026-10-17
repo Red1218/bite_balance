@@ -10,6 +10,7 @@ import { useNativeApp } from './hooks/useNativeApp';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const SavedMeals = lazy(() => import('./pages/SavedMeals'));
+const SavedItemDetail = lazy(() => import('./pages/SavedItemDetail'));
 const History = lazy(() => import('./pages/History'));
 const Steps = lazy(() => import('./pages/Steps'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -52,6 +53,7 @@ const AppRoutes = () => {
           <Route path="/chat" element={<Chat />} />
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/saved-meals" element={<SavedMeals />} />
+          <Route path="/saved-meals/:kind/:id" element={<SavedItemDetail />} />
           <Route path="/history" element={<History />} />
           <Route path="/steps" element={<Steps />} />
           <Route path="/profile" element={<Profile />} />
