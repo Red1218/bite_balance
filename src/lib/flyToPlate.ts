@@ -4,12 +4,12 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 export const FLIGHT_MS = 680;
 
 /**
- * Sends a small food token from `from` to Today's plate (#plate-ring) on a curve: X and Y run on
- * different easings, so it lifts first and then drops in. Does nothing when the plate isn't on
- * the page or the phone asks for reduced motion.
+ * Sends a small food token from `from` to Today's plate (#plate-ring, or another ring by id) on a
+ * curve: X and Y run on different easings, so it lifts first and then drops in. Does nothing when
+ * the target isn't on the page or the phone asks for reduced motion.
  */
-export const flyToPlate = (from: DOMRect, label: string, color: string) => {
-  const plate = document.getElementById('plate-ring');
+export const flyToPlate = (from: DOMRect, label: string, color: string, targetId = 'plate-ring') => {
+  const plate = document.getElementById(targetId);
   if (!plate || reducedMotion()) return false;
   const to = plate.getBoundingClientRect();
   const dx = from.left + from.width / 2 - (to.left + to.width / 2);
