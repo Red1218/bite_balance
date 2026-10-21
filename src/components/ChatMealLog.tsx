@@ -183,34 +183,36 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, sending, items.length]);
 
-  // Load persisted conversation history once, on mount -- an empty history
-  // keeps the local GREETING (never persisted, it's just a canned opener).
-  // Opened with ?date=YYYY-MM-DD instead, load only that day's messages.
+  // Every visit opens a fresh chat: the GREETING and the starters. Earlier messages from today
+  // aren't shown, but they still go to the model, so it knows what's already logged.
+  // Past chats are in Conversations, which opens one day with ?date=YYYY-MM-DD.
+  const earlierToday = useRef<ChatMsg[]>([]);
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const query = supabase.from('chat_messages').select('*').eq('user_id', user.id);
-      const { data, error } = viewDate
-        ? await query
-            // viewDate is a local calendar day -- query its local-midnight bounds
-            .gte('created_at', new Date(`${viewDate}T00:00:00`).toISOString())
-            .lt('created_at', new Date(new Date(`${viewDate}T00:00:00`).getTime() + 86_400_000).toISOString())
-            .order('created_at', { ascending: true })
-        : await query.order('created_at', { ascending: true }).limit(HISTORY_LOAD_LIMIT);
+      const day = viewDate ?? fmtLocalDate(new Date());
+      // The day is a local calendar day -- query its local-midnight bounds
+      const start = new Date(`${day}T00:00:00`);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('created_at', start.toISOString())
+        .lt('created_at', new Date(start.getTime() + 86_400_000).toISOString())
+        .order('created_at', { ascending: true })
+        .limit(HISTORY_LOAD_LIMIT);
       if (error) {
         console.error('Error loading chat history:', error);
         return;
       }
-      if (viewDate || (data && data.length > 0)) {
-        setMessages(
-          (data ?? []).map((row) => ({
-            id: row.id,
-            who: row.role === 'user' ? 'user' : 'bot',
-            text: row.content,
-            createdAt: row.created_at,
-          }))
-        );
-      }
+      const rows: ChatMsg[] = (data ?? []).map((row) => ({
+        id: row.id,
+        who: row.role === 'user' ? 'user' : 'bot',
+        text: row.content,
+        createdAt: row.created_at,
+      }));
+      if (viewDate) setMessages(rows);
+      else earlierToday.current = rows;
     })();
   }, [user, viewDate]);
 
@@ -233,7 +235,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     setSending(true);
     try {
       const todayStr = fmtLocalDate(new Date(now));
-      const contextMessages = nextMessages.slice(-CHAT_CONTEXT_LIMIT);
+      const contextMessages = [...earlierToday.current, ...nextMessages].slice(-CHAT_CONTEXT_LIMIT);
       const { data, error } = await supabase.functions.invoke('chat-meal', {
         body: {
           // Old-day messages are tagged so the model can still recall and
