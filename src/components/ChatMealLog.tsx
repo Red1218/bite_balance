@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, Mic, Plus, Loader2, ArrowLeft, Check } from 'lucide-react';
+import { Send, Mic, Plus, Minus, Loader2, ArrowLeft, Check, RotateCcw, Moon, Bookmark, Flame } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -13,6 +13,8 @@ import { cn, fmtLocalDate } from '@/lib/utils';
 import MenuButton from '@/components/MenuButton';
 import { showLoggedToast } from '@/components/LoggedToast';
 import { useCountUp } from '@/hooks/useCountUp';
+import MacroRing from '@/components/MacroRing';
+import { flyToPlate } from '@/lib/flyToPlate';
 import MealReviewList, {
   ChatMealItem,
   MealTime,
@@ -63,6 +65,26 @@ const toItem = (row: DailyMeal | SavedMeal, mealTime: MealTime, grams: number): 
 });
 
 const rowToItem = (row: DailyMeal) => toItem(row, row.meal_time as MealTime, row.grams ?? 0);
+
+// A portion multiplies the amount and every nutrient; the name and meal stay.
+const scaleItem = (it: ChatMealItem, factor: number): ChatMealItem => {
+  if (factor === 1) return it;
+  const out = { ...it };
+  for (const k of Object.keys(out) as (keyof ChatMealItem)[]) {
+    if (typeof out[k] === 'number') (out as Record<string, unknown>)[k] = (out[k] as number) * factor;
+  }
+  return out;
+};
+// Steps of one, with a half portion below one.
+const stepPortion = (q: number, up: boolean) => (up ? Math.min(6, q < 1 ? 1 : q + 1) : q > 1 ? q - 1 : 0.5);
+const portionLabel = (q: number) => (q === 0.5 ? '½' : `${q}`);
+
+const STARTERS = [
+  { key: 'yesterday', label: 'Same as yesterday', note: "Yesterday's meals", Icon: RotateCcw, tint: 'bg-chart-carbs/15 text-chart-carbs' },
+  { key: 'dinner', label: 'Repeat last dinner', note: 'Your last dinner', Icon: Moon, tint: 'bg-chart-fat/20 text-chart-fat' },
+  { key: null, label: 'From saved', note: 'Pick a saved meal', Icon: Bookmark, tint: 'bg-chart-fiber/20 text-chart-fiber' },
+  { key: 'most', label: 'Most logged', note: 'Your go-to', Icon: Flame, tint: 'bg-primary/15 text-primary' },
+] as const;
 
 // If exactly one item changed grams/calories between turns and nothing else
 // about the list's shape moved, render it as a diff line instead of prose.
@@ -132,6 +154,11 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     { id: 'm0', who: 'bot', text: GREETING, createdAt: new Date().toISOString() },
   ]);
   const [items, setItems] = useState<ChatMealItem[]>([]);
+  // Portion per item index, changed with the steppers on the cards. The model doesn't see these:
+  // its next list replaces them, since by then it has the user's latest words.
+  const [portions, setPortions] = useState<Record<number, number>>({});
+  const shown = items.map((it, i) => scaleItem(it, portions[i] ?? 1));
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -140,6 +167,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   const [justLogged, setJustLogged] = useState(false);
   // Messages from before this screen opened appear as they are; new ones rise in.
   const openedAt = useRef(Date.now());
+  const openedKcal = useRef(loggedKcal);
   const shownKcal = useCountUp(loggedKcal);
   const [chipLoading, setChipLoading] = useState<'yesterday' | 'dinner' | 'most' | null>(null);
   const [showSavedMeals, setShowSavedMeals] = useState(false);
@@ -241,7 +269,10 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         },
       ]);
       void persistMessage('assistant', data.reply);
-      if (Array.isArray(data.items)) setItems(data.items);
+      if (Array.isArray(data.items)) {
+        setItems(data.items);
+        setPortions({});
+      }
     } catch (err) {
       console.error('chat-meal error:', err);
       setMessages((prev) => [
@@ -352,13 +383,26 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, mealTime } : it)));
   };
 
+  // The meal chip beside the log button moves every open item to the next meal.
+  const cycleAllMealTimes = () => {
+    const next = MEAL_ORDER[(MEAL_ORDER.indexOf(items[0].mealTime) + 1) % MEAL_ORDER.length];
+    setItems((prev) => prev.map((it) => ({ ...it, mealTime: next })));
+  };
+
   // Logs every open item in one insert. One "Logged <meal-time> · ..." message
   // per meal-time still goes into the thread: chat-meal reads those to know
   // which meal-times are done and must not be restated.
   const handleLogAll = async () => {
-    if (!user || items.length === 0) return;
+    if (!user || shown.length === 0) return;
 
     setLogging(true);
+    // What gets logged is what the cards show, portions applied.
+    const items = shown;
+    // Each card sends its calories up into the header ring.
+    items.forEach((it, i) => {
+      const card = cardRefs.current[i];
+      if (card) window.setTimeout(() => flyToPlate(card.getBoundingClientRect(), `${Math.round(it.calories)}`, 'hsl(var(--primary))', 'chat-ring'), i * 110);
+    });
     try {
       const today = fmtLocalDate(new Date());
       const rows = items.map((it) => chatMealItemToRow(it, user.id, today));
@@ -383,6 +427,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       notifyMealsLogged();
 
       setItems([]);
+      setPortions({});
       setEditing(false);
       const at = new Date().toISOString();
       setMessages((prev) => [...prev, ...confirmations.map((text) => ({ id: uid(), who: 'bot' as const, text, createdAt: at }))]);
@@ -399,7 +444,7 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
   if (editing) {
     return (
       <MealReviewList
-        items={items}
+        items={shown}
         onAccept={handleLogAll}
         onBack={() => setEditing(false)}
         onChangeMealTime={handleChangeMealTime}
@@ -429,6 +474,29 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
           <h1 className="truncate font-display text-lg font-bold leading-tight text-foreground">{title}</h1>
           <p className="text-[13px] text-muted-foreground">{subtitle}</p>
         </div>
+        {!viewDate && (
+          // Today's calories; logged items fly up into it. Keyed so it dips each time it grows.
+          <div key={loggedKcal} id="chat-ring" className={cn('relative h-11 w-11 flex-none', loggedKcal !== openedKcal.current && 'motion-gulp')}>
+            <svg viewBox="0 0 44 44" className="absolute inset-0" aria-hidden>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="hsl(var(--muted))" strokeWidth="5" />
+              {/* Nothing logged: no arc, or the round cap draws a dot */}
+              {loggedKcal > 0 && <circle
+                cx="22"
+                cy="22"
+                r="18"
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 18 * Math.min(1, loggedKcal / (calorieGoal || 1))} 999`}
+                transform="rotate(-90 22 22)"
+              />}
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+              {Math.round(Math.min(1, loggedKcal / (calorieGoal || 1)) * 100)}%
+            </span>
+          </div>
+        )}
       </div>
 
       {viewDate && (
@@ -457,7 +525,9 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
                   <span className="flex-1 font-mono text-xs text-muted-foreground">{m.diff.split(/(→)/).map((part, i) => part === '→' ? <span key={i} className="mx-1 text-muted-foreground/60">{part}</span> : part)}</span>
                 </div>
               ) : (
-                <Prose text={m.text} />
+                <div className={cn(Date.parse(m.createdAt) > openedAt.current && 'motion-reveal')}>
+                  <Prose text={m.text} />
+                </div>
               )}
               {m.replies && m.replies.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -488,26 +558,31 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
       {isFreshConversation && (
         <div className="space-y-2">
           <span className="text-[12px] font-semibold text-muted-foreground">Or start from</span>
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { key: 'yesterday', label: 'Same as yesterday', onClick: handleSameAsYesterday },
-                { key: 'dinner', label: 'Repeat last dinner', onClick: handleRepeatLastDinner },
-                { key: null, label: 'From saved meals', onClick: () => setShowSavedMeals((v) => !v) },
-                { key: 'most', label: 'Most logged', onClick: handleMostLogged },
-              ] as const
-            ).map(({ key, label, onClick }) => (
+          <div className="grid grid-cols-2 gap-2">
+            {STARTERS.map(({ key, label, note, Icon, tint }, i) => (
               <button
                 key={label}
                 type="button"
-                onClick={onClick}
+                onClick={
+                  key === 'yesterday'
+                    ? handleSameAsYesterday
+                    : key === 'dinner'
+                      ? handleRepeatLastDinner
+                      : key === 'most'
+                        ? handleMostLogged
+                        : () => setShowSavedMeals((v) => !v)
+                }
                 disabled={key !== null && chipLoading !== null}
-                className={cn(
-                  'rounded-full border border-border bg-muted px-3.5 py-2 text-xs font-medium text-foreground',
-                  key && 'disabled:opacity-50'
-                )}
+                className="motion-rise flex flex-col items-start gap-2 rounded-[18px] bg-card p-3 text-left transition-transform active:scale-[.97] disabled:opacity-50"
+                style={{ animationDelay: `${i * 60}ms` }}
               >
-                {key && chipLoading === key ? 'Loading...' : label}
+                <span className={cn('flex h-8 w-8 items-center justify-center rounded-[10px]', tint)}>
+                  {key && chipLoading === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                </span>
+                <span>
+                  <span className="block text-[13px] font-semibold text-foreground">{label}</span>
+                  <span className="block text-[11px] text-faint">{note}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -530,41 +605,97 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
         </div>
       )}
 
-      {items.length > 0 && !sending && (
-        <div className="flex items-center gap-3.5">
-          <button
-            type="button"
-            onClick={handleLogAll}
-            disabled={logging}
-            className={cn(
-              'flex h-11 items-center gap-[7px] rounded-full px-4 text-[14px] font-semibold transition-colors duration-300',
-              justLogged
-                ? 'bg-chart-fiber text-background'
-                : 'bg-primary text-primary-foreground shadow-[0_8px_18px_-10px_hsl(var(--primary)/0.8)] disabled:opacity-60'
-            )}
-          >
-            {justLogged ? (
-              <span className="motion-pop flex items-center gap-[7px]">
-                <Check className="motion-draw h-4 w-4" strokeWidth={3} />
-                Logged
-              </span>
-            ) : (
-              <>
-                {logging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                {logging ? 'Logging...' : `Log these ${items.length}`}
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            disabled={logging}
-            className="text-[13px] font-medium text-muted-foreground disabled:opacity-60"
-          >
-            Edit amounts
-          </button>
-        </div>
-      )}
+      {items.length > 0 && !sending && (() => {
+        const totalKcal = Math.round(shown.reduce((s, it) => s + it.calories, 0));
+        const oneMeal = items.every((it) => it.mealTime === items[0].mealTime) ? items[0].mealTime : null;
+        return (
+          <div className="flex flex-col gap-2">
+            {shown.map((it, i) => {
+              const q = portions[i] ?? 1;
+              const setQ = (up: boolean) => setPortions((p) => ({ ...p, [i]: stepPortion(q, up) }));
+              return (
+                <div
+                  key={`${it.name}-${i}`}
+                  ref={(el) => (cardRefs.current[i] = el)}
+                  className="motion-slide flex items-center gap-3 rounded-[18px] bg-card p-2.5"
+                  style={{ animationDelay: `${i * 90}ms` }}
+                >
+                  <MacroRing protein={it.protein} carbs={it.carbs} fat={it.fat} size={36} stroke={5} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-foreground">{it.name}</div>
+                    <div className="truncate text-[11px] text-faint">
+                      {it.grams ? `${Math.round(it.grams)} g · ` : ''}
+                      {Math.round(it.protein)} g protein{oneMeal ? '' : ` · ${MEAL_LABEL[it.mealTime]}`}
+                    </div>
+                  </div>
+                  <div className="flex flex-none items-center gap-0.5 rounded-full bg-muted p-0.5" role="group" aria-label={`Portion of ${it.name}`}>
+                    <button type="button" onClick={() => setQ(false)} disabled={logging || q === 0.5} aria-label="Less" className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground active:bg-border disabled:opacity-40">
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="min-w-[1.5rem] text-center text-xs font-bold text-foreground">×{portionLabel(q)}</span>
+                    <button type="button" onClick={() => setQ(true)} disabled={logging || q === 6} aria-label="More" className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground active:bg-border disabled:opacity-40">
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <span key={q} className={cn('w-11 flex-none text-right text-[13px] font-bold text-foreground', q !== 1 && 'motion-pop')}>
+                    {Math.round(it.calories)}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div className="motion-rise flex items-center gap-2" style={{ animationDelay: `${items.length * 90 + 120}ms` }}>
+              {oneMeal && (
+                <button
+                  type="button"
+                  onClick={cycleAllMealTimes}
+                  disabled={logging}
+                  aria-label="Change meal"
+                  className="flex h-11 flex-none items-center rounded-full bg-muted px-3.5 text-[13px] font-semibold text-foreground disabled:opacity-60"
+                >
+                  {MEAL_LABEL[oneMeal]}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleLogAll}
+                disabled={logging}
+                className={cn(
+                  'flex h-11 min-w-0 flex-1 items-center justify-center gap-[7px] rounded-full px-4 text-[14px] font-semibold transition-colors duration-300',
+                  justLogged
+                    ? 'bg-chart-fiber text-background'
+                    : 'bg-primary text-primary-foreground shadow-[0_8px_18px_-10px_hsl(var(--primary)/0.8)] disabled:opacity-60'
+                )}
+              >
+                {justLogged ? (
+                  <span className="motion-pop flex items-center gap-[7px]">
+                    <Check className="motion-draw h-4 w-4" strokeWidth={3} />
+                    Logged
+                  </span>
+                ) : logging ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Logging...
+                  </>
+                ) : (
+                  <span className="truncate">
+                    Log {items.length}
+                    {oneMeal ? ` to ${MEAL_LABEL[oneMeal].toLowerCase()}` : ''} · {totalKcal.toLocaleString()} kcal
+                  </span>
+                )}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              disabled={logging}
+              className="self-start text-[13px] font-medium text-muted-foreground disabled:opacity-60"
+            >
+              Details and meals per item
+            </button>
+          </div>
+        );
+      })()}
 
       {/* scroll-mb keeps the newest reply clear of the docked composer + bottom nav */}
       <div ref={bottomRef} className="scroll-mb-56" />
@@ -589,8 +720,26 @@ const ChatMealLog = ({ calorieGoal, loggedKcal }: ChatMealLogProps) => {
               </span>
             </div>
           )}
-          <div className="flex min-h-12 items-center gap-1.5 rounded-full bg-muted pl-4 pr-2">
+          <div
+            className={cn(
+              'flex min-h-12 items-center gap-1.5 rounded-full pl-4 pr-2 transition-colors duration-300',
+              voice.state === 'recording' ? 'bg-primary/15' : 'bg-muted'
+            )}
+          >
+            {voice.state === 'recording' && (
+              // A waveform while listening; it's decorative, not the real input level.
+              <div aria-hidden className="flex h-12 flex-1 items-center gap-[3px] overflow-hidden">
+                {Array.from({ length: 28 }, (_, i) => (
+                  <span
+                    key={i}
+                    className="motion-eq w-[3px] flex-none rounded-full bg-primary"
+                    style={{ height: 8 + Math.abs(Math.sin(i * 1.7)) * 20, animationDelay: `${(i % 7) * 90}ms` }}
+                  />
+                ))}
+              </div>
+            )}
             <input
+              hidden={voice.state === 'recording'}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="What did you eat?"
