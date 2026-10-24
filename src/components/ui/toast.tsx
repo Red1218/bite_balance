@@ -14,23 +14,25 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      'fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]',
+      'fixed inset-x-0 top-0 z-[100] mx-auto flex max-h-screen w-full max-w-[560px] flex-col px-3.5 outline-none',
       className
     )}
-    style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+    style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}
     {...props}
   />
 ));
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
+// The island pill: a black capsule that drops from the top and widens out (motion-island in
+// index.css); swiping it up dismisses it. The variant only changes the icon and its colour.
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full',
+  'group motion-island pointer-events-auto relative flex min-h-16 w-full items-center gap-3 overflow-hidden rounded-[32px] bg-black py-2 pl-2.5 pr-2 text-white shadow-[0_14px_34px_rgba(0,0,0,.6)] data-[swipe=cancel]:translate-y-0 data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)] data-[swipe=move]:transition-none data-[swipe=end]:translate-y-[var(--radix-toast-swipe-end-y)]',
   {
     variants: {
       variant: {
-        default: 'border bg-background text-foreground',
-        destructive:
-          'destructive group border-destructive bg-destructive text-destructive-foreground',
+        default: '',
+        success: 'success',
+        destructive: 'destructive',
       },
     },
     defaultVariants: {
@@ -57,15 +59,21 @@ Toast.displayName = ToastPrimitives.Root.displayName;
 const ToastAction = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Action>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive',
+      'motion-island-content relative flex h-12 min-w-12 shrink-0 items-center justify-center rounded-full bg-white/10 px-3 text-xs font-bold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:pointer-events-none disabled:opacity-50',
       className
     )}
     {...props}
-  />
+  >
+    {/* Runs down over the toast's 5 s life, so you can see how long Undo lasts */}
+    <svg viewBox="0 0 48 48" aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2">
+      <circle className="motion-countdown" cx="24" cy="24" r="21" fill="none" stroke="hsl(var(--chart-carbs))" strokeWidth="3" strokeLinecap="round" strokeDasharray="132" transform="rotate(-90 24 24)" />
+    </svg>
+    {children}
+  </ToastPrimitives.Action>
 ));
 ToastAction.displayName = ToastPrimitives.Action.displayName;
 
@@ -93,7 +101,7 @@ const ToastTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
-    className={cn('text-sm font-semibold', className)}
+    className={cn('truncate text-[15px] font-bold', className)}
     {...props}
   />
 ));
@@ -105,7 +113,7 @@ const ToastDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
-    className={cn('text-sm opacity-90', className)}
+    className={cn('line-clamp-2 text-[13px] leading-snug text-white/65', className)}
     {...props}
   />
 ));
