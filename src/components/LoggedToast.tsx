@@ -7,6 +7,7 @@ export const showLoggedToast = (description: string, ids: string[], onChange: ()
   toast({
     title: 'Logged',
     description,
+    variant: 'success',
     action: (
       <ToastAction
         altText="Undo"

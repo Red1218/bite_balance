@@ -354,6 +354,37 @@
 .motion-float {
   animation: float-up 900ms var(--ease-settle) both;
 }
+/* Toasts: the island pill drops in narrow and widens, then its contents fade in. "backwards",
+   so once it lands the swipe-to-dismiss transform takes over. */
+@keyframes island-in {
+  0% { transform: translateY(-120%) scaleX(0.35); }
+  35% { transform: translateY(0) scaleX(0.35); }
+  100% { transform: none; }
+}
+@keyframes island-out {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(-120%) scaleX(0.4); opacity: 0; }
+}
+@keyframes countdown {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 132; }
+}
+.motion-island[data-state='open'] {
+  animation: island-in 620ms var(--ease-settle) backwards;
+}
+.motion-island[data-state='closed'],
+.motion-island[data-swipe='end'] {
+  animation: island-out 300ms ease-in forwards;
+}
+.motion-island-content {
+  animation: rise 360ms var(--ease-settle) 260ms both;
+}
+.motion-island-pop {
+  animation: pop 420ms var(--ease-pop) 200ms both;
+}
+.motion-countdown {
+  animation: countdown 5000ms linear forwards;
+}
 /* A new chat reply uncovering line by line, top to bottom */
 @keyframes reveal-down {
   from { clip-path: inset(0 0 100% 0); }
