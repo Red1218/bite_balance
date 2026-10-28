@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "preview": "vite preview",
     "import:usda": "node --env-file=.env --experimental-strip-types scripts/import-usda-foods.ts",
-    "check": "npm run -s check:habits && node supabase/functions/parse-meal/portion.check.ts && node supabase/functions/transcribe/promptEcho.check.ts && node src/lib/logStats.check.ts",
+    "check": "npm run -s check:habits && node supabase/functions/parse-meal/portion.check.ts && node supabase/functions/transcribe/promptEcho.check.ts && node src/lib/logStats.check.ts && node src/lib/offlineOverlay.check.ts",
     "check:habits": "esbuild src/lib/habits.check.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/habits-check.cjs && node node_modules/.cache/habits-check.cjs"
   },
   "dependencies": {
@@ -23,6 +23,7 @@
     "@capacitor/filesystem": "^7.1.9",
     "@capacitor/keyboard": "^7.0.6",
     "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/network": "^7.0.4",
     "@capacitor/share": "^7.0.4",
     "@capacitor/status-bar": "^7.0.6",
     "@capgo/capacitor-health": "^7.2.15",
