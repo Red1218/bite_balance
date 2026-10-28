@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb -s R9ZYA00X9HW exec-out screencap *)",
+      "Bash(adb exec-out screencap *)",
+      "Bash(npx tsc --noEmit *)",
+      "Bash(adb devices)",
+      "Bash(adb -s R9ZYA00X9HW shell dumpsys *)",
+      "Bash(git fetch *)",
+      "Bash(npm run lint)",
+      "Bash(adb -s R9ZYA00X9HW logcat -d *)",
+      "Bash(adb logcat -d *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run check)",
+      "Bash(npm run -s check)",
+      "mcp__Claude_Browser__find",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__tabs_context",
+      "mcp__Claude_Browser__preview_logs",
+      "mcp__Claude_Browser__read_network_requests",
+      "mcp__286223d3-c909-48a5-ba65-08739217ec80__query_logs",
+      "mcp__286223d3-c909-48a5-ba65-08739217ec80__list_edge_functions",
+      "mcp__286223d3-c909-48a5-ba65-08739217ec80__list_tables",
+      "mcp__286223d3-c909-48a5-ba65-08739217ec80__get_project",
+      "mcp__ccd_session_mgmt__list_sessions",
+      "mcp__ccd_session_mgmt__list_events",
+      "mcp__ccd_pr__get_status",
+      "mcp__terminal__read_terminal"
+    ]
+  }
+}

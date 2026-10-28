@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type CSSP
 import { Outlet, useLocation } from 'react-router-dom';
 import AppDrawer from './AppDrawer';
 import BottomNav, { tabIndex } from './BottomNav';
+import OfflinePill from './OfflinePill';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 import { closeOnBack } from '@/lib/backButton';
@@ -78,6 +79,7 @@ const AppLayout = () => {
           if (e.target === e.currentTarget && e.propertyName === 'transform' && !drawerOpen) setPush(undefined);
         }}
       >
+        <OfflinePill />
         <div key={pathname} className="motion-page" style={{ '--page-dir': dir.current } as CSSProperties}>
           <Outlet context={{ openDrawer: () => setDrawerOpen(true) } satisfies LayoutContext} />
         </div>
