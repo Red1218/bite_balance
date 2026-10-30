@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, ChevronLeft, ChevronRight, Loader2, Pause, Plus } from 'lucide-react';
+import { closeOnBack } from '@/lib/backButton';
 import { cn } from '@/lib/utils';
 import { addDays, categoryGroups, categoryNames, dayProgress, isDueOn, type HabitValues } from '@/lib/habits';
 import { useHabits, useLocalToday } from '@/hooks/useHabits';
@@ -8,6 +9,7 @@ import {
   getReminderSettings, remindersSupported, saveReminderSettings, syncReminders, type ReminderSettings,
 } from '@/lib/habitReminders';
 import CategoryCard, { CategoryRenameSheet } from '@/components/habits/CategoryCard';
+import CategoryEditList from '@/components/habits/CategoryEditList';
 import HabitRow from '@/components/habits/HabitRow';
 import HabitSheet from '@/components/habits/HabitSheet';
 import HabitStats from '@/components/habits/HabitStats';
@@ -79,11 +81,15 @@ const Habits = () => {
   const [editOrder, setEditOrder] = useState<string[] | null>(null); // non-null = editing the list
   const [closed, setClosed] = useState(readClosed);
   const [renaming, setRenaming] = useState<{ name: string | null } | null>(null);
+  const [editCategories, setEditCategories] = useState(false);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekEnd, i - 6));
   // One range covers the strip, the grids, the selected day and a year of history for streaks and stats.
   const from = [weekDays[0], month, selected, addDays(today, -364)].sort()[0];
-  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, setArchived, reorderHabits } = useHabits(from, today);
+  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, reorderHabits } = useHabits(from, today);
+
+  // Android Back leaves the category editor rather than the Habits page.
+  useEffect(() => (editCategories ? closeOnBack(() => setEditCategories(false)) : undefined), [editCategories]);
 
   const active = habits.filter((h) => !h.archived_at);
   const progress = dayProgress(habits, idx, selected, today);
@@ -152,9 +158,9 @@ const Habits = () => {
   const header = (
     <div className="flex h-14 items-center gap-1">
       <MenuButton />
-      <h1 className="ml-2 flex-1 font-display text-2xl font-semibold tracking-tight">{editOrder ? 'Edit list' : 'Habits'}</h1>
-      {editOrder ? (
-        <button type="button" onClick={finishEditing} className="h-11 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground">
+      <h1 className="ml-2 flex-1 font-display text-2xl font-semibold tracking-tight">{editCategories ? 'Edit categories' : editOrder ? 'Edit list' : 'Habits'}</h1>
+      {editOrder || editCategories ? (
+        <button type="button" onClick={() => (editCategories ? setEditCategories(false) : finishEditing())} className="h-11 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground">
           Done
         </button>
       ) : (
@@ -196,6 +202,15 @@ const Habits = () => {
         {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-destructive">{error}</div>}
         {!error && <HabitStarters onAdd={addHabits} onCreate={() => setSheetOpen(true)} />}
         {sheets}
+      </div>
+    );
+  }
+
+  if (editCategories) {
+    return (
+      <div className="space-y-3.5">
+        {header}
+        <CategoryEditList habits={habits} onRename={renameCategory} onCreate={moveToCategory} />
       </div>
     );
   }
@@ -346,13 +361,16 @@ const Habits = () => {
               ))}
             </CategoryCard>
           ))}
-          {habits.length > 1 && (
-            <div className="flex justify-center">
+          <div className="flex justify-center">
+            <button type="button" onClick={() => setEditCategories(true)} className="h-11 px-4 text-[13px] font-semibold text-primary">
+              Edit categories
+            </button>
+            {habits.length > 1 && (
               <button type="button" onClick={() => setEditOrder(initialOrder(habits))} className="h-11 px-4 text-[13px] font-semibold text-primary">
                 Reorder & archived
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           <WeekGrid habits={active} idx={idx} days={weekDays} today={today} selected={selected} onSelect={setSelected} onShift={shiftWeek} />
           <MonthHeatmap
