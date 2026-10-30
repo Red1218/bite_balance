@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, ChevronLeft, ChevronRight, Loader2, Pause, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { TIMES_OF_DAY, addDays, dayProgress, isDueOn, type HabitValues } from '@/lib/habits';
+import { addDays, categoryGroups, categoryNames, dayProgress, isDueOn, type HabitValues } from '@/lib/habits';
 import { useHabits, useLocalToday } from '@/hooks/useHabits';
 import {
   getReminderSettings, remindersSupported, saveReminderSettings, syncReminders, type ReminderSettings,
 } from '@/lib/habitReminders';
+import CategoryCard, { CategoryRenameSheet } from '@/components/habits/CategoryCard';
 import HabitRow from '@/components/habits/HabitRow';
 import HabitSheet from '@/components/habits/HabitSheet';
 import HabitStats from '@/components/habits/HabitStats';
@@ -14,7 +15,7 @@ import HabitStarters from '@/components/habits/HabitStarters';
 import HabitEditList, { initialOrder, orderToSave, withRestored } from '@/components/habits/HabitEditList';
 import HabitReminderSheet from '@/components/habits/HabitReminderSheet';
 import { MonthHeatmap, WeekGrid, fmtMonthShift, monthStartOf, shortDate } from '@/components/habits/HabitHistory';
-import { Ring, SectionLabel, StateMark, TIME_LABEL } from '@/components/habits/habitUi';
+import { Ring, StateMark } from '@/components/habits/habitUi';
 import MenuButton from '@/components/MenuButton';
 import Segmented from '@/components/Segmented';
 
@@ -48,6 +49,23 @@ const markSeedsShown = (day: string) => {
   }
 };
 
+// Folded categories are remembered on this phone; "" stands for the Other group.
+const CLOSED_KEY = 'habits-closed-categories';
+const readClosed = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+};
+const saveClosed = (closed: string[]) => {
+  try {
+    localStorage.setItem(CLOSED_KEY, JSON.stringify(closed));
+  } catch {
+    // Storage blocked: categories just reopen next visit.
+  }
+};
+
 const Habits = () => {
   const navigate = useNavigate();
   const today = useLocalToday();
@@ -59,11 +77,13 @@ const Habits = () => {
   const [reminder, setReminder] = useState(getReminderSettings);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [editOrder, setEditOrder] = useState<string[] | null>(null); // non-null = editing the list
+  const [closed, setClosed] = useState(readClosed);
+  const [renaming, setRenaming] = useState<{ name: string | null } | null>(null);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekEnd, i - 6));
   // One range covers the strip, the grids, the selected day and a year of history for streaks and stats.
   const from = [weekDays[0], month, selected, addDays(today, -364)].sort()[0];
-  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, setArchived, reorderHabits } = useHabits(from, today);
+  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, setArchived, reorderHabits } = useHabits(from, today);
 
   const active = habits.filter((h) => !h.archived_at);
   const progress = dayProgress(habits, idx, selected, today);
@@ -108,6 +128,13 @@ const Habits = () => {
   const shiftWeek = (n: number) => {
     const next = addDays(weekEnd, 7 * n);
     setWeekEnd(next > today ? today : next);
+  };
+
+  const toggleCategory = (name: string | null) => {
+    const key = name ?? '';
+    const next = closed.includes(key) ? closed.filter((c) => c !== key) : [...closed, key];
+    setClosed(next);
+    saveClosed(next);
   };
 
   const finishEditing = async () => {
@@ -157,7 +184,7 @@ const Habits = () => {
 
   const sheets = (
     <>
-      <HabitSheet open={sheetOpen} habit={null} onOpenChange={setSheetOpen} onSave={(values: HabitValues) => saveHabit(values)} />
+      <HabitSheet open={sheetOpen} habit={null} categories={categoryNames(habits)} onOpenChange={setSheetOpen} onSave={(values: HabitValues) => saveHabit(values)} />
       <HabitReminderSheet open={reminderOpen} onOpenChange={setReminderOpen} settings={reminder} onChange={changeReminder} />
     </>
   );
@@ -296,32 +323,29 @@ const Habits = () => {
           </section>
 
           {dueHabits.length === 0 && <div className="elevation-card rounded-2xl p-6 text-center text-sm text-muted-foreground">Nothing scheduled on this day</div>}
-          {TIMES_OF_DAY.map((t) => {
-            const group = dueHabits.filter((h) => h.time_of_day === t);
-            if (!group.length) return null;
-            const groupDone = group.filter((h) => dayProgress([h], idx, selected, today).done === 1).length;
-            return (
-              <section key={t} className="space-y-2">
-                <div className="flex items-baseline justify-between px-1">
-                  <SectionLabel>{TIME_LABEL[t]}</SectionLabel>
-                  <span className="font-mono text-xs text-muted-foreground">{groupDone} / {group.length}</span>
-                </div>
-                <div className="elevation-card divide-y divide-border rounded-2xl p-0">
-                  {group.map((h) => (
-                    <HabitRow
-                      key={h.id}
-                      habit={h}
-                      idx={idx}
-                      date={selected}
-                      today={today}
-                      onWrite={(next) => writeLog(h.id, selected, next)}
-                      onOpen={() => navigate(`/habits/${h.id}`)}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          {categoryGroups(dueHabits).map(({ name, habits: group }) => (
+            <CategoryCard
+              key={name ?? ''}
+              name={name}
+              done={group.filter((h) => dayProgress([h], idx, selected, today).done === 1).length}
+              total={group.length}
+              closed={closed.includes(name ?? '')}
+              onToggle={() => toggleCategory(name)}
+              onRename={() => setRenaming({ name })}
+            >
+              {group.map((h) => (
+                <HabitRow
+                  key={h.id}
+                  habit={h}
+                  idx={idx}
+                  date={selected}
+                  today={today}
+                  onWrite={(next) => writeLog(h.id, selected, next)}
+                  onOpen={() => navigate(`/habits/${h.id}`)}
+                />
+              ))}
+            </CategoryCard>
+          ))}
           {habits.length > 1 && (
             <div className="flex justify-center">
               <button type="button" onClick={() => setEditOrder(initialOrder(habits))} className="h-11 px-4 text-[13px] font-semibold text-primary">
@@ -344,6 +368,14 @@ const Habits = () => {
       )}
 
       {sheets}
+      {renaming && (
+        <CategoryRenameSheet
+          name={renaming.name}
+          count={active.filter((h) => (h.category ?? null) === renaming.name).length}
+          onClose={() => setRenaming(null)}
+          onSave={(next) => renameCategory(renaming.name, next)}
+        />
+      )}
     </div>
   );
 };

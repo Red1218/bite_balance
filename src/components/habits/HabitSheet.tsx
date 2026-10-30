@@ -6,12 +6,12 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import {
-  ALL_WEEKDAYS, CATEGORIES, COLORS, TIMES_OF_DAY, scheduleLabel,
+  ALL_WEEKDAYS, COLORS, TIMES_OF_DAY, scheduleLabel,
   type Habit, type HabitKind, type HabitSchedule, type HabitValues,
 } from '@/lib/habits';
 import { getReminderSettings, requestReminderPermission } from '@/lib/habitReminders';
 import Segmented from '@/components/Segmented';
-import { CATEGORY_LABEL, ICONS, ICON_KEYS, TIME_LABEL, colorStyle } from './habitUi';
+import { ICONS, ICON_KEYS, TIME_LABEL, colorStyle } from './habitUi';
 
 // Monday-first, matching the rest of the app's calendars.
 const WEEKDAY_BUTTONS = [[1, 'M', 'Monday'], [2, 'T', 'Tuesday'], [3, 'W', 'Wednesday'], [4, 'T', 'Thursday'], [5, 'F', 'Friday'], [6, 'S', 'Saturday'], [0, 'S', 'Sunday']] as const;
@@ -71,13 +71,14 @@ const Stepper = ({ value, min, max, onChange, label }: { value: number; min: num
 );
 
 interface HabitSheetProps {
+  categories: string[]; // names already in use, offered as chips
   open: boolean;
   habit: Habit | null; // null = new
   onOpenChange: (open: boolean) => void;
   onSave: (values: HabitValues) => Promise<unknown>;
 }
 
-const HabitSheet = ({ open, habit, onOpenChange, onSave }: HabitSheetProps) => {
+const HabitSheet = ({ open, habit, categories, onOpenChange, onSave }: HabitSheetProps) => {
   const { toast } = useToast();
   const [v, setV] = useState<HabitValues>(BLANK_HABIT);
   const [newTime, setNewTime] = useState('09:00');
@@ -236,8 +237,15 @@ const HabitSheet = ({ open, habit, onOpenChange, onSave }: HabitSheetProps) => {
 
           <Field label="Category">
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => <Chip key={c} on={v.category === c} onClick={() => set({ category: v.category === c ? null : c })}>{CATEGORY_LABEL[c]}</Chip>)}
+              {categories.map((c) => <Chip key={c} on={v.category === c} onClick={() => set({ category: v.category === c ? null : c })}>{c}</Chip>)}
             </div>
+            <Input
+              aria-label="Category name"
+              placeholder="New category"
+              maxLength={30}
+              value={v.category ?? ''}
+              onChange={(e) => set({ category: e.target.value || null })}
+            />
           </Field>
 
           <div className="space-y-2.5">

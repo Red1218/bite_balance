@@ -95,9 +95,10 @@ export const useHabits = (from: string, to: string) => {
   const saveHabit = async (values: HabitValues, id?: string) => {
     if (!user) return null;
     const nextPosition = habits.reduce((max, h) => Math.max(max, h.position), -1) + 1;
+    const clean = { ...values, category: values.category?.trim() || null };
     const { data, error: writeError } = id
-      ? await supabase.from('checklist_items').update(values).eq('id', id).select().single()
-      : await supabase.from('checklist_items').insert({ ...values, user_id: user.id, position: nextPosition }).select().single();
+      ? await supabase.from('checklist_items').update(clean).eq('id', id).select().single()
+      : await supabase.from('checklist_items').insert({ ...clean, user_id: user.id, position: nextPosition }).select().single();
     if (writeError || !data) {
       console.error('Error saving habit:', writeError);
       failed('Could not save the habit. Please try again.');
@@ -122,6 +123,20 @@ export const useHabits = (from: string, to: string) => {
       return false;
     }
     setHabits((prev) => [...prev, ...(data as Habit[])]);
+    return true;
+  };
+
+  // Renames a category on all its habits, archived ones too; null is the "Other" group.
+  const renameCategory = async (from: string | null, to: string) => {
+    if (!user) return false;
+    const update = supabase.from('checklist_items').update({ category: to }).eq('user_id', user.id);
+    const { error: writeError } = await (from === null ? update.is('category', null) : update.eq('category', from));
+    if (writeError) {
+      console.error('Error renaming category:', writeError);
+      failed('Could not rename the category. Please try again.');
+      return false;
+    }
+    setHabits((prev) => prev.map((h) => (h.category === from ? { ...h, category: to } : h)));
     return true;
   };
 
@@ -180,5 +195,5 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, setArchived, deleteHabit, reorderHabits };
+  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, setArchived, deleteHabit, reorderHabits };
 };

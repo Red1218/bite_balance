@@ -6,7 +6,6 @@ export type HabitKind = 'check' | 'count' | 'avoid';
 export type HabitSchedule = 'weekdays' | 'per_week' | 'interval';
 export type TimeOfDay = 'morning' | 'afternoon' | 'evening' | 'anytime';
 export type HabitColor = 'red' | 'orange' | 'amber' | 'sky' | 'violet';
-export type HabitCategory = 'supplements' | 'fitness' | 'nutrition' | 'mind' | 'sleep';
 export type LogStatus = 'done' | 'skipped' | 'slipped';
 
 export interface Habit {
@@ -25,7 +24,7 @@ export interface Habit {
   interval_days: number | null;
   icon: string;
   color: HabitColor;
-  category: HabitCategory | null;
+  category: string | null;
   time_of_day: TimeOfDay;
   reminder_times: string[]; // 'HH:MM'
 }
@@ -44,7 +43,17 @@ export type HabitValues = Omit<Habit, 'id' | 'position' | 'created_at' | 'archiv
 export const ALL_WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 export const TIMES_OF_DAY: TimeOfDay[] = ['morning', 'afternoon', 'evening', 'anytime'];
 export const COLORS: HabitColor[] = ['red', 'orange', 'amber', 'sky', 'violet'];
-export const CATEGORIES: HabitCategory[] = ['supplements', 'fitness', 'nutrition', 'mind', 'sleep'];
+
+/** Category names in the order their first habit appears. */
+export const categoryNames = (habits: Pick<Habit, 'category'>[]) =>
+  [...new Set(habits.flatMap((h) => (h.category ? [h.category] : [])))];
+
+/** Habits by category, keeping their order; those without one (name null) come last. */
+export const categoryGroups = <H extends Pick<Habit, 'category'>>(habits: H[]) => {
+  const groups = categoryNames(habits).map((name) => ({ name: name as string | null, habits: habits.filter((h) => h.category === name) }));
+  const other = habits.filter((h) => !h.category);
+  return other.length ? [...groups, { name: null, habits: other }] : groups;
+};
 
 // ---------- dates ----------
 

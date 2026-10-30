@@ -5,7 +5,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { DayState, Habit, HabitCategory, HabitColor, TimeOfDay } from '@/lib/habits';
+import type { DayState, Habit, HabitColor, TimeOfDay } from '@/lib/habits';
 
 export const ICONS: Record<string, LucideIcon> = {
   check: Check, pill: Pill, sun: Sun, droplet: Droplet, target: Target, footprints: Footprints, moon: Moon,
@@ -24,9 +24,6 @@ const COLOR_VAR: Record<HabitColor, string> = {
 export const colorStyle = (color: HabitColor) => ({ '--c': COLOR_VAR[color] }) as CSSProperties;
 
 export const TIME_LABEL: Record<TimeOfDay, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', anytime: 'Anytime' };
-export const CATEGORY_LABEL: Record<HabitCategory, string> = {
-  supplements: 'Supplements', fitness: 'Fitness', nutrition: 'Nutrition', mind: 'Mind', sleep: 'Sleep',
-};
 
 // A plain check on a tile reads as "already done", so a habit without a real icon shows its initial.
 export const HabitTile = ({ habit, size = 36 }: { habit: Pick<Habit, 'icon' | 'color' | 'name'>; size?: number }) => {

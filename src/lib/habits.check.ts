@@ -4,7 +4,7 @@
 process.env.TZ = 'Asia/Kolkata';
 
 import {
-  addDays, dayProgress, dayState, habitRate, habitStreaks, indexLogs, isActiveOn, isDueOn, reminderSchedule,
+  addDays, categoryGroups, categoryNames, dayProgress, dayState, habitRate, habitStreaks, indexLogs, isActiveOn, isDueOn, reminderSchedule,
   scheduleLabel, weekStart, weekdayOf, type Habit, type HabitLog,
 } from './habits';
 
@@ -126,6 +126,12 @@ eq(
   'reminders: summary skips a finished today, per-habit only on its days'
 );
 eq(reminderSchedule([rA], indexLogs([]), null, NOW), [], 'daily summary off and no habit times -> nothing');
+
+const cat = (category: string | null, name: string) => ({ category, name });
+const mixed = [cat(null, 'a'), cat('Fitness', 'b'), cat('Food', 'c'), cat('Fitness', 'd')];
+eq(categoryNames(mixed), ['Fitness', 'Food'], 'names in first-seen order, no duplicates or blanks');
+eq(categoryGroups(mixed).map((g) => [g.name, g.habits.map((h) => h.name)]), [['Fitness', ['b', 'd']], ['Food', ['c']], [null, ['a']]], 'uncategorised habits come last');
+eq(categoryGroups([cat('Fitness', 'b')]).length, 1, 'no empty Other group');
 
 if (failures) process.exitCode = 1;
 else console.log('habits: all checks passed');

@@ -6,11 +6,11 @@ import { BLANK_HABIT } from './HabitSheet';
 import { HabitTile, Ring } from './habitUi';
 
 const STARTERS: (HabitValues & { blurb: string })[] = [
-  { ...BLANK_HABIT, name: 'Vitamin D', icon: 'sun', color: 'amber', category: 'supplements', time_of_day: 'morning', blurb: 'Supplements · morning · yes/no' },
-  { ...BLANK_HABIT, name: 'Drink water', kind: 'count', target: 8, unit: 'glasses', icon: 'droplet', color: 'sky', category: 'nutrition', blurb: 'Nutrition · 8 glasses a day' },
-  { ...BLANK_HABIT, name: '10k steps', kind: 'count', target: 10000, unit: 'steps', icon: 'footprints', color: 'orange', category: 'fitness', blurb: 'Fitness · 10,000 steps a day' },
-  { ...BLANK_HABIT, name: 'Hit protein goal', icon: 'target', color: 'violet', category: 'nutrition', time_of_day: 'evening', blurb: 'Nutrition · evening · yes/no' },
-  { ...BLANK_HABIT, name: 'Sleep by 11', icon: 'moon', color: 'violet', category: 'sleep', time_of_day: 'evening', blurb: 'Sleep · evening · yes/no' },
+  { ...BLANK_HABIT, name: 'Vitamin D', icon: 'sun', color: 'amber', category: 'Supplements', time_of_day: 'morning', blurb: 'Supplements · morning · yes/no' },
+  { ...BLANK_HABIT, name: 'Drink water', kind: 'count', target: 8, unit: 'glasses', icon: 'droplet', color: 'sky', category: 'Nutrition', blurb: 'Nutrition · 8 glasses a day' },
+  { ...BLANK_HABIT, name: '10k steps', kind: 'count', target: 10000, unit: 'steps', icon: 'footprints', color: 'orange', category: 'Fitness', blurb: 'Fitness · 10,000 steps a day' },
+  { ...BLANK_HABIT, name: 'Hit protein goal', icon: 'target', color: 'violet', category: 'Nutrition', time_of_day: 'evening', blurb: 'Nutrition · evening · yes/no' },
+  { ...BLANK_HABIT, name: 'Sleep by 11', icon: 'moon', color: 'violet', category: 'Sleep', time_of_day: 'evening', blurb: 'Sleep · evening · yes/no' },
 ];
 
 // Empty state: pick suggested habits, add them in one go, or make your own.
