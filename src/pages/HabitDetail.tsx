@@ -20,7 +20,7 @@ const HabitDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const today = useLocalToday();
-  const { habits, idx, logs, loading, writeLog, saveHabit, setArchived, deleteHabit } = useHabits(addDays(today, -370), today);
+  const { habits, idx, logs, loading, writeLog, saveHabit, setArchived, deleteHabits } = useHabits(addDays(today, -370), today);
   const [editOpen, setEditOpen] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [month, setMonth] = useState(() => monthStartOf(today));
@@ -413,7 +413,7 @@ const HabitDetail = () => {
           )}
           <button
             type="button"
-            onClick={() => confirmThen(`Delete "${habit.name}" and all its history? This can't be undone.`, () => deleteHabit(habit.id))}
+            onClick={() => confirmThen(`Delete "${habit.name}" and all its history? This can't be undone.`, () => deleteHabits([habit.id]))}
             className="flex h-12 items-center justify-center gap-2 rounded-full border border-border bg-card text-sm font-semibold text-primary"
           >
             <Trash2 className="h-4 w-4" /> Delete

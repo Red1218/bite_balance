@@ -86,7 +86,7 @@ const Habits = () => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekEnd, i - 6));
   // One range covers the strip, the grids, the selected day and a year of history for streaks and stats.
   const from = [weekDays[0], month, selected, addDays(today, -364)].sort()[0];
-  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, reorderHabits } = useHabits(from, today);
+  const { habits, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, deleteHabits, reorderHabits } = useHabits(from, today);
 
   // Android Back leaves the category editor rather than the Habits page.
   useEffect(() => (editCategories ? closeOnBack(() => setEditCategories(false)) : undefined), [editCategories]);
@@ -210,7 +210,7 @@ const Habits = () => {
     return (
       <div className="space-y-3.5">
         {header}
-        <CategoryEditList habits={habits} onRename={renameCategory} onCreate={moveToCategory} />
+        <CategoryEditList habits={habits} onRename={renameCategory} onMove={moveToCategory} onDelete={deleteHabits} />
       </div>
     );
   }
