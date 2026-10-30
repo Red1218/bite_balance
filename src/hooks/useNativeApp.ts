@@ -6,16 +6,26 @@ import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useNavigate } from 'react-router-dom';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { closeTopOverlay } from '@/lib/backButton';
 
 export const useNativeApp = () => {
   const navigate = useNavigate();
   const { open, closeAddMeal } = useAddMealSheet();
+  const { theme } = useTheme();
   const openRef = useRef(open);
 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  // Style.Dark means light icons, for a dark background.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    StatusBar.setStyle({ style: theme === 'dark' ? Style.Dark : Style.Light }).catch((err) => {
+      console.error('StatusBar plugin error:', err);
+    });
+  }, [theme]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -23,7 +33,6 @@ export const useNativeApp = () => {
     const initNativeHooks = async () => {
       // 1. Let Android reserve space for the status bar instead of drawing over the webview
       try {
-        await StatusBar.setStyle({ style: Style.Dark });
         await StatusBar.setOverlaysWebView({ overlay: false });
       } catch (err) {
         console.error('StatusBar plugin error:', err);
