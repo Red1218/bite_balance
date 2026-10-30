@@ -3,7 +3,7 @@ import { Check, Minus, Pause, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { dayState, habitStreaks, logOn, scheduleLabel, weekProgress, type Habit, type LogIndex } from '@/lib/habits';
 import type { LogPatch } from '@/hooks/useHabits';
-import { HabitTile, Ring, Streak, colorStyle } from './habitUi';
+import { HabitTile, Ring, Streak, TIME_LABEL, colorStyle } from './habitUi';
 
 interface HabitRowProps {
   habit: Habit;
@@ -103,6 +103,7 @@ const HabitRow = ({ habit, idx, date, today, onWrite, onOpen }: HabitRowProps) =
     } else if (!done && habit.kind !== 'count') {
       parts.push(<span key="s">{scheduleLabel(habit)}</span>);
     }
+    if (habit.time_of_day !== 'anytime') parts.push(<span key="t">{TIME_LABEL[habit.time_of_day]}</span>);
     if (streaks.current > 0)
       parts.push(
         <span key={`k${done && tapped ? 'bump' : ''}`} className={done && tapped ? 'motion-bump' : 'inline-flex'}>

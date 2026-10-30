@@ -3,13 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Archive, ArrowLeft, Bell, Check, ChevronLeft, ChevronRight, Flame, Loader2, Minus, Pause, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  addDays, dayState, dayValue, habitRate, habitStreaks, logOn, scheduleLabel, targetLabel, weekStart,
+  addDays, categoryNames, dayState, dayValue, habitRate, habitStreaks, logOn, scheduleLabel, targetLabel, weekStart,
   type DayState,
 } from '@/lib/habits';
 import { useHabits, useLocalToday, type LogPatch } from '@/hooks/useHabits';
 import HabitSheet from '@/components/habits/HabitSheet';
 import { NavButton, fmtMonthShift, monthStartOf, shortDate } from '@/components/habits/HabitHistory';
-import { CATEGORY_LABEL, HabitTile, STATE_WORD, SectionLabel, StateMark, TIME_LABEL, colorStyle } from '@/components/habits/habitUi';
+import { HabitTile, STATE_WORD, SectionLabel, StateMark, TIME_LABEL, colorStyle } from '@/components/habits/habitUi';
 
 const SKIP_REASONS = ['Sick', 'Travel', 'Rest day', 'Other'];
 const Tag = ({ children }: { children: ReactNode }) => (
@@ -123,7 +123,7 @@ const HabitDetail = () => {
         <div className="min-w-0">
           <h1 className="text-[26px] font-semibold leading-tight">{habit.name}</h1>
           <div className="text-[13px] text-muted-foreground">
-            {[targetLabel(habit) && `${targetLabel(habit)} a day`, habit.kind === 'avoid' && 'Avoid', habit.category && CATEGORY_LABEL[habit.category]].filter(Boolean).join(' · ') || habit.note}
+            {[targetLabel(habit) && `${targetLabel(habit)} a day`, habit.kind === 'avoid' && 'Avoid', habit.category].filter(Boolean).join(' · ') || habit.note}
           </div>
         </div>
       </div>
@@ -422,7 +422,7 @@ const HabitDetail = () => {
         <p className="text-center text-xs text-muted-foreground">Archive hides it and keeps its history. Delete erases it.</p>
       </div>
 
-      <HabitSheet open={editOpen} habit={habit} onOpenChange={setEditOpen} onSave={(values) => saveHabit(values, habit.id)} />
+      <HabitSheet open={editOpen} habit={habit} categories={categoryNames(habits)} onOpenChange={setEditOpen} onSave={(values) => saveHabit(values, habit.id)} />
     </div>
   );
 };
