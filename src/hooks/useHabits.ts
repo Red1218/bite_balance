@@ -126,8 +126,9 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  // Renames a category on all its habits, archived ones too; null is the "Other" group.
-  const renameCategory = async (from: string | null, to: string) => {
+  // Renames a category on all its habits, archived ones too. A null `from` is the "Other" group;
+  // a null `to` removes the category, moving its habits to Other.
+  const renameCategory = async (from: string | null, to: string | null) => {
     if (!user) return false;
     const update = supabase.from('checklist_items').update({ category: to }).eq('user_id', user.id);
     const { error: writeError } = await (from === null ? update.is('category', null) : update.eq('category', from));
@@ -137,6 +138,18 @@ export const useHabits = (from: string, to: string) => {
       return false;
     }
     setHabits((prev) => prev.map((h) => (h.category === from ? { ...h, category: to } : h)));
+    return true;
+  };
+
+  // Moves habits into a category, new or existing.
+  const moveToCategory = async (name: string, ids: string[]) => {
+    const { error: writeError } = await supabase.from('checklist_items').update({ category: name }).in('id', ids);
+    if (writeError) {
+      console.error('Error moving habits to category:', writeError);
+      failed('Could not save the category. Please try again.');
+      return false;
+    }
+    setHabits((prev) => prev.map((h) => (ids.includes(h.id) ? { ...h, category: name } : h)));
     return true;
   };
 
@@ -195,5 +208,5 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, setArchived, deleteHabit, reorderHabits };
+  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, deleteHabit, reorderHabits };
 };
