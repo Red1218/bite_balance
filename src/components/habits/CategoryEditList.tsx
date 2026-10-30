@@ -3,9 +3,9 @@ import { Check, Plus, X } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { categoryNames, type Habit } from '@/lib/habits';
+import { categoryGroups, categoryNames, type Habit } from '@/lib/habits';
 import { categoryLabel } from './CategoryCard';
-import { HabitTile } from './habitUi';
+import { HabitTile, SectionLabel } from './habitUi';
 
 interface CategoryRowProps {
   name: string;
@@ -64,6 +64,12 @@ const CategoryRow = ({ name, count, onRename }: CategoryRowProps) => {
   );
 };
 
+const Tick = ({ on }: { on: boolean }) => (
+  <span className={cn('flex h-6 w-6 flex-none items-center justify-center rounded-full border-2', on ? 'border-chart-fiber bg-chart-fiber text-background' : 'border-muted-foreground/45')}>
+    {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+  </span>
+);
+
 interface NewCategorySheetProps {
   habits: Habit[];
   onClose: () => void;
@@ -114,9 +120,7 @@ const NewCategorySheet = ({ habits, onClose, onCreate }: NewCategorySheetProps) 
                     <span className="block truncate text-[15px] font-medium">{h.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">{categoryLabel(h.category)}</span>
                   </span>
-                  <span className={cn('flex h-6 w-6 flex-none items-center justify-center rounded-full border-2', on ? 'border-chart-fiber bg-chart-fiber text-background' : 'border-muted-foreground/45')}>
-                    {on && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                  </span>
+                  <Tick on={on} />
                 </button>
               );
             })}
@@ -133,16 +137,79 @@ const NewCategorySheet = ({ habits, onClose, onCreate }: NewCategorySheetProps) 
   );
 };
 
+interface MoveSheetProps {
+  count: number;
+  categories: string[];
+  onClose: () => void;
+  onMove: (name: string | null) => void;
+}
+
+const MoveSheet = ({ count, categories, onClose, onMove }: MoveSheetProps) => {
+  const [name, setName] = useState('');
+  const next = name.trim();
+  return (
+    <Drawer open onOpenChange={(open) => !open && onClose()}>
+      <DrawerContent className="rounded-t-[26px] border-border bg-card">
+        <DrawerTitle className="sr-only">Move habits</DrawerTitle>
+        <div className="space-y-3.5 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
+          <div className="font-display text-lg font-semibold tracking-tight text-foreground">Move {count} {count === 1 ? 'habit' : 'habits'} to</div>
+          <div className="flex flex-wrap gap-2">
+            {[...categories, null].map((c) => (
+              <button key={c ?? ''} type="button" onClick={() => onMove(c)} className="h-11 rounded-full border border-border px-3.5 text-[13px] font-medium">
+                {categoryLabel(c)}
+              </button>
+            ))}
+          </div>
+          <label className="block space-y-2">
+            <span className="block text-[12px] font-semibold text-muted-foreground">New category</span>
+            <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} className="h-12 text-base" />
+          </label>
+          <button type="button" disabled={!next} onClick={() => onMove(next)} className="h-12 w-full rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50">
+            Create and move
+          </button>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+};
+
+const DeleteSheet = ({ count, onClose, onDelete }: { count: number; onClose: () => void; onDelete: () => void }) => (
+  <Drawer open onOpenChange={(open) => !open && onClose()}>
+    <DrawerContent className="rounded-t-[26px] border-border bg-card">
+      <DrawerTitle className="sr-only">Delete habits</DrawerTitle>
+      <div className="space-y-3.5 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+24px)] pt-3">
+        <div className="font-display text-lg font-semibold tracking-tight text-foreground">Delete {count} {count === 1 ? 'habit' : 'habits'}?</div>
+        <p className="text-sm text-muted-foreground">This also erases their history and streaks. It can't be undone.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onClose} className="h-12 rounded-full bg-muted text-[15px] font-semibold">Cancel</button>
+          <button type="button" onClick={onDelete} className="h-12 rounded-full bg-destructive text-[15px] font-semibold text-destructive-foreground">Delete</button>
+        </div>
+      </div>
+    </DrawerContent>
+  </Drawer>
+);
+
 interface CategoryEditListProps {
   habits: Habit[]; // all habits, archived too
   onRename: (from: string, to: string | null) => Promise<boolean>;
-  onCreate: (name: string, ids: string[]) => Promise<boolean>;
+  onMove: (name: string | null, ids: string[]) => Promise<boolean>;
+  onDelete: (ids: string[]) => Promise<boolean>;
 }
 
-const CategoryEditList = ({ habits, onRename, onCreate }: CategoryEditListProps) => {
+const CategoryEditList = ({ habits, onRename, onMove, onDelete }: CategoryEditListProps) => {
   const [adding, setAdding] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [sheet, setSheet] = useState<'move' | 'delete' | null>(null);
   const active = habits.filter((h) => !h.archived_at);
   const names = categoryNames(habits);
+
+  const toggle = (id: string) => setPicked((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+  const toggleGroup = (ids: string[], allOn: boolean) =>
+    setPicked((prev) => [...prev.filter((p) => !ids.includes(p)), ...(allOn ? [] : ids)]);
+  const finish = (ok: boolean) => {
+    setSheet(null);
+    if (ok) setPicked([]);
+  };
 
   return (
     <div className="space-y-3.5">
@@ -159,7 +226,50 @@ const CategoryEditList = ({ habits, onRename, onCreate }: CategoryEditListProps)
       <button type="button" onClick={() => setAdding(true)} className="flex h-12 w-full items-center justify-center gap-1.5 rounded-full bg-muted text-sm font-semibold">
         <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} /> New category
       </button>
-      {adding && <NewCategorySheet habits={active} onClose={() => setAdding(false)} onCreate={onCreate} />}
+      {categoryGroups(active).map(({ name, habits: group }) => {
+        const ids = group.map((h) => h.id);
+        const allOn = ids.every((id) => picked.includes(id));
+        return (
+          <section key={name ?? ''} className="space-y-1">
+            <div className="flex items-center justify-between px-1">
+              <SectionLabel>{categoryLabel(name)}</SectionLabel>
+              <button type="button" onClick={() => toggleGroup(ids, allOn)} className="h-11 text-[13px] font-semibold text-primary">
+                {allOn ? 'Clear' : 'Select all'}
+              </button>
+            </div>
+            <div className="elevation-card divide-y divide-border rounded-2xl p-0">
+              {group.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={picked.includes(h.id)}
+                  onClick={() => toggle(h.id)}
+                  className="flex min-h-14 w-full items-center gap-3 px-3 py-1.5 text-left"
+                >
+                  <HabitTile habit={h} size={34} />
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{h.name}</span>
+                  <Tick on={picked.includes(h.id)} />
+                </button>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {picked.length > 0 && (
+        <div className="elevation-card sticky z-30 flex items-center gap-1.5 rounded-full p-2" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 84px)' }}>
+          <span className="flex-1 pl-3 text-sm font-semibold"><span className="font-mono">{picked.length}</span> selected</span>
+          <button type="button" onClick={() => setSheet('move')} className="h-11 rounded-full bg-muted px-[18px] text-sm font-semibold">Move</button>
+          <button type="button" onClick={() => setSheet('delete')} className="h-11 rounded-full bg-primary px-[18px] text-sm font-semibold text-primary-foreground">Delete</button>
+        </div>
+      )}
+      {adding && <NewCategorySheet habits={active} onClose={() => setAdding(false)} onCreate={onMove} />}
+      {sheet === 'move' && (
+        <MoveSheet count={picked.length} categories={names} onClose={() => setSheet(null)} onMove={async (name) => finish(await onMove(name, picked))} />
+      )}
+      {sheet === 'delete' && (
+        <DeleteSheet count={picked.length} onClose={() => setSheet(null)} onDelete={async () => finish(await onDelete(picked))} />
+      )}
     </div>
   );
 };

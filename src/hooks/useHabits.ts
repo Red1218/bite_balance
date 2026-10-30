@@ -141,8 +141,8 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  // Moves habits into a category, new or existing.
-  const moveToCategory = async (name: string, ids: string[]) => {
+  // Moves habits into a category, new or existing; null moves them to Other.
+  const moveToCategory = async (name: string | null, ids: string[]) => {
     const { error: writeError } = await supabase.from('checklist_items').update({ category: name }).in('id', ids);
     if (writeError) {
       console.error('Error moving habits to category:', writeError);
@@ -170,16 +170,16 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  // Permanently removes the habit; its logs go with it (on delete cascade).
-  const deleteHabit = async (id: string) => {
-    const { error: writeError } = await supabase.from('checklist_items').delete().eq('id', id);
+  // Permanently removes habits; their logs go with them (on delete cascade).
+  const deleteHabits = async (ids: string[]) => {
+    const { error: writeError } = await supabase.from('checklist_items').delete().in('id', ids);
     if (writeError) {
-      console.error('Error deleting habit:', writeError);
-      failed('Could not delete the habit. Please try again.');
+      console.error('Error deleting habits:', writeError);
+      failed('Could not delete. Please try again.');
       return false;
     }
-    setHabits((prev) => prev.filter((h) => h.id !== id));
-    setLogs((prev) => prev.filter((l) => l.item_id !== id));
+    setHabits((prev) => prev.filter((h) => !ids.includes(h.id)));
+    setLogs((prev) => prev.filter((l) => !ids.includes(l.item_id)));
     return true;
   };
 
@@ -208,5 +208,5 @@ export const useHabits = (from: string, to: string) => {
     return true;
   };
 
-  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, deleteHabit, reorderHabits };
+  return { habits, logs, idx, loading, error, writeLog, saveHabit, addHabits, renameCategory, moveToCategory, setArchived, deleteHabits, reorderHabits };
 };
