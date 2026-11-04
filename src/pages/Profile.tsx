@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
@@ -357,6 +359,19 @@ const SettingRow = ({ icon, tint, label, sub, children, onClick, danger }: {
   ) : (
     <div className="flex items-center gap-3 px-[14px] py-3">{body}</div>
   );
+};
+
+// The installed app's own version (versionName · versionCode), so it can't drift from the build.
+const AppVersion = () => {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    CapacitorApp.getInfo()
+      .then((info) => setVersion(`${info.version} · build ${info.build}`))
+      .catch(() => setVersion(null));
+  }, []);
+  if (!version) return null;
+  return <p className="pt-1 text-center font-mono text-[11px] text-faint">Bite Balance {version}</p>;
 };
 
 const Profile = () => {
@@ -1145,7 +1160,7 @@ const Profile = () => {
           </SettingRow>
           <SettingRow icon={<LogOut className="h-4 w-4" />} tint="bg-primary/20 text-primary" label="Sign out" danger onClick={() => signOut()} />
         </div>
-        <p className="pt-1 text-center font-mono text-[11px] text-faint">Bite Balance 2.0.1 · build 214</p>
+        <AppVersion />
       </section>
     </div>
   );
