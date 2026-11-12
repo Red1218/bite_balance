@@ -10,7 +10,6 @@ import {
 } from '@/lib/habitReminders';
 import CategoryCard, { CategoryRenameSheet } from '@/components/habits/CategoryCard';
 import CategoryEditList from '@/components/habits/CategoryEditList';
-import HabitRow from '@/components/habits/HabitRow';
 import HabitSheet from '@/components/habits/HabitSheet';
 import HabitStats from '@/components/habits/HabitStats';
 import HabitStarters from '@/components/habits/HabitStarters';
@@ -342,24 +341,18 @@ const Habits = () => {
             <CategoryCard
               key={name ?? ''}
               name={name}
-              done={group.filter((h) => dayProgress([h], idx, selected, today).done === 1).length}
-              total={group.length}
+              // Colour by position among all categories, so a group keeps its colour on days it is the only one due.
+              index={categoryNames(active).indexOf(name ?? '') === -1 ? categoryNames(active).length : categoryNames(active).indexOf(name ?? '')}
+              habits={group}
+              idx={idx}
+              date={selected}
+              today={today}
               closed={closed.includes(name ?? '')}
               onToggle={() => toggleCategory(name)}
               onRename={() => setRenaming({ name })}
-            >
-              {group.map((h) => (
-                <HabitRow
-                  key={h.id}
-                  habit={h}
-                  idx={idx}
-                  date={selected}
-                  today={today}
-                  onWrite={(next) => writeLog(h.id, selected, next)}
-                  onOpen={() => navigate(`/habits/${h.id}`)}
-                />
-              ))}
-            </CategoryCard>
+              onWrite={(h, next) => writeLog(h.id, selected, next)}
+              onOpen={(h) => navigate(`/habits/${h.id}`)}
+            />
           ))}
           <div className="flex justify-center">
             <button type="button" onClick={() => setEditCategories(true)} className="h-11 px-4 text-[13px] font-semibold text-primary">
