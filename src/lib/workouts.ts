@@ -467,3 +467,85 @@ export const newRecords = (rows: WorkoutSet[], history: WorkoutSet[], kindOf: (e
   }
   return out;
 };
+
+// ---- one exercise ----
+
+const MOST_REPS: Metric = ['Most reps', (s) => s.reps ?? 0, String];
+/** The number charted over time for each kind (weight for lifts, reps, time or distance otherwise). */
+export const chartMetric = (kind: ExerciseKind): Metric =>
+  kind === 'weight_reps' ? METRICS.weight_reps[1] : kind === 'assisted_bodyweight' ? MOST_REPS : METRICS[kind][0];
+
+export interface Session {
+  workoutId: string;
+  startedAt: string;
+  sets: WorkoutSet[];
+}
+
+/** An exercise's best results, each with the session it came from. Warm-ups don't count. */
+export const exerciseBests = (kind: ExerciseKind, sessions: Session[]) => {
+  const metrics = kind === 'assisted_bodyweight' ? [MOST_REPS] : [...METRICS[kind]];
+  if (kind === 'weight_reps') metrics.push(['Best set vol.', (s) => (s.weight_kg ?? 0) * (s.reps ?? 0), (v) => `${trim(v)} kg`]);
+  return metrics.flatMap(([label, value, show]) => {
+    let best: { set: WorkoutSet; at: string } | null = null;
+    for (const ses of sessions)
+      for (const s of ses.sets) if (s.set_type !== 'warmup' && value(s) > 0 && (!best || value(s) > value(best.set))) best = { set: s, at: ses.startedAt };
+    return best ? [{ label, value: show(value(best.set)), set: best.set, at: best.at }] : [];
+  });
+};
+
+/** One point per session, oldest first: the session's best on the charted metric. */
+export const exerciseTrend = (kind: ExerciseKind, sessions: Session[]) => {
+  const [, value] = chartMetric(kind);
+  return [...sessions]
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    .map((s) => ({ at: s.startedAt, value: Math.max(0, ...s.sets.filter((x) => x.set_type !== 'warmup').map(value)) }))
+    .filter((p) => p.value > 0);
+};
+
+// ---- calendar ----
+
+/** Local yyyy-mm-dd. */
+export const dayKey = (ms: number) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const mondayOf = (ms: number) => addDaysMs(startOfDay(ms), -((new Date(ms).getDay() + 6) % 7));
+
+/** The last `weeks` Monday-first weeks up to this one, each day marked trained, today or still to come. */
+export const calendarWeeks = (workouts: Workout[], now: number, weeks = 5) => {
+  const trained = new Set(workouts.map((w) => dayKey(Date.parse(w.started_at))));
+  const today = dayKey(now);
+  const first = addDaysMs(mondayOf(now), -7 * (weeks - 1));
+  return Array.from({ length: weeks }, (_, wi) => {
+    const start = addDaysMs(first, 7 * wi);
+    return {
+      start,
+      days: Array.from({ length: 7 }, (_, di) => {
+        const ms = addDaysMs(start, di);
+        const key = dayKey(ms);
+        return { key, trained: trained.has(key), today: key === today, future: key > today };
+      }),
+    };
+  });
+};
+
+export const STREAK_MIN = 2; // workouts that make a week count
+/**
+ * Weeks in a row with at least STREAK_MIN workouts. This week joins once it qualifies, and until
+ * then doesn't break the run.
+ */
+export const weekStreak = (workouts: Workout[], now: number) => {
+  const perWeek = new Map<number, number>();
+  for (const w of workouts) {
+    const m = mondayOf(Date.parse(w.started_at));
+    perWeek.set(m, (perWeek.get(m) ?? 0) + 1);
+  }
+  let week = mondayOf(now);
+  if ((perWeek.get(week) ?? 0) < STREAK_MIN) week = addDaysMs(week, -7);
+  let n = 0;
+  while ((perWeek.get(week) ?? 0) >= STREAK_MIN) {
+    n++;
+    week = addDaysMs(week, -7);
+  }
+  return n;
+};

@@ -275,6 +275,7 @@ const WorkoutLog = () => {
 
       {menuFor !== null && (
         <SheetShell title={byId.get(draft.exercises[menuFor].exerciseId)?.name ?? 'Exercise'} onClose={() => setMenuFor(null)}>
+          <SheetButton onClick={() => navigate(`/workouts/exercises/${draft.exercises[menuFor].exerciseId}`)}>History and records</SheetButton>
           <SheetButton onClick={() => (setRestFor(menuFor), setMenuFor(null))}>
             <Timer className="h-4 w-4" /> <span className="flex-1">Rest timer</span>
             <span className="text-muted-foreground">{restLabel(draft.exercises[menuFor].rest ?? DEFAULT_REST)}</span>

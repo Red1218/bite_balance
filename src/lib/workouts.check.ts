@@ -1,6 +1,6 @@
 // Self-check for workouts.ts. Run: node src/lib/workouts.check.ts
 import {
-  draftFrom, draftFromRoutine, draftRows, newRecords, nextRoutine, routineItemsFromDraft, emptySet, epley, fmtSet, lastSetsByExercise, nextUp, parseTime, periodBuckets, setLabels, setValues, workoutStats,
+  calendarWeeks, draftFrom, draftFromRoutine, exerciseBests, exerciseTrend, weekStreak, draftRows, newRecords, nextRoutine, routineItemsFromDraft, emptySet, epley, fmtSet, lastSetsByExercise, nextUp, parseTime, periodBuckets, setLabels, setValues, workoutStats,
   type Draft, type Routine, type Workout, type WorkoutSet,
 } from './workouts.ts';
 
@@ -129,6 +129,33 @@ eq(newRecords([rec('bench', 60, 10)], [rec('bench', 60, 8)], () => 'weight_reps'
 eq(newRecords([rec('bench', 60, 8)], [], () => 'weight_reps'), [], 'first try is not a record');
 eq(newRecords([rec('bench', 100, 1, 'warmup')], [rec('bench', 60, 8)], () => 'weight_reps'), [], 'warm-ups never count');
 eq(newRecords([{ ...rec('pull', 0, 12), weight_kg: null }], [{ ...rec('pull', 0, 10), weight_kg: null }], () => 'bodyweight_reps').map((r) => r.value), ['12'], 'most reps');
+
+// ---- one exercise ----
+const ses = (workoutId: string, startedAt: string, list: WorkoutSet[]) => ({ workoutId, startedAt, sets: list });
+const sessions = [
+  ses('b', '2026-11-18T10:00:00Z', [rec('bench', 40, 10, 'warmup'), rec('bench', 62.5, 8), rec('bench', 60, 7)]),
+  ses('a', '2026-11-11T10:00:00Z', [rec('bench', 65, 5), rec('bench', 60, 8)]),
+];
+eq(exerciseBests('weight_reps', sessions).map((b) => [b.label, b.value, b.at.slice(0, 10)]), [
+  ['Est. 1RM', '79 kg', '2026-11-18'],
+  ['Best weight', '65 kg', '2026-11-11'],
+  ['Best set vol.', '500 kg', '2026-11-18'],
+], 'exercise bests');
+eq(exerciseTrend('weight_reps', sessions).map((p) => p.value), [65, 62.5], 'trend oldest first, best weight per session, no warm-ups');
+eq(exerciseBests('weight_reps', []), [], 'no history');
+
+// ---- calendar ----
+const fri = new Date(2026, 10, 20, 18).getTime(); // Fri 20 Nov
+const on = (y: number, m: number, d: number, id = `${m}-${d}`): Workout => ({ id, name: 'x', started_at: new Date(y, m, d, 9).toISOString(), ended_at: new Date(y, m, d, 10).toISOString(), note: null, routine_id: null });
+const cal = calendarWeeks([on(2026, 10, 18), on(2026, 9, 20)], fri);
+eq([cal.length, cal[0].days[0].key, cal[4].days[6].key], [5, '2026-10-19', '2026-11-22'], 'five Monday weeks ending this week');
+eq(cal[4].days.map((d) => (d.today ? 'T' : d.trained ? 'x' : d.future ? '.' : '-')).join(''), '--x-T..', 'this week: trained Wed, today Fri, weekend to come');
+eq(cal[0].days[1].trained, true, 'older week trained day');
+const twoIn = (d1: number, d2: number) => [on(2026, 10, d1, `a${d1}`), on(2026, 10, d2, `b${d2}`)];
+eq(weekStreak([...twoIn(16, 18), ...twoIn(9, 11), ...twoIn(2, 4)], fri), 3, 'three full weeks incl. this one');
+eq(weekStreak([...twoIn(9, 11), ...twoIn(2, 4), on(2026, 10, 17)], fri), 2, 'this week not there yet keeps the run');
+eq(weekStreak([...twoIn(16, 18), on(2026, 10, 10), ...twoIn(2, 4)], fri), 1, 'a one-workout week breaks it');
+eq(weekStreak([], fri), 0, 'no workouts');
 
 if (failures) {
   console.error(`${failures} workouts check(s) failed`);

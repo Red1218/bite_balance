@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import Segmented from '@/components/Segmented';
 import { useLocalToday } from '@/hooks/useHabits';
 import { useWorkoutHistory, useWorkouts } from '@/hooks/useWorkouts';
 import { cn } from '@/lib/utils';
-import { BODY_PART_LABEL, periodRange, workoutStats, type Period } from '@/lib/workouts';
+import { BODY_PART_LABEL, STREAK_MIN, calendarWeeks, periodRange, weekStreak, workoutStats, type Period, type Workout } from '@/lib/workouts';
 import { partStyle } from '@/components/workouts/workoutUi';
 
 const PERIOD_NAME: Record<Period, string> = { week: 'week', month: '30 days', year: 'year' };
@@ -118,7 +118,7 @@ const WorkoutStats = () => {
             {st.lifts.length === 0 && <p className="py-2 text-sm text-muted-foreground">Log weighted sets to see your estimated one-rep max.</p>}
             <div className="divide-y divide-border">
               {st.lifts.map((l) => (
-                <div key={l.exerciseId} className="flex min-h-[52px] items-center gap-3">
+                <Link key={l.exerciseId} to={`/workouts/exercises/${l.exerciseId}`} className="flex min-h-[52px] items-center gap-3">
                   <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{l.name}</span>
                   <Spark points={l.points} />
                   <span className="flex w-[78px] flex-none flex-col items-end">
@@ -130,7 +130,7 @@ const WorkoutStats = () => {
                       </span>
                     )}
                   </span>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
@@ -151,9 +151,55 @@ const WorkoutStats = () => {
               </div>
             ))}
           </section>
+
+          <WorkoutWeeks workouts={workouts} />
         </>
       )}
     </div>
+  );
+};
+
+// The last five weeks, Monday first: trained days filled, today ringed, days to come dashed.
+const WorkoutWeeks = ({ workouts }: { workouts: Workout[] }) => {
+  const now = Date.now();
+  const weeks = calendarWeeks(workouts, now);
+  const streak = weekStreak(workouts, now);
+  return (
+    <section className="space-y-2.5 rounded-3xl bg-card p-3.5">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-[15px] font-bold">Workout weeks</h2>
+        <span className={cn('text-[13px] font-bold', streak ? 'text-chart-steps' : 'text-muted-foreground')}>
+          {streak ? `${streak}-week streak` : 'No streak yet'}
+        </span>
+      </div>
+      <p className="sr-only">
+        Trained on {weeks.reduce((n, w) => n + w.days.filter((d) => d.trained).length, 0)} days in the last five weeks.
+      </p>
+      <div className="grid grid-cols-[28px_repeat(7,minmax(0,1fr))] items-center gap-[5px]" aria-hidden>
+        <span />
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <span key={i} className="text-center text-[11px] text-muted-foreground">
+            {d}
+          </span>
+        ))}
+        {weeks.map((w) => (
+          <div key={w.start} className="contents">
+            <span className="text-[11px] tabular-nums text-muted-foreground">{new Date(w.start).getDate()}</span>
+            {w.days.map((d) => (
+              <span
+                key={d.key}
+                className={cn(
+                  'h-[26px] rounded-[7px]',
+                  d.trained ? 'bg-chart-steps' : d.future ? 'border-[1.5px] border-dashed border-border' : 'bg-muted',
+                  d.today && 'ring-2 ring-primary ring-offset-1 ring-offset-card'
+                )}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">A week counts when you train at least {STREAK_MIN} times.</p>
+    </section>
   );
 };
 
