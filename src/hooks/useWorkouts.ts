@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Draft, Exercise, Routine, RoutineItem, Workout, WorkoutSet } from '@/lib/workouts';
+import type { Draft, Exercise, Routine, RoutineItem, Session, Workout, WorkoutSet } from '@/lib/workouts';
 
 // shortcut: only the newest workouts are loaded (for history, "previous" and next-up); once
 // exercise charts need older sets (Phase 3), query them per exercise instead.
@@ -85,6 +85,52 @@ export const useWorkoutHistory = (since: number) => {
   }, [user, since]);
 
   return { workouts, sets, loading, error };
+};
+
+/** Every session of one exercise, newest first, for its detail page. */
+export const useExerciseHistory = (exerciseId: string | undefined) => {
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!user || !exerciseId) return;
+    let live = true;
+    setLoading(true);
+    supabase
+      .from('workout_sets')
+      .select('workout_id, exercise_id, position, set_no, set_type, weight_kg, reps, duration_s, distance_km, workouts(started_at)')
+      .eq('user_id', user.id)
+      .eq('exercise_id', exerciseId)
+      .then(({ data, error: readError }) => {
+        if (!live) return;
+        if (readError) {
+          console.error('Error loading exercise history:', readError);
+          setError(true);
+          setLoading(false);
+          return;
+        }
+        const byWorkout = new Map<string, Session>();
+        for (const row of data) {
+          // A set written offline has no joined workout yet; it shows once it reaches the server.
+          const startedAt = row.workouts?.started_at;
+          if (!startedAt) continue;
+          const ses = byWorkout.get(row.workout_id) ?? { workoutId: row.workout_id, startedAt, sets: [] };
+          ses.sets.push(toSet(row as WorkoutSet));
+          byWorkout.set(row.workout_id, ses);
+        }
+        for (const ses of byWorkout.values()) ses.sets.sort((a, b) => a.position - b.position || a.set_no - b.set_no);
+        setSessions([...byWorkout.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)));
+        setError(false);
+        setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [user, exerciseId]);
+
+  return { sessions, loading, error };
 };
 
 export const useWorkouts = () => {

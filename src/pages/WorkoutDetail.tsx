@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Loader2, Play } from 'lucide-react';
 import { useWorkoutDraft, useWorkouts } from '@/hooks/useWorkouts';
 import { cn } from '@/lib/utils';
@@ -72,7 +72,9 @@ const WorkoutDetail = () => {
         return (
           <section key={list[0].position} className="space-y-2 rounded-3xl bg-card p-3.5">
             <div className="space-y-1">
-              <div className="text-[17px] font-bold text-primary">{ex.name}</div>
+              <Link to={`/workouts/exercises/${ex.id}`} className="block text-[17px] font-bold text-primary">
+                {ex.name}
+              </Link>
               <div className="flex gap-1.5">
                 <PartTag part={ex.body_part} />
                 <Tag>{EQUIPMENT_LABEL[ex.equipment]}</Tag>

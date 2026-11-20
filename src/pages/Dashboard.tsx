@@ -11,6 +11,7 @@ import TodaysMealsSection from '@/components/TodaysMealsSection';
 import WaterTracker from '@/components/WaterTracker';
 import WeightCard from '@/components/WeightCard';
 import HabitsCard from '@/components/habits/HabitsCard';
+import WorkoutsCard from '@/components/workouts/WorkoutsCard';
 import StreakBanner from '@/components/StreakBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -99,6 +100,7 @@ const Dashboard = () => {
       <TodaysMealsSection meals={meals} onEditMeal={handleEditMeal} onDeleteMeal={handleDeleteMeal} />
 
       <HabitsCard />
+      <WorkoutsCard />
 
       <StreakBanner />
 
