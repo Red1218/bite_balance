@@ -61,8 +61,8 @@ export const useNativeApp = () => {
         document.body.style.paddingBottom = '0px';
       });
 
-      // 4. Tapping a habit reminder opens the Habits page
-      LocalNotifications.addListener('localNotificationActionPerformed', () => navigate('/habits'));
+      // 4. Tapping a notification opens its page: the workout for the rest timer, else Habits
+      LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => navigate(notification.extra?.route ?? '/habits'));
     };
 
     initNativeHooks();

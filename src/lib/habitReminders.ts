@@ -40,7 +40,7 @@ export const requestReminderPermission = async () => {
   }
 };
 
-// Rebuild = cancel every pending notification (nothing else in the app uses them), then schedule
+// Rebuild = cancel every pending habit notification (all but the workout rest timer, id 7), then schedule
 // the next week. Calls are chained so a quick tick-untick can't interleave two rebuilds.
 let queue = Promise.resolve();
 export const syncReminders = (habits: Habit[], idx: LogIndex) => {
@@ -48,7 +48,8 @@ export const syncReminders = (habits: Habit[], idx: LogIndex) => {
   queue = queue.then(async () => {
     try {
       const { notifications: pending } = await LocalNotifications.getPending();
-      if (pending.length) await LocalNotifications.cancel({ notifications: pending.map(({ id }) => ({ id })) });
+      const habitIds = pending.filter(({ id }) => id !== 7);
+      if (habitIds.length) await LocalNotifications.cancel({ notifications: habitIds.map(({ id }) => ({ id })) });
       const { enabled, time } = getReminderSettings();
       const notices = reminderSchedule(habits, idx, enabled ? time : null, new Date());
       if (notices.length) {

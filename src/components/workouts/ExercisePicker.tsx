@@ -130,9 +130,18 @@ const ExercisePicker = ({ open, exercises, onOpenChange, onAdd, onCreate }: Exer
     onOpenChange(next);
   };
 
-  // Android Back closes the picker (or leaves the new-exercise form) instead of leaving the workout.
-  // Re-registers each render so it always sees the current form state.
-  useEffect(() => (open ? closeOnBack(() => (creating ? setCreating(false) : close(false))) : undefined));
+  // Android Back first drops the keyboard (keeping the picks), then leaves the new-exercise form, then
+  // closes the picker, instead of leaving the workout. Re-registers each render to see the current state.
+  useEffect(() =>
+    open
+      ? closeOnBack(() => {
+          const typing = document.activeElement;
+          if (typing instanceof HTMLInputElement || typing instanceof HTMLTextAreaElement) typing.blur();
+          else if (creating) setCreating(false);
+          else close(false);
+        })
+      : undefined
+  );
 
   return (
     <Drawer open={open} onOpenChange={close}>

@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, Loader2, MoreHorizontal } from 'lucide-react';
+import { Check, ChevronDown, Loader2, MoreHorizontal, Timer } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useWorkoutDraft, useWorkouts } from '@/hooks/useWorkouts';
 import { closeOnBack } from '@/lib/backButton';
+import { cancelRestEnd, scheduleRestEnd } from '@/lib/restTimer';
 import { cn } from '@/lib/utils';
 import {
-  EQUIPMENT_LABEL, KINDS, SET_TYPES, draftRows, emptySet, fmtSet, fmtTime, lastSetsByExercise, minutesBetween, setLabels, setValues,
-  toDraftValues, workoutSummary, type Draft, type DraftSet, type Exercise, type Field, type SetType,
+  DEFAULT_REST, EQUIPMENT_LABEL, KINDS, REST_OPTIONS, SET_TYPES, draftRows, emptySet, fmtSet, fmtTime, lastSetsByExercise, minutesBetween,
+  newRecords, restLabel, routineItemsFromDraft, sameItems, setLabels, setValues, toDraftValues, workoutSummary,
+  type Draft, type DraftSet, type Exercise, type Field, type Routine, type SetType, type WorkoutSet,
 } from '@/lib/workouts';
 import ExercisePicker from '@/components/workouts/ExercisePicker';
 import { PartTag, Tag } from '@/components/workouts/workoutUi';
@@ -62,11 +65,12 @@ const WorkoutLog = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [draft, setDraft] = useWorkoutDraft();
-  const { exercises, byId, workouts, sets, loading, createExercise, saveWorkout } = useWorkouts();
+  const { exercises, byId, workouts, sets, routines, loading, createExercise, saveWorkout, exerciseHistory, saveRoutine } = useWorkouts();
   const now = useNow();
   const [picking, setPicking] = useState(false);
   const [typeFor, setTypeFor] = useState<{ ei: number; si: number } | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [restFor, setRestFor] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
 
   const previous = useMemo(() => lastSetsByExercise(workouts, sets), [workouts, sets]);
@@ -101,7 +105,22 @@ const WorkoutLog = () => {
       return;
     }
     editSet(ei, si, { ...filled, done: true });
+    // Rest starts after the set, unless it's off or a drop set follows straight away.
+    const de = draft.exercises[ei];
+    const rest = de.rest ?? DEFAULT_REST;
+    if (!rest || de.sets[si + 1]?.type === 'drop') return;
+    startRest(Date.now() + rest * 1000, rest, ex.name);
   };
+
+  const startRest = (endsAt: number, total: number, name: string) => {
+    edit((d) => ({ ...d, rest: { endsAt, total } }));
+    void scheduleRestEnd(endsAt, name ? `Time for your next set of ${name}.` : 'Time for your next set.');
+  };
+  const stopRest = () => {
+    edit((d) => ({ ...d, rest: null }));
+    cancelRestEnd();
+  };
+  const resting = draft.rest && draft.rest.endsAt > now ? draft.rest : null;
 
   const addExercises = (ids: string[]) => edit((d) => ({ ...d, exercises: [...d.exercises, ...ids.map((exerciseId) => ({ exerciseId, sets: [emptySet()] }))] }));
   const moveExercise = (ei: number, by: number) =>
@@ -131,7 +150,7 @@ const WorkoutLog = () => {
         </div>
       </header>
 
-      <div className="space-y-3 px-3 pt-3.5">
+      <div className={cn('space-y-3 px-3 pt-3.5', resting && 'pb-20')}>
         {draft.exercises.map((de, ei) => {
           const ex = byId.get(de.exerciseId);
           if (!ex) return null;
@@ -147,6 +166,12 @@ const WorkoutLog = () => {
                   <div className="flex gap-1.5">
                     <PartTag part={ex.body_part} />
                     <Tag>{EQUIPMENT_LABEL[ex.equipment]}</Tag>
+                    <button type="button" onClick={() => setRestFor(ei)} aria-label={`Rest timer for ${ex.name}: ${restLabel(de.rest ?? DEFAULT_REST)}`}>
+                      <Tag>
+                        <Timer className="-mt-px mr-0.5 inline h-3 w-3" aria-hidden />
+                        {restLabel(de.rest ?? DEFAULT_REST)}
+                      </Tag>
+                    </button>
                   </div>
                 </div>
                 <button type="button" aria-label={`More for ${ex.name}`} onClick={() => setMenuFor(ei)} className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground">
@@ -210,6 +235,15 @@ const WorkoutLog = () => {
         {draft.exercises.length === 0 && <p className="px-2 text-center text-sm text-muted-foreground">Add your first exercise to start logging sets.</p>}
       </div>
 
+      {resting && (
+        <RestPill
+          left={Math.ceil((resting.endsAt - now) / 1000)}
+          total={resting.total}
+          onAdd={() => startRest(resting.endsAt + 15000, resting.total + 15, '')}
+          onSkip={stopRest}
+        />
+      )}
+
       <ExercisePicker open={picking} exercises={exercises} onOpenChange={setPicking} onAdd={addExercises} onCreate={createExercise} />
 
       {typeFor && (
@@ -241,6 +275,10 @@ const WorkoutLog = () => {
 
       {menuFor !== null && (
         <SheetShell title={byId.get(draft.exercises[menuFor].exerciseId)?.name ?? 'Exercise'} onClose={() => setMenuFor(null)}>
+          <SheetButton onClick={() => (setRestFor(menuFor), setMenuFor(null))}>
+            <Timer className="h-4 w-4" /> <span className="flex-1">Rest timer</span>
+            <span className="text-muted-foreground">{restLabel(draft.exercises[menuFor].rest ?? DEFAULT_REST)}</span>
+          </SheetButton>
           {menuFor > 0 && <SheetButton onClick={() => (moveExercise(menuFor, -1), setMenuFor(null))}>Move up</SheetButton>}
           {menuFor < draft.exercises.length - 1 && <SheetButton onClick={() => (moveExercise(menuFor, 1), setMenuFor(null))}>Move down</SheetButton>}
           <SheetButton
@@ -255,18 +293,55 @@ const WorkoutLog = () => {
         </SheetShell>
       )}
 
+      {restFor !== null && (
+        <SheetShell title={`Rest after each set of ${byId.get(draft.exercises[restFor].exerciseId)?.name ?? 'this exercise'}`} onClose={() => setRestFor(null)}>
+          <div className="grid grid-cols-3 gap-2">
+            {REST_OPTIONS.map((secs) => {
+              const on = (draft.exercises[restFor].rest ?? DEFAULT_REST) === secs;
+              return (
+                <button
+                  key={secs}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    edit((d) => ({ ...d, exercises: d.exercises.map((e, i) => (i === restFor ? { ...e, rest: secs } : e)) }));
+                    setRestFor(null);
+                  }}
+                  className={cn('h-12 rounded-2xl text-[15px] font-bold tabular-nums', on ? 'bg-foreground text-background' : 'bg-muted')}
+                >
+                  {restLabel(secs)}
+                </button>
+              );
+            })}
+          </div>
+        </SheetShell>
+      )}
+
       {finishing && (
         <FinishSheet
           draft={draft}
+          rows={rows}
           summary={summary}
+          routine={routines.find((r) => r.id === draft.routineId) ?? null}
+          nameOf={(id) => byId.get(id)?.name ?? ''}
+          kindOf={kindOf}
+          loadHistory={exerciseHistory}
           onClose={() => setFinishing(false)}
           onDiscard={() => {
+            cancelRestEnd();
             setDraft(null);
             navigate('/workouts');
           }}
-          onSave={async (name, note) => {
-            const workout = { id: draft.id, name, started_at: draft.startedAt, ended_at: new Date().toISOString(), note };
+          onSave={async (name, note, keepRoutine) => {
+            const routine = routines.find((r) => r.id === draft.routineId) ?? null;
+            const items = routineItemsFromDraft(draft, rows);
+            // A new routine is made first, so the workout can point at it.
+            let routineId = routine?.id ?? null;
+            if (keepRoutine && !routine) routineId = (await saveRoutine({ name, items }))?.id ?? null;
+            const workout = { id: draft.id, name, started_at: draft.startedAt, ended_at: new Date().toISOString(), note, routine_id: routineId };
             if (!(await saveWorkout(workout, rows))) return;
+            if (keepRoutine && routine) await saveRoutine({ name: routine.name, items }, routine.id);
+            cancelRestEnd();
             setDraft(null);
             navigate(`/workouts/${draft.id}`, { replace: true });
           }}
@@ -276,21 +351,62 @@ const WorkoutLog = () => {
   );
 };
 
+// The countdown between sets, floating above the bottom bar. The phone notification covers the app being closed.
+const RestPill = ({ left, total, onAdd, onSkip }: { left: number; total: number; onAdd: () => void; onSkip: () => void }) => {
+  const ring = 2 * Math.PI * 20;
+  return (
+    <div
+      role="timer"
+      aria-label={`Rest, ${fmtTime(left)} left`}
+      className="fixed inset-x-4 z-30 mx-auto flex h-16 max-w-[528px] items-center gap-2.5 rounded-full bg-black pl-2.5 pr-2 text-white shadow-[0_14px_34px_rgba(0,0,0,.5)]"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}
+    >
+      <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden className="flex-none -rotate-90 text-chart-carbs">
+        <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,.15)" strokeWidth="4" />
+        <circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${(left / total) * ring} ${ring}`} />
+      </svg>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="font-display text-[22px] font-bold leading-none tabular-nums">{fmtTime(left)}</span>
+        <span className="text-xs text-white/65">Rest · of {fmtTime(total)}</span>
+      </span>
+      <button type="button" onClick={onAdd} className="h-11 rounded-full bg-white/[.12] px-3.5 text-sm font-bold">+15s</button>
+      <button type="button" onClick={onSkip} className="h-11 rounded-full bg-white/[.12] px-3.5 text-sm font-bold">Skip</button>
+    </div>
+  );
+};
+
 interface FinishSheetProps {
   draft: Draft;
+  rows: WorkoutSet[];
   summary: { sets: number; volume: number };
+  routine: Routine | null;
+  nameOf: (exerciseId: string) => string;
+  kindOf: (exerciseId: string) => Exercise['kind'] | undefined;
+  loadHistory: (exerciseIds: string[]) => Promise<WorkoutSet[]>;
   onClose: () => void;
   onDiscard: () => void;
-  onSave: (name: string, note: string | null) => Promise<void>;
+  onSave: (name: string, note: string | null, keepRoutine: boolean) => Promise<void>;
 }
 
-const FinishSheet = ({ draft, summary, onClose, onDiscard, onSave }: FinishSheetProps) => {
+const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistory, onClose, onDiscard, onSave }: FinishSheetProps) => {
   const [name, setName] = useState(draft.name);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [keepRoutine, setKeepRoutine] = useState(false);
+  const [records, setRecords] = useState<ReturnType<typeof newRecords>>([]);
   const minutes = minutesBetween(draft.startedAt, new Date().toISOString());
+  const changed = routine ? !sameItems(routine.items, routineItemsFromDraft(draft, rows)) : true;
   useCloseOnBack(onClose);
+
+  // Records against every earlier set of these exercises, fetched once (this workout isn't saved yet).
+  useEffect(() => {
+    let live = true;
+    loadHistory([...new Set(rows.map((r) => r.exercise_id))]).then((history) => live && setRecords(newRecords(rows, history, kindOf)));
+    return () => {
+      live = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Drawer open onOpenChange={(open) => !open && onClose()}>
@@ -315,6 +431,26 @@ const FinishSheet = ({ draft, summary, onClose, onDiscard, onSave }: FinishSheet
             ))}
           </div>
           {summary.sets === 0 && <p className="text-sm text-muted-foreground">Tick at least one set to save this workout.</p>}
+          {records.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[12px] font-semibold text-muted-foreground">New records</div>
+              {records.map((r) => (
+                <div key={r.exerciseId + r.label} className="flex items-center gap-2.5 rounded-2xl bg-chart-carbs/15 px-3 py-2.5">
+                  <span className="rounded-lg bg-chart-carbs px-2 py-1 text-[11px] font-extrabold text-background">PR</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold">{nameOf(r.exerciseId)}</span>
+                  <span className="text-[13px] font-bold text-chart-carbs">
+                    {r.label} {r.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {summary.sets > 0 && changed && (
+            <label className="flex min-h-12 items-center gap-3 rounded-2xl bg-muted px-4 py-2">
+              <span className="flex-1 text-sm font-semibold">{routine ? `Update “${routine.name}” with today's exercises and sets` : 'Save as a routine'}</span>
+              <Switch checked={keepRoutine} onCheckedChange={setKeepRoutine} />
+            </label>
+          )}
           <label className="block space-y-2">
             <span className="block text-[12px] font-semibold text-muted-foreground">Note</span>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} rows={3} className="resize-none text-base" />
@@ -326,7 +462,7 @@ const FinishSheet = ({ draft, summary, onClose, onDiscard, onSave }: FinishSheet
               disabled={!name.trim() || summary.sets === 0 || saving}
               onClick={async () => {
                 setSaving(true);
-                await onSave(name.trim(), note.trim() || null);
+                await onSave(name.trim(), note.trim() || null, keepRoutine && changed);
                 setSaving(false);
               }}
               className="h-14 rounded-full bg-chart-fiber text-base font-bold text-background disabled:opacity-50"
