@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BarChart3, Loader2, Play } from 'lucide-react';
+import { BarChart3, ChevronRight, Loader2, Play, Plus } from 'lucide-react';
 import MenuButton from '@/components/MenuButton';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useWorkoutDraft, useWorkouts } from '@/hooks/useWorkouts';
 import { closeOnBack } from '@/lib/backButton';
 import { cn } from '@/lib/utils';
-import { draftFrom, minutesBetween, nextUp, workoutSummary, type Draft, type Workout } from '@/lib/workouts';
+import { draftFrom, draftFromRoutine, minutesBetween, nextRoutine, nextUp, workoutSummary, type Draft, type Routine, type Workout } from '@/lib/workouts';
 
 const dayParts = (iso: string) => {
   const d = new Date(iso);
@@ -22,7 +22,7 @@ const emptyName = () => {
 const Workouts = () => {
   const navigate = useNavigate();
   const [draft, setDraft] = useWorkoutDraft();
-  const { byId, workouts, sets, loading, error } = useWorkouts();
+  const { byId, workouts, sets, routines, loading, error } = useWorkouts();
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
 
@@ -33,9 +33,7 @@ const Workouts = () => {
     for (const s of sets) m.set(s.workout_id, [...(m.get(s.workout_id) ?? []), s]);
     return m;
   }, [sets]);
-  const next = nextUp(workouts);
-  const latest = workouts[0];
-  // One entry per workout name, newest first, for "Repeat a workout".
+  // One entry per workout name, newest first, for repeating a past workout.
   const named = useMemo(() => {
     const seen = new Map<string, Workout>();
     for (const w of workouts) if (!seen.has(w.name.trim().toLowerCase())) seen.set(w.name.trim().toLowerCase(), w);
@@ -48,6 +46,31 @@ const Workouts = () => {
   };
   const startEmpty = () => start({ id: crypto.randomUUID(), name: emptyName(), startedAt: new Date().toISOString(), exercises: [] });
   const repeat = (w: Workout) => start(draftFrom(crypto.randomUUID(), new Date().toISOString(), w.name, setsOf.get(w.id) ?? []));
+  const startRoutine = (r: Routine) => start(draftFromRoutine(crypto.randomUUID(), new Date().toISOString(), r));
+  const namesOf = (ids: string[]) => [...new Set(ids)].map((id) => byId.get(id)?.name).filter(Boolean) as string[];
+
+  // Next up: the routine after the last one used; with no routines, the past workout done longest ago.
+  const routine = nextRoutine(routines, workouts);
+  const lastRoutine = routines.find((r) => r.id === workouts.find((w) => routines.some((x) => x.id === w.routine_id))?.routine_id);
+  const past = routine ? null : nextUp(workouts);
+  const pastSets = past ? setsOf.get(past.id) ?? [] : [];
+  const up = routine
+    ? {
+        name: routine.name,
+        after: lastRoutine && lastRoutine.id !== routine.id ? lastRoutine.name : null,
+        names: namesOf(routine.items.map((i) => i.exerciseId)),
+        meta: `${routine.items.reduce((n, i) => n + i.sets.length, 0)} sets`,
+        go: () => startRoutine(routine),
+      }
+    : past
+      ? {
+          name: past.name,
+          after: workouts[0].id !== past.id ? workouts[0].name : null,
+          names: namesOf([...pastSets].sort((a, b) => a.position - b.position).map((s) => s.exercise_id)),
+          meta: `${pastSets.length} sets · about ${minutesBetween(past.started_at, past.ended_at)} min last time`,
+          go: () => repeat(past),
+        }
+      : null;
 
   if (loading && workouts.length === 0 && !draft) {
     return (
@@ -56,11 +79,6 @@ const Workouts = () => {
       </div>
     );
   }
-
-  const nextSets = next ? setsOf.get(next.id) ?? [] : [];
-  const nextNames = [...new Set([...nextSets].sort((a, b) => a.position - b.position).map((s) => s.exercise_id))]
-    .map((id) => byId.get(id)?.name)
-    .filter(Boolean) as string[];
 
   return (
     <div className="space-y-3.5">
@@ -93,42 +111,45 @@ const Workouts = () => {
             {discarding ? 'Tap again to discard it' : 'Discard workout'}
           </button>
         </section>
-      ) : next ? (
+      ) : up ? (
         <>
           <section className="space-y-3 rounded-[28px] bg-chart-fat/15 p-[18px]">
-            <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-chart-fat">
-              Next up{latest && latest.id !== next.id ? ` · after ${latest.name}` : ''}
-            </span>
-            <div className="font-display text-[32px] font-bold leading-none">{next.name}</div>
-            {nextNames.length > 0 && (
+            <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-chart-fat">Next up{up.after ? ` · after ${up.after}` : ''}</span>
+            <div className="font-display text-[32px] font-bold leading-none">{up.name}</div>
+            {up.names.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {nextNames.slice(0, 6).map((n) => (
+                {up.names.slice(0, 6).map((n) => (
                   <span key={n} className="rounded-full bg-background px-2.5 py-1.5 text-xs font-semibold">{n}</span>
                 ))}
-                {nextNames.length > 6 && <span className="px-1 py-1.5 text-xs font-semibold text-muted-foreground">+{nextNames.length - 6}</span>}
+                {up.names.length > 6 && <span className="px-1 py-1.5 text-xs font-semibold text-muted-foreground">+{up.names.length - 6}</span>}
               </div>
             )}
             <div className="text-[13px] text-muted-foreground">
-              {nextNames.length} {nextNames.length === 1 ? 'exercise' : 'exercises'} · {nextSets.length} sets · about {minutesBetween(next.started_at, next.ended_at)} min last time
+              {up.names.length} {up.names.length === 1 ? 'exercise' : 'exercises'} · {up.meta}
             </div>
-            <button type="button" onClick={() => repeat(next)} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[17px] font-bold text-primary-foreground">
-              <Play className="h-[18px] w-[18px] fill-current" /> Start {next.name}
+            <button type="button" onClick={up.go} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[17px] font-bold text-primary-foreground">
+              <Play className="h-[18px] w-[18px] fill-current" /> Start {up.name}
             </button>
           </section>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={startEmpty} className="h-[52px] rounded-full bg-muted text-sm font-bold">Empty workout</button>
-            <button type="button" onClick={() => setRepeatOpen(true)} className="h-[52px] rounded-full bg-muted text-sm font-bold">Repeat a workout</button>
+            <button type="button" onClick={() => setRepeatOpen(true)} className="h-[52px] rounded-full bg-muted text-sm font-bold">Routines</button>
           </div>
         </>
       ) : (
-        <section className="space-y-3 rounded-[28px] bg-chart-fat/15 p-[18px]">
-          <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-chart-fat">Your first workout</span>
-          <div className="font-display text-[28px] font-bold leading-tight">Log sets, reps and weights</div>
-          <div className="text-[13px] text-muted-foreground">Pick from 100 exercises or add your own. Next time, the weights you lifted show beside each set.</div>
-          <button type="button" onClick={startEmpty} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[17px] font-bold text-primary-foreground">
-            <Play className="h-[18px] w-[18px] fill-current" /> Start workout
+        <>
+          <section className="space-y-3 rounded-[28px] bg-chart-fat/15 p-[18px]">
+            <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-chart-fat">Your first workout</span>
+            <div className="font-display text-[28px] font-bold leading-tight">Log sets, reps and weights</div>
+            <div className="text-[13px] text-muted-foreground">Pick from 100 exercises or add your own. Next time, the weights you lifted show beside each set.</div>
+            <button type="button" onClick={startEmpty} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-[17px] font-bold text-primary-foreground">
+              <Play className="h-[18px] w-[18px] fill-current" /> Start workout
+            </button>
+          </section>
+          <button type="button" onClick={() => navigate('/workouts/routines/new')} className="h-[52px] w-full rounded-full bg-muted text-sm font-bold">
+            Plan a routine
           </button>
-        </section>
+        </>
       )}
 
       {workouts.length > 0 && (
@@ -160,10 +181,43 @@ const Workouts = () => {
 
       <Drawer open={repeatOpen} onOpenChange={setRepeatOpen}>
         <DrawerContent className="max-h-[80vh] rounded-t-[26px] border-border bg-card">
-          <DrawerTitle className="sr-only">Repeat a workout</DrawerTitle>
-          <div className="flex min-h-0 flex-col gap-2 px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-3">
-            <div className="pb-1 font-display text-lg font-semibold tracking-tight">Repeat a workout</div>
-            <div className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
+          <DrawerTitle className="sr-only">Routines</DrawerTitle>
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-[18px] pb-[calc(env(safe-area-inset-bottom,0px)+20px)] pt-3">
+            <div className="flex items-center justify-between pb-1">
+              <div className="font-display text-lg font-semibold tracking-tight">Routines</div>
+              <button type="button" onClick={() => navigate('/workouts/routines/new')} className="flex h-11 items-center gap-1 rounded-full bg-muted px-3.5 text-sm font-semibold text-primary">
+                <Plus className="h-4 w-4" strokeWidth={2.6} /> New
+              </button>
+            </div>
+            {routines.length === 0 && <p className="pb-2 text-sm text-muted-foreground">Save a set list you repeat, like Push, Pull or Legs, and start it in one tap.</p>}
+            <div className="divide-y divide-border">
+              {routines.map((r) => (
+                <div key={r.id} className="flex min-h-14 items-center gap-2">
+                  <button type="button" onClick={() => navigate(`/workouts/routines/${r.id}`)} className="flex min-h-14 min-w-0 flex-1 items-center gap-2 text-left">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold">{r.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {r.items.length} {r.items.length === 1 ? 'exercise' : 'exercises'} · Edit
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 flex-none text-muted-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Start ${r.name}`}
+                    onClick={() => {
+                      setRepeatOpen(false);
+                      startRoutine(r);
+                    }}
+                    className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary text-primary-foreground"
+                  >
+                    <Play className="h-4 w-4 fill-current" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {named.length > 0 && <div className="pt-3 text-[12px] font-semibold text-muted-foreground">Repeat a past workout</div>}
+            <div className="divide-y divide-border">
               {named.map((w) => (
                 <button
                   key={w.id}

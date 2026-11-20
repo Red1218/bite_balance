@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Draft, Exercise, Workout, WorkoutSet } from '@/lib/workouts';
+import type { Draft, Exercise, Routine, RoutineItem, Workout, WorkoutSet } from '@/lib/workouts';
 
 // shortcut: only the newest workouts are loaded (for history, "previous" and next-up); once
 // exercise charts need older sets (Phase 3), query them per exercise instead.
@@ -60,7 +61,7 @@ export const useWorkoutHistory = (since: number) => {
     setLoading(true);
     // A set is saved after its workout starts, so created_at >= since covers every set of these workouts.
     Promise.all([
-      supabase.from('workouts').select('id, name, started_at, ended_at, note').eq('user_id', user.id).gte('started_at', from),
+      supabase.from('workouts').select('id, name, started_at, ended_at, note, routine_id').eq('user_id', user.id).gte('started_at', from),
       supabase
         .from('workout_sets')
         .select('workout_id, exercise_id, position, set_no, set_type, weight_kg, reps, duration_s, distance_km')
@@ -92,6 +93,7 @@ export const useWorkouts = () => {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [sets, setSets] = useState<WorkoutSet[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,12 +102,13 @@ export const useWorkouts = () => {
     setLoading(true);
     setError(null);
     // RLS returns the built-in library plus this user's own exercises.
-    const [exRes, wRes] = await Promise.all([
+    const [exRes, wRes, rRes] = await Promise.all([
       supabase.from('exercises').select('id, user_id, name, body_part, secondary, equipment, kind').order('name'),
-      supabase.from('workouts').select('id, name, started_at, ended_at, note').eq('user_id', user.id).order('started_at', { ascending: false }).limit(RECENT),
+      supabase.from('workouts').select('id, name, started_at, ended_at, note, routine_id').eq('user_id', user.id).order('started_at', { ascending: false }).limit(RECENT),
+      supabase.from('routines').select('id, name, position, items').eq('user_id', user.id).order('position'),
     ]);
-    if (exRes.error || wRes.error) {
-      console.error('Error loading workouts:', exRes.error ?? wRes.error);
+    if (exRes.error || wRes.error || rRes.error) {
+      console.error('Error loading workouts:', exRes.error ?? wRes.error ?? rRes.error);
       setError('Could not load your workouts.');
       setLoading(false);
       return;
@@ -129,6 +132,8 @@ export const useWorkouts = () => {
     setExercises((exRes.data as Exercise[]).sort((a, b) => a.name.localeCompare(b.name)));
     setWorkouts(list);
     setSets(setRows);
+    // items is written only by this app, in the RoutineItem shape.
+    setRoutines((rRes.data as unknown as Routine[]).sort((a, b) => a.position - b.position));
     setLoading(false);
   }, [user]);
 
@@ -178,6 +183,53 @@ export const useWorkouts = () => {
     return true;
   };
 
+  // Every earlier set of these exercises, to tell what counts as a new record.
+  const exerciseHistory = useCallback(
+    async (exerciseIds: string[]) => {
+      if (!user || !exerciseIds.length) return [];
+      const { data, error: readError } = await supabase
+        .from('workout_sets')
+        .select('workout_id, exercise_id, position, set_no, set_type, weight_kg, reps, duration_s, distance_km')
+        .eq('user_id', user.id)
+        .in('exercise_id', exerciseIds);
+      if (readError) {
+        console.error('Error loading exercise history:', readError);
+        return [];
+      }
+      return (data as WorkoutSet[]).map(toSet);
+    },
+    [user]
+  );
+
+  const saveRoutine = async (values: { name: string; items: RoutineItem[] }, id?: string) => {
+    if (!user) return null;
+    const position = routines.reduce((max, r) => Math.max(max, r.position), -1) + 1;
+    const row = { name: values.name.trim(), items: values.items as unknown as Json };
+    const { data, error: writeError } = id
+      ? await supabase.from('routines').update(row).eq('id', id).select('id, name, position, items').single()
+      : await supabase.from('routines').insert({ ...row, user_id: user.id, position }).select('id, name, position, items').single();
+    if (writeError || !data) {
+      console.error('Error saving routine:', writeError);
+      failed('Could not save the routine. Please try again.');
+      return null;
+    }
+    const saved = data as unknown as Routine;
+    setRoutines((prev) => (id ? prev.map((r) => (r.id === id ? saved : r)) : [...prev, saved]));
+    return saved;
+  };
+
+  // Workouts started from it keep their history; their routine_id becomes null.
+  const deleteRoutine = async (id: string) => {
+    const { error: writeError } = await supabase.from('routines').delete().eq('id', id);
+    if (writeError) {
+      console.error('Error deleting routine:', writeError);
+      failed('Could not delete the routine. Please try again.');
+      return false;
+    }
+    setRoutines((prev) => prev.filter((r) => r.id !== id));
+    return true;
+  };
+
   // Its sets go with it (on delete cascade).
   const deleteWorkout = async (id: string) => {
     const { error: writeError } = await supabase.from('workouts').delete().eq('id', id);
@@ -191,5 +243,5 @@ export const useWorkouts = () => {
     return true;
   };
 
-  return { exercises, byId, workouts, sets, loading, error, createExercise, saveWorkout, deleteWorkout };
+  return { exercises, byId, workouts, sets, routines, loading, error, createExercise, saveWorkout, deleteWorkout, exerciseHistory, saveRoutine, deleteRoutine };
 };

@@ -420,6 +420,33 @@ export type Database = {
         }
         Relationships: []
       }
+      routines: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          name: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items?: Json
+          name: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          name?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       saved_meals: {
         Row: {
           calcium: number | null
@@ -610,6 +637,7 @@ export type Database = {
           id: string
           name: string
           note: string | null
+          routine_id: string | null
           started_at: string
           user_id: string
         }
@@ -619,6 +647,7 @@ export type Database = {
           id?: string
           name: string
           note?: string | null
+          routine_id?: string | null
           started_at: string
           user_id: string
         }
@@ -628,10 +657,19 @@ export type Database = {
           id?: string
           name?: string
           note?: string | null
+          routine_id?: string | null
           started_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "workouts_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "routines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

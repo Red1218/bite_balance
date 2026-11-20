@@ -263,7 +263,9 @@ export const offlineFetch: typeof fetch = async (input, init) => {
 export const offlineAuthStorage = {
   getItem: async (key: string) => {
     const saved = localStorage.getItem(key);
-    if (!saved || (await Network.getStatus()).connected) return saved;
+    // Sign-in waits on this, so a plugin call that never answers mustn't hold the app on "Loading…".
+    const status = await Promise.race([Network.getStatus(), new Promise<{ connected: boolean }>((r) => setTimeout(() => r({ connected: true }), 2000))]);
+    if (!saved || status.connected) return saved;
     try {
       const session = JSON.parse(saved);
       if (typeof session?.expires_at !== 'number') return saved;

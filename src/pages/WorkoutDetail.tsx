@@ -3,14 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Loader2, Play } from 'lucide-react';
 import { useWorkoutDraft, useWorkouts } from '@/hooks/useWorkouts';
 import { cn } from '@/lib/utils';
-import { EQUIPMENT_LABEL, draftFrom, fmtSet, minutesBetween, setLabels, workoutSummary } from '@/lib/workouts';
+import { EQUIPMENT_LABEL, draftFrom, fmtSet, minutesBetween, routineItemsFromSets, setLabels, workoutSummary } from '@/lib/workouts';
 import { PartTag, Tag } from '@/components/workouts/workoutUi';
 
 const WorkoutDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [draft, setDraft] = useWorkoutDraft();
-  const { byId, workouts, sets, loading, deleteWorkout } = useWorkouts();
+  const { byId, workouts, sets, routines, loading, deleteWorkout, saveRoutine } = useWorkouts();
   const [confirming, setConfirming] = useState(false);
 
   const workout = workouts.find((w) => w.id === id);
@@ -98,6 +98,18 @@ const WorkoutDetail = () => {
           className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-primary text-base font-bold text-primary-foreground"
         >
           <Play className="h-[18px] w-[18px] fill-current" /> Repeat this workout
+        </button>
+      )}
+      {!routines.some((r) => r.id === workout.routine_id) && (
+        <button
+          type="button"
+          onClick={async () => {
+            const saved = await saveRoutine({ name: workout.name, items: routineItemsFromSets(mine) });
+            if (saved) navigate(`/workouts/routines/${saved.id}`);
+          }}
+          className="h-12 w-full rounded-full bg-muted text-sm font-bold"
+        >
+          Save as a routine
         </button>
       )}
       <button

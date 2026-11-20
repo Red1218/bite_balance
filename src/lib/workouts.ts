@@ -51,6 +51,7 @@ export interface Workout {
   started_at: string;
   ended_at: string;
   note: string | null;
+  routine_id: string | null;
 }
 
 export interface WorkoutSet {
@@ -77,12 +78,32 @@ export interface DraftSet {
 export interface DraftExercise {
   exerciseId: string;
   sets: DraftSet[];
+  rest?: number; // seconds after each set; 0 = off. Missing = DEFAULT_REST
 }
 export interface Draft {
   id: string;
   name: string;
   startedAt: string;
   exercises: DraftExercise[];
+  routineId?: string | null;
+  rest?: { endsAt: number; total: number } | null; // the rest countdown running now
+}
+
+export const DEFAULT_REST = 90;
+export const REST_OPTIONS = [0, 30, 60, 90, 120, 180];
+export const restLabel = (secs: number) => (secs ? fmtTime(secs) : 'Off');
+
+/** A saved routine's exercise: its set types in order and the rest after each set. */
+export interface RoutineItem {
+  exerciseId: string;
+  sets: SetType[];
+  rest: number;
+}
+export interface Routine {
+  id: string;
+  name: string;
+  position: number;
+  items: RoutineItem[];
 }
 
 export const emptySet = (type: SetType = 'normal'): DraftSet => ({ type, kg: '', reps: '', time: '', km: '', done: false });
@@ -239,7 +260,42 @@ export const draftFrom = (id: string, startedAt: string, name: string, sets: Wor
       exerciseId: list[0].exercise_id,
       sets: list.sort((a, b) => a.set_no - b.set_no).map((s) => emptySet(s.set_type)),
     }));
-  return { id, name, startedAt, exercises };
+  return { id, name, startedAt, exercises, routineId: null };
+};
+
+export const draftFromRoutine = (id: string, startedAt: string, routine: Routine): Draft => ({
+  id,
+  name: routine.name,
+  startedAt,
+  routineId: routine.id,
+  exercises: routine.items.map((it) => ({ exerciseId: it.exerciseId, rest: it.rest, sets: it.sets.map((t) => emptySet(t)) })),
+});
+
+/** The routine a finished draft describes: its exercises with the sets that were ticked. */
+export const routineItemsFromDraft = (draft: Draft, rows: WorkoutSet[]): RoutineItem[] => {
+  // draftRows numbers positions over the exercises that have a saved set, in draft order.
+  const out: RoutineItem[] = [];
+  for (const ex of draft.exercises) {
+    const mine = rows.filter((r) => r.position === out.length && r.exercise_id === ex.exerciseId);
+    if (mine.length) out.push({ exerciseId: ex.exerciseId, sets: mine.map((r) => r.set_type), rest: ex.rest ?? DEFAULT_REST });
+  }
+  return out;
+};
+
+/** A saved workout as routine items (rest falls back to the default). */
+export const routineItemsFromSets = (sets: WorkoutSet[]): RoutineItem[] =>
+  draftFrom('', '', '', sets).exercises.map((e) => ({ exerciseId: e.exerciseId, sets: e.sets.map((s) => s.type), rest: DEFAULT_REST }));
+
+export const sameItems = (a: RoutineItem[], b: RoutineItem[]) => JSON.stringify(a) === JSON.stringify(b);
+
+/** The routine after the one used most recently (wrapping round); the first if none was used yet. */
+export const nextRoutine = (routines: Routine[], workouts: Workout[]) => {
+  if (!routines.length) return null;
+  const sorted = [...routines].sort((a, b) => a.position - b.position);
+  const last = workouts.find((w) => w.routine_id && sorted.some((r) => r.id === w.routine_id));
+  if (!last) return sorted[0];
+  const i = sorted.findIndex((r) => r.id === last.routine_id);
+  return sorted[(i + 1) % sorted.length];
 };
 
 export const workoutSummary = (sets: WorkoutSet[], kindOf: (exerciseId: string) => ExerciseKind | undefined) => ({
@@ -378,4 +434,36 @@ export const workoutStats = (
     lifts,
     parts: [...parts.entries()].sort((a, b) => b[1] - a[1]),
   };
+};
+
+// ---- records ----
+
+type Metric = [label: string, value: (s: WorkoutSet) => number, show: (v: number) => string];
+const METRICS: Record<ExerciseKind, Metric[]> = {
+  weight_reps: [
+    ['Est. 1RM', (s) => (s.weight_kg && s.reps ? epley(s.weight_kg, s.reps) : 0), (v) => `${Math.round(v)} kg`],
+    ['Best weight', (s) => s.weight_kg ?? 0, (v) => `${trim(v)} kg`],
+  ],
+  weighted_bodyweight: [['Best added weight', (s) => s.weight_kg ?? 0, (v) => `+${trim(v)} kg`]],
+  bodyweight_reps: [['Most reps', (s) => s.reps ?? 0, String]],
+  assisted_bodyweight: [], // less help is the goal, so a "record" isn't one number going up
+  duration: [['Longest', (s) => s.duration_s ?? 0, fmtTime]],
+  distance_duration: [['Longest distance', (s) => s.distance_km ?? 0, (v) => `${trim(v)} km`]],
+};
+
+/** Records `rows` beat over every earlier set of the same exercise. A first-ever try isn't a record; warm-ups don't count. */
+export const newRecords = (rows: WorkoutSet[], history: WorkoutSet[], kindOf: (exerciseId: string) => ExerciseKind | undefined) => {
+  const out: { exerciseId: string; label: string; value: string }[] = [];
+  for (const id of [...new Set(rows.map((r) => r.exercise_id))]) {
+    const kind = kindOf(id);
+    const now = rows.filter((r) => r.exercise_id === id && r.set_type !== 'warmup');
+    const before = history.filter((h) => h.exercise_id === id && h.set_type !== 'warmup');
+    if (!kind || !now.length || !before.length) continue;
+    for (const [label, value, show] of METRICS[kind]) {
+      const n = Math.max(...now.map(value));
+      const b = Math.max(...before.map(value));
+      if (Math.round(n * 10) > Math.round(b * 10)) out.push({ exerciseId: id, label, value: show(n) });
+    }
+  }
+  return out;
 };
