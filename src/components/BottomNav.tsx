@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, ListChecks, MessageCircle, Plus, User } from 'lucide-react';
+import { Dumbbell, Home, ListChecks, MessageCircle, Plus, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAddMealSheet } from '@/contexts/AddMealSheetContext';
 
@@ -8,6 +8,7 @@ const TABS = [
   { path: '/', icon: Home, label: 'Today' },
   { path: '/chat', icon: MessageCircle, label: 'Chat' },
   { path: '/habits', icon: ListChecks, label: 'Habits' },
+  { path: '/workouts', icon: Dumbbell, label: 'Workouts' },
   { path: '/profile', icon: User, label: 'You' },
 ] as const;
 
@@ -15,8 +16,8 @@ const TABS = [
 export const tabIndex = (pathname: string) =>
   TABS.findIndex((t) => t.path === pathname || (t.path !== '/' && pathname.startsWith(`${t.path}/`)));
 
-// Habits has its own "New habit" button and Chat has its own input, so the add-meal button would compete there.
-const NO_FAB = ['/habits', '/chat'];
+// Habits, Workouts and Chat have their own main buttons, so the add-meal button would compete there.
+const NO_FAB = ['/habits', '/workouts', '/chat'];
 
 const PAD = 4; // track padding (px); the capsule's slots sit inside it
 const SLOT = `(100% - ${PAD * 2}px) / ${TABS.length}`;
@@ -94,7 +95,7 @@ const BottomNav = () => {
         onPointerCancel={onPointerUp}
         className={cn(
           'nav-glass relative flex h-16 flex-1 touch-none select-none rounded-full p-1 [-webkit-touch-callout:none]',
-          showFab ? 'max-w-[292px]' : 'max-w-[360px]'
+          showFab ? 'max-w-[320px]' : 'max-w-[400px]'
         )}
       >
         <div

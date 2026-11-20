@@ -19,6 +19,10 @@ const Conversations = lazy(() => import('./pages/Conversations'));
 const Import = lazy(() => import('./pages/Import'));
 const Habits = lazy(() => import('./pages/Habits'));
 const HabitDetail = lazy(() => import('./pages/HabitDetail'));
+const Workouts = lazy(() => import('./pages/Workouts'));
+const WorkoutLog = lazy(() => import('./pages/WorkoutLog'));
+const WorkoutDetail = lazy(() => import('./pages/WorkoutDetail'));
+const WorkoutStats = lazy(() => import('./pages/WorkoutStats'));
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -60,6 +64,10 @@ const AppRoutes = () => {
           <Route path="/import" element={<Import />} />
           <Route path="/habits" element={<Habits />} />
           <Route path="/habits/:id" element={<HabitDetail />} />
+          <Route path="/workouts" element={<Workouts />} />
+          <Route path="/workouts/log" element={<WorkoutLog />} />
+          <Route path="/workouts/stats" element={<WorkoutStats />} />
+          <Route path="/workouts/:id" element={<WorkoutDetail />} />
           <Route path="/checklist" element={<Navigate to="/habits" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
