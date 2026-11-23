@@ -1,9 +1,9 @@
 import { useState, type CSSProperties } from 'react';
-import { Check, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Pause, Pencil } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { dayProgress, dayState, logOn, type Habit, type LogIndex, type TimeOfDay } from '@/lib/habits';
+import { dayProgress, dayState, logOn, type DayState, type Habit, type LogIndex, type TimeOfDay } from '@/lib/habits';
 import type { LogPatch } from '@/hooks/useHabits';
 import HabitRow from './HabitRow';
 import { HabitTile, TIME_LABEL } from './habitUi';
@@ -44,8 +44,8 @@ interface CategoryCardProps {
 // One category on the Habits page, tinted in its own colour. Its count stays visible when folded away.
 const CategoryCard = ({ name, index, habits, idx, date, today, closed, onToggle, onRename, onWrite, onOpen }: CategoryCardProps) => {
   const label = categoryLabel(name);
-  const done = habits.filter((h) => dayProgress([h], idx, date, today).done === 1).length;
-  const total = habits.length;
+  // Skipped habits leave the count, the same as on the day's ring.
+  const { done, due: total } = dayProgress(habits, idx, date, today);
   const shape = categoryShape(habits);
   const style = { '--cat': `hsl(var(${CATEGORY_COLORS[index % CATEGORY_COLORS.length]}))` } as CSSProperties;
   const row = (h: Habit) => (
@@ -65,8 +65,8 @@ const CategoryCard = ({ name, index, habits, idx, date, today, closed, onToggle,
             <span className="text-sm text-muted-foreground">of {total} done</span>
           </span>
           <span className="flex w-full gap-[3px]" aria-hidden>
-            {habits.map((h, i) => (
-              <span key={h.id} className={cn('h-1.5 flex-1 rounded-full transition-colors duration-300', i < done ? 'bg-[var(--cat)]' : 'bg-[color-mix(in_srgb,var(--cat)_22%,transparent)]')} />
+            {Array.from({ length: total }, (_, i) => (
+              <span key={i} className={cn('h-1.5 flex-1 rounded-full transition-colors duration-300', i < done ? 'bg-[var(--cat)]' : 'bg-[color-mix(in_srgb,var(--cat)_22%,transparent)]')} />
             ))}
           </span>
         </button>
@@ -95,7 +95,7 @@ const CategoryCard = ({ name, index, habits, idx, date, today, closed, onToggle,
       {!closed && shape === 'tiles' && (
         <div className="grid grid-cols-2 gap-2 px-2 pb-2">
           {habits.map((h) => (
-            <HabitBigTile key={h.id} habit={h} done={dayState(h, idx, date, today) === 'done'} note={logOn(idx, h.id, date)?.note ?? null} onWrite={(next) => onWrite(h, next)} onOpen={() => onOpen(h)} />
+            <HabitBigTile key={h.id} habit={h} state={dayState(h, idx, date, today)} note={logOn(idx, h.id, date)?.note ?? null} onWrite={(next) => onWrite(h, next)} onOpen={() => onOpen(h)} />
           ))}
         </div>
       )}
@@ -104,24 +104,27 @@ const CategoryCard = ({ name, index, habits, idx, date, today, closed, onToggle,
 };
 
 // A big tap target for a simple daily tick. A short habit note ("5g") becomes the headline.
-const HabitBigTile = ({ habit, done, note, onWrite, onOpen }: { habit: Habit; done: boolean; note: string | null; onWrite: (next: LogPatch | null) => void; onOpen: () => void }) => {
+const HabitBigTile = ({ habit, state, note, onWrite, onOpen }: { habit: Habit; state: DayState; note: string | null; onWrite: (next: LogPatch | null) => void; onOpen: () => void }) => {
   const [tapped, setTapped] = useState(false);
+  const done = state === 'done';
+  const skipped = state === 'skipped';
   const headline = habit.note && habit.note.length <= 8 ? habit.note : null;
   return (
     <div
       className={cn(
         'relative flex min-h-[124px] flex-col overflow-hidden rounded-2xl border-[1.5px] transition-colors duration-300',
-        done ? 'border-transparent bg-[color-mix(in_srgb,var(--cat)_24%,hsl(var(--card)))]' : 'border-dashed border-[color-mix(in_srgb,var(--cat)_40%,transparent)] bg-card'
+        done ? 'border-transparent bg-[color-mix(in_srgb,var(--cat)_24%,hsl(var(--card)))]' : skipped ? 'border-dashed border-chart-water bg-card' : 'border-dashed border-[color-mix(in_srgb,var(--cat)_40%,transparent)] bg-card'
       )}
     >
       <button
         type="button"
         role="checkbox"
         aria-checked={done}
-        aria-label={habit.name}
+        aria-label={skipped ? `${habit.name} skipped. Tap to undo` : habit.name}
         onClick={() => {
           setTapped(true);
-          onWrite(done ? null : { status: 'done', count: null, note });
+          // A skipped day is undone first, so one tap never turns a skip into a tick.
+          onWrite(done || skipped ? null : { status: 'done', count: null, note });
         }}
         className="flex flex-1 flex-col items-start gap-1.5 p-3 pr-11 text-left active:scale-[.98]"
       >
@@ -131,10 +134,17 @@ const HabitBigTile = ({ habit, done, note, onWrite, onOpen }: { habit: Habit; do
           <HabitTile habit={habit} size={32} />
         )}
         <span className="mt-auto text-[15px] font-semibold leading-tight">{habit.name}</span>
-        <span className={cn('flex items-center gap-1 text-xs', done ? 'font-medium text-[color:color-mix(in_srgb,var(--cat)_75%,hsl(var(--foreground)))]' : 'text-muted-foreground')}>
-          {done && <Check className={cn('h-3.5 w-3.5', tapped && 'motion-pop')} strokeWidth={3} />}
-          {done ? 'Done' : 'Tap when done'}
-        </span>
+        {skipped ? (
+          <span className="flex items-center gap-1 text-xs font-medium text-chart-water">
+            <Pause className="h-3.5 w-3.5" strokeWidth={3} />
+            Skipped{note ? ` · ${note}` : ''}
+          </span>
+        ) : (
+          <span className={cn('flex items-center gap-1 text-xs', done ? 'font-medium text-[color:color-mix(in_srgb,var(--cat)_75%,hsl(var(--foreground)))]' : 'text-muted-foreground')}>
+            {done && <Check className={cn('h-3.5 w-3.5', tapped && 'motion-pop')} strokeWidth={3} />}
+            {done ? 'Done' : 'Tap when done'}
+          </span>
+        )}
       </button>
       <button type="button" onClick={onOpen} aria-label={`Open ${habit.name}`} className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-muted-foreground">
         <ChevronRight className="h-4 w-4" />
