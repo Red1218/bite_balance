@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Bell, Check, ChevronLeft, ChevronRight, Loader2, Pause, Plus } from 'lucide-react';
 import { closeOnBack } from '@/lib/backButton';
 import { cn } from '@/lib/utils';
@@ -71,8 +71,11 @@ const Habits = () => {
   const navigate = useNavigate();
   const today = useLocalToday();
   const [tab, setTab] = useState<'today' | 'stats'>('today');
-  const [selected, setSelected] = useState(today);
-  const [weekEnd, setWeekEnd] = useState(today);
+  // Coming back from a habit opened on an earlier day (?date=) keeps that day selected.
+  const asked = useSearchParams()[0].get('date');
+  const start = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked < today ? asked : today;
+  const [selected, setSelected] = useState(start);
+  const [weekEnd, setWeekEnd] = useState(() => (addDays(start, 3) > today ? today : addDays(start, 3)));
   const [month, setMonth] = useState(() => monthStartOf(today));
   const [sheetOpen, setSheetOpen] = useState(false);
   const [reminder, setReminder] = useState(getReminderSettings);
@@ -351,7 +354,7 @@ const Habits = () => {
               onToggle={() => toggleCategory(name)}
               onRename={() => setRenaming({ name })}
               onWrite={(h, next) => writeLog(h.id, selected, next)}
-              onOpen={(h) => navigate(`/habits/${h.id}`)}
+              onOpen={(h) => navigate(selected === today ? `/habits/${h.id}` : `/habits/${h.id}?date=${selected}`)}
             />
           ))}
           <div className="flex justify-center">

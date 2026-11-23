@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Archive, ArrowLeft, Bell, Check, ChevronLeft, ChevronRight, Flame, Loader2, Minus, Pause, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -26,6 +26,11 @@ const HabitDetail = () => {
   const [month, setMonth] = useState(() => monthStartOf(today));
   const [historyCount, setHistoryCount] = useState(8);
   const habit = habits.find((h) => h.id === id);
+  // The day picked on the Habits page (?date=), so ticking or skipping here lands on that day.
+  const asked = useSearchParams()[0].get('date');
+  const day = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked < today ? asked : today;
+  const dayWord = day === today ? 'today' : `on ${shortDate(day, { weekday: 'short', day: 'numeric', month: 'short' })}`;
+  const backTo = day === today ? '/habits' : `/habits?date=${day}`;
 
   if (loading && !habit) {
     return (
@@ -45,11 +50,11 @@ const HabitDetail = () => {
     );
   }
 
-  const log = logOn(idx, habit.id, today);
-  const state = dayState(habit, idx, today, today);
+  const log = logOn(idx, habit.id, day);
+  const state = dayState(habit, idx, day, today);
   const note = log?.note ?? null;
   const count = log?.status === 'done' ? (log.count ?? 0) : 0;
-  const write = (next: LogPatch | null, date = today) => writeLog(habit.id, date, next);
+  const write = (next: LogPatch | null, date = day) => writeLog(habit.id, date, next);
   const setCount = (n: number) => write(n > 0 || note ? { status: 'done', count: Math.max(0, n), note } : null);
   const streaks = habitStreaks(habit, idx, today);
   const rate = habitRate(habit, idx, today);
@@ -109,7 +114,7 @@ const HabitDetail = () => {
   return (
     <div className="space-y-3.5" style={style}>
       <div className="-mx-2 flex h-14 items-center">
-        <button type="button" aria-label="Back to habits" onClick={() => navigate('/habits')} className="flex h-11 w-11 items-center justify-center rounded-full">
+        <button type="button" aria-label="Back to habits" onClick={() => navigate(backTo)} className="flex h-11 w-11 items-center justify-center rounded-full">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <span className="flex-1" />
@@ -146,7 +151,7 @@ const HabitDetail = () => {
             <div className="flex items-center gap-3">
               <StateMark state="skipped" size={28} />
               <div className="flex-1">
-                <div className="font-medium">Skipped today</div>
+                <div className="font-medium">Skipped {dayWord}</div>
                 <div className="text-xs text-muted-foreground">{note ?? 'No reason given'} · streak kept</div>
               </div>
               <button type="button" onClick={() => write(null)} className="h-11 rounded-full px-4 text-[13px] font-semibold text-primary">Undo</button>
@@ -160,7 +165,7 @@ const HabitDetail = () => {
                       <Minus className="h-5 w-5" strokeWidth={2.6} />
                     </button>
                     <div className="flex-1 text-center">
-                      <SectionLabel>Today</SectionLabel>
+                      <SectionLabel>{day === today ? 'Today' : shortDate(day, { weekday: 'short', day: 'numeric', month: 'short' })}</SectionLabel>
                       <div className="font-mono text-[34px] font-semibold leading-tight">
                         {count.toLocaleString()}
                         <span className="text-xl text-muted-foreground"> / {habit.target.toLocaleString()}</span>
@@ -194,7 +199,7 @@ const HabitDetail = () => {
                   )}
                 >
                   <Check className="h-5 w-5" strokeWidth={3} />
-                  {state === 'done' ? 'Done today · tap to undo' : 'Mark done today'}
+                  {state === 'done' ? `Done ${dayWord} · tap to undo` : `Mark done ${dayWord}`}
                 </button>
               )}
               {habit.kind === 'avoid' && (
@@ -219,7 +224,7 @@ const HabitDetail = () => {
               )}
               {skipping ? (
                 <div className="space-y-2">
-                  <div className="text-[13px] text-muted-foreground">Why skip today? Your streak stays safe.</div>
+                  <div className="text-[13px] text-muted-foreground">Why skip {dayWord}? Your streak stays safe.</div>
                   <div className="flex flex-wrap gap-2">
                     {SKIP_REASONS.map((r) => (
                       <button
@@ -240,7 +245,7 @@ const HabitDetail = () => {
               ) : (
                 <button type="button" onClick={() => setSkipping(true)} className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-dashed border-border text-[13px] font-medium text-muted-foreground">
                   <Pause className="h-3.5 w-3.5" strokeWidth={2.6} />
-                  Skip today · streak stays safe
+                  Skip {dayWord} · streak stays safe
                 </button>
               )}
             </>
