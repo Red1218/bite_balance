@@ -73,10 +73,14 @@ const extractTokens = (text: string): string[] => {
 
 // Looks up real foods matching words in the latest user message, so the reference
 // table below is grounded in verified data instead of a stale hardcoded list.
-const findMatchedFoods = async (latestUserMessage: string): Promise<IndianFoodRow[]> => {
+const findMatchedFoods = async (latestUserMessage: string, token: string): Promise<IndianFoodRow[]> => {
   const tokens = extractTokens(latestUserMessage).slice(0, 8);
+  // Search as the caller so search_foods (which filters on auth.uid()) includes their own foods.
+  const userDb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
   const results = await Promise.all(
-    tokens.map((t) => supabase.rpc('search_foods', { search_query: t }))
+    tokens.map((t) => userDb.rpc('search_foods', { search_query: t }))
   );
   const byId = new Map<string, IndianFoodRow>();
   for (const { data } of results) {
@@ -228,7 +232,7 @@ serve(async (req) => {
 
   try {
     const latestUserMessage = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
-    const matchedFoods = await findMatchedFoods(latestUserMessage);
+    const matchedFoods = await findMatchedFoods(latestUserMessage, token);
     const referenceTable = buildReferenceTable(matchedFoods);
 
     const openaiBody = JSON.stringify({
