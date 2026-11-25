@@ -382,13 +382,13 @@ const WorkoutLog = () => {
             setDraft(null);
             navigate('/workouts');
           }}
-          onSave={async (name, note, keepRoutine) => {
+          onSave={async (name, note, keepRoutine, endedAt) => {
             const routine = routines.find((r) => r.id === draft.routineId) ?? null;
             const items = routineItemsFromDraft(draft, rows);
             // A new routine is made first, so the workout can point at it.
             let routineId = routine?.id ?? null;
             if (keepRoutine && !routine) routineId = (await saveRoutine({ name, items }))?.id ?? null;
-            const workout = { id: draft.id, name, started_at: draft.startedAt, ended_at: new Date().toISOString(), note, routine_id: routineId };
+            const workout = { id: draft.id, name, started_at: draft.startedAt, ended_at: endedAt, note, routine_id: routineId };
             if (!(await saveWorkout(workout, rows))) return;
             if (keepRoutine && routine) await saveRoutine({ name: routine.name, items }, routine.id);
             cancelRestEnd();
@@ -435,8 +435,10 @@ interface FinishSheetProps {
   loadHistory: (exerciseIds: string[]) => Promise<WorkoutSet[]>;
   onClose: () => void;
   onDiscard: () => void;
-  onSave: (name: string, note: string | null, keepRoutine: boolean) => Promise<void>;
+  onSave: (name: string, note: string | null, keepRoutine: boolean, endedAt: string) => Promise<void>;
 }
+
+const LONG_WORKOUT_MIN = 240;
 
 const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistory, onClose, onDiscard, onSave }: FinishSheetProps) => {
   const [name, setName] = useState(draft.name);
@@ -446,6 +448,11 @@ const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistor
   const [keepRoutine, setKeepRoutine] = useState(false);
   const [records, setRecords] = useState<ReturnType<typeof newRecords>>([]);
   const minutes = minutesBetween(draft.startedAt, new Date().toISOString());
+  // Open far longer than any session: it was left running, so ask how long it really took.
+  const forgotten = minutes > LONG_WORKOUT_MIN;
+  const [took, setTook] = useState('60');
+  const tookMin = Number(took);
+  const tookOk = Number.isInteger(tookMin) && tookMin >= 1 && tookMin <= LONG_WORKOUT_MIN;
   const changed = routine ? !sameItems(routine.items, routineItemsFromDraft(draft, rows)) : true;
   useCloseOnBack(onClose);
 
@@ -470,7 +477,7 @@ const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistor
           </label>
           <div className="grid grid-cols-3 gap-2">
             {[
-              [`${minutes} min`, 'Duration'],
+              [forgotten ? (tookOk ? `${tookMin} min` : '—') : `${minutes} min`, 'Duration'],
               [Math.round(summary.volume).toLocaleString(), 'kg volume'],
               [String(summary.sets), 'Sets'],
             ].map(([v, l]) => (
@@ -480,6 +487,12 @@ const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistor
               </div>
             ))}
           </div>
+          {forgotten && (
+            <label className="block space-y-2 rounded-2xl bg-chart-carbs/15 p-3">
+              <span className="block text-sm font-semibold">This workout was left open for {Math.round(minutes / 60)} hours. How many minutes did it take?</span>
+              <Input value={took} onChange={(e) => setTook(e.target.value)} inputMode="numeric" aria-label="Minutes it took" className="h-12 text-base" />
+            </label>
+          )}
           {summary.sets === 0 && <p className="text-sm text-muted-foreground">Tick at least one set to save this workout.</p>}
           {records.length > 0 && (
             <div className="space-y-2">
@@ -509,10 +522,11 @@ const FinishSheet = ({ draft, rows, summary, routine, nameOf, kindOf, loadHistor
             <button type="button" onClick={onClose} className="h-14 rounded-full bg-muted text-[15px] font-semibold">Keep going</button>
             <button
               type="button"
-              disabled={!name.trim() || summary.sets === 0 || saving}
+              disabled={!name.trim() || summary.sets === 0 || saving || (forgotten && !tookOk)}
               onClick={async () => {
                 setSaving(true);
-                await onSave(name.trim(), note.trim() || null, keepRoutine && changed);
+                const endedAt = forgotten ? new Date(Date.parse(draft.startedAt) + tookMin * 60_000) : new Date();
+                await onSave(name.trim(), note.trim() || null, keepRoutine && changed, endedAt.toISOString());
                 setSaving(false);
               }}
               className="h-14 rounded-full bg-chart-fiber text-base font-bold text-background disabled:opacity-50"

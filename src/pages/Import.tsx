@@ -57,17 +57,23 @@ const Import = () => {
     if (!user || !items || !loggedDate) return;
     setSaving(true);
     try {
-      const { error: deleteError } = await supabase
+      // Replaces the day's earlier import: new rows go in first, so a failed insert never leaves the day empty.
+      const { data: old, error: readError } = await supabase
         .from('daily_meals')
-        .delete()
+        .select('id')
         .eq('user_id', user.id)
         .eq('logged_date', loggedDate)
         .eq('source', 'import');
-      if (deleteError) throw deleteError;
+      if (readError) throw readError;
 
       const rows = items.map((item) => ({ ...chatMealItemToRow(item, user.id, loggedDate), source: 'import' }));
       const { error: insertError } = await supabase.from('daily_meals').insert(rows);
       if (insertError) throw insertError;
+
+      if (old.length) {
+        const { error: deleteError } = await supabase.from('daily_meals').delete().in('id', old.map((r) => r.id));
+        if (deleteError) throw deleteError;
+      }
 
       toast({ title: 'Imported', description: `Logged ${items.length} item${items.length === 1 ? '' : 's'} for ${loggedDate}.` });
       notifyMealsLogged();
