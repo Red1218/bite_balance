@@ -43,6 +43,8 @@ export interface Exercise {
   secondary: BodyPart[];
   equipment: Equipment;
   kind: ExerciseKind;
+  /** A built-in's library name, when the user has given it their own name. */
+  original?: string;
 }
 
 export interface Workout {

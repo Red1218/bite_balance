@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, Loader2, MoreHorizontal, Timer } from 'lucide-react';
+import { Check, ChevronDown, Loader2, MoreHorizontal, Pencil, Timer, TimerOff } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -15,7 +15,7 @@ import {
   newRecords, restLabel, routineItemsFromDraft, sameItems, setLabels, setValues, toDraftValues, workoutSummary,
   type Draft, type DraftSet, type Exercise, type Field, type Routine, type SetType, type WorkoutSet,
 } from '@/lib/workouts';
-import ExercisePicker from '@/components/workouts/ExercisePicker';
+import ExercisePicker, { EditExerciseSheet } from '@/components/workouts/ExercisePicker';
 import { PartTag, Tag } from '@/components/workouts/workoutUi';
 
 const INPUT_MODE: Record<Field, 'decimal' | 'numeric' | 'text'> = { kg: 'decimal', reps: 'numeric', time: 'text', km: 'decimal' };
@@ -61,17 +61,28 @@ const SheetButton = ({ onClick, children, danger }: { onClick: () => void; child
   </button>
 );
 
+const REST_OFF_KEY = 'bb:rest-off';
+
 const WorkoutLog = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [draft, setDraft] = useWorkoutDraft();
-  const { exercises, byId, workouts, sets, routines, loading, createExercise, saveWorkout, exerciseHistory, saveRoutine } = useWorkouts();
+  const { exercises, byId, workouts, sets, routines, loading, saveExercise, updateExercise, saveWorkout, exerciseHistory, saveRoutine } = useWorkouts();
   const now = useNow();
   const [picking, setPicking] = useState(false);
   const [typeFor, setTypeFor] = useState<{ ei: number; si: number } | null>(null);
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [restFor, setRestFor] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null); // exercise id
+  // One switch for every workout, kept on this phone until turned back on.
+  const [restOff, setRestOff] = useState(() => {
+    try {
+      return localStorage.getItem(REST_OFF_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const previous = useMemo(() => lastSetsByExercise(workouts, sets), [workouts, sets]);
   const kindOf = (id: string) => byId.get(id)?.kind;
@@ -108,7 +119,7 @@ const WorkoutLog = () => {
     // Rest starts after the set, unless it's off or a drop set follows straight away.
     const de = draft.exercises[ei];
     const rest = de.rest ?? DEFAULT_REST;
-    if (!rest || de.sets[si + 1]?.type === 'drop') return;
+    if (restOff || !rest || de.sets[si + 1]?.type === 'drop') return;
     startRest(Date.now() + rest * 1000, rest, ex.name);
   };
 
@@ -121,6 +132,16 @@ const WorkoutLog = () => {
     cancelRestEnd();
   };
   const resting = draft.rest && draft.rest.endsAt > now ? draft.rest : null;
+  const toggleRest = () => {
+    const off = !restOff;
+    setRestOff(off);
+    try {
+      localStorage.setItem(REST_OFF_KEY, off ? '1' : '0');
+    } catch {
+      // private storage: the switch still holds for this visit
+    }
+    if (off && draft.rest) stopRest();
+  };
 
   const addExercises = (ids: string[]) => edit((d) => ({ ...d, exercises: [...d.exercises, ...ids.map((exerciseId) => ({ exerciseId, sets: [emptySet()] }))] }));
   const moveExercise = (ei: number, by: number) =>
@@ -138,7 +159,28 @@ const WorkoutLog = () => {
           <button type="button" aria-label="Minimise workout" onClick={() => navigate('/workouts')} className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-muted">
             <ChevronDown className="h-5 w-5" />
           </button>
-          <h1 className="min-w-0 flex-1 truncate font-display text-xl font-bold">{draft.name}</h1>
+          <label className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl px-1 focus-within:ring-2 focus-within:ring-ring">
+            <input
+              aria-label="Workout name"
+              value={draft.name}
+              maxLength={60}
+              onChange={(e) => edit((d) => ({ ...d, name: e.target.value }))}
+              onBlur={() => !draft.name.trim() && edit((d) => ({ ...d, name: 'Workout' }))}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              className="h-11 min-w-0 flex-1 truncate bg-transparent font-display text-xl font-bold outline-none"
+            />
+            <Pencil className="h-4 w-4 flex-none text-muted-foreground" aria-hidden />
+          </label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!restOff}
+            aria-label="Rest timer"
+            onClick={toggleRest}
+            className={cn('relative flex h-11 w-11 flex-none items-center justify-center rounded-full', restOff ? 'bg-muted text-muted-foreground' : 'bg-muted text-foreground')}
+          >
+            {restOff ? <TimerOff className="h-5 w-5" /> : <Timer className="h-5 w-5" />}
+          </button>
           <button type="button" onClick={() => setFinishing(true)} className="h-11 rounded-full bg-chart-fiber px-[18px] text-[15px] font-bold text-background">
             Finish
           </button>
@@ -169,7 +211,7 @@ const WorkoutLog = () => {
                     <button type="button" onClick={() => setRestFor(ei)} aria-label={`Rest timer for ${ex.name}: ${restLabel(de.rest ?? DEFAULT_REST)}`}>
                       <Tag>
                         <Timer className="-mt-px mr-0.5 inline h-3 w-3" aria-hidden />
-                        {restLabel(de.rest ?? DEFAULT_REST)}
+                        {restOff ? 'Off' : restLabel(de.rest ?? DEFAULT_REST)}
                       </Tag>
                     </button>
                   </div>
@@ -244,7 +286,7 @@ const WorkoutLog = () => {
         />
       )}
 
-      <ExercisePicker open={picking} exercises={exercises} onOpenChange={setPicking} onAdd={addExercises} onCreate={createExercise} />
+      <ExercisePicker open={picking} exercises={exercises} onOpenChange={setPicking} onAdd={addExercises} onCreate={saveExercise} />
 
       {typeFor && (
         <SheetShell title={`Set ${setLabels(draft.exercises[typeFor.ei].sets)[typeFor.si]}`} onClose={() => setTypeFor(null)}>
@@ -275,6 +317,9 @@ const WorkoutLog = () => {
 
       {menuFor !== null && (
         <SheetShell title={byId.get(draft.exercises[menuFor].exerciseId)?.name ?? 'Exercise'} onClose={() => setMenuFor(null)}>
+          <SheetButton onClick={() => (setRenaming(draft.exercises[menuFor].exerciseId), setMenuFor(null))}>
+            <Pencil className="h-4 w-4" /> Rename exercise
+          </SheetButton>
           <SheetButton onClick={() => navigate(`/workouts/exercises/${draft.exercises[menuFor].exerciseId}`)}>History and records</SheetButton>
           <SheetButton onClick={() => (setRestFor(menuFor), setMenuFor(null))}>
             <Timer className="h-4 w-4" /> <span className="flex-1">Rest timer</span>
@@ -292,6 +337,10 @@ const WorkoutLog = () => {
             Remove exercise
           </SheetButton>
         </SheetShell>
+      )}
+
+      {renaming && byId.get(renaming) && (
+        <EditExerciseSheet exercise={byId.get(renaming)!} onClose={() => setRenaming(null)} onSave={(values) => updateExercise(byId.get(renaming)!, values)} />
       )}
 
       {restFor !== null && (

@@ -149,7 +149,8 @@ export const useWorkouts = () => {
     setError(null);
     // RLS returns the built-in library plus this user's own exercises.
     const [exRes, wRes, rRes] = await Promise.all([
-      supabase.from('exercises').select('id, user_id, name, body_part, secondary, equipment, kind').order('name'),
+      // RLS limits the embedded exercise_names to this user's own names for built-ins.
+      supabase.from('exercises').select('id, user_id, name, body_part, secondary, equipment, kind, exercise_names(name)').order('name'),
       supabase.from('workouts').select('id, name, started_at, ended_at, note, routine_id').eq('user_id', user.id).order('started_at', { ascending: false }).limit(RECENT),
       supabase.from('routines').select('id, name, position, items').eq('user_id', user.id).order('position'),
     ]);
@@ -175,7 +176,11 @@ export const useWorkouts = () => {
       setRows = (sRes.data as WorkoutSet[]).map(toSet);
     }
     // The table's check constraints guarantee the string unions.
-    setExercises((exRes.data as Exercise[]).sort((a, b) => a.name.localeCompare(b.name)));
+    setExercises(
+      (exRes.data as (Exercise & { exercise_names: { name: string }[] })[])
+        .map(({ exercise_names: own, ...e }) => (own[0] ? { ...e, name: own[0].name, original: e.name } : e))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    );
     setWorkouts(list);
     setSets(setRows);
     // items is written only by this app, in the RoutineItem shape.
@@ -190,22 +195,46 @@ export const useWorkouts = () => {
   const byId = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
   const failed = (description: string) => toast({ title: 'Error', description, variant: 'destructive' });
 
-  const createExercise = async (values: Omit<Exercise, 'id' | 'user_id'>) => {
+  // Creates an exercise, or edits one of the user's own when id is given (built-ins can't be changed).
+  const saveExercise = async (values: Omit<Exercise, 'id' | 'user_id'>, id?: string) => {
     if (!user) return null;
-    const { data, error: writeError } = await supabase
-      .from('exercises')
-      .insert({ ...values, name: values.name.trim(), user_id: user.id })
-      .select('id, user_id, name, body_part, secondary, equipment, kind')
-      .single();
+    const clean = { ...values, name: values.name.trim() };
+    const cols = 'id, user_id, name, body_part, secondary, equipment, kind';
+    const { data, error: writeError } = id
+      ? await supabase.from('exercises').update(clean).eq('id', id).eq('user_id', user.id).select(cols).single()
+      : await supabase.from('exercises').insert({ ...clean, user_id: user.id }).select(cols).single();
     if (writeError || !data) {
-      console.error('Error creating exercise:', writeError);
+      console.error('Error saving exercise:', writeError);
       failed('Could not save the exercise. Please try again.');
       return null;
     }
     const saved = data as Exercise;
-    setExercises((prev) => [...prev, saved].sort((a, b) => a.name.localeCompare(b.name)));
+    setExercises((prev) => [...prev.filter((e) => e.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
     return saved;
   };
+
+  // Built-ins are shared, so the user's name for one is kept apart; going back to the library name removes it.
+  const renameBuiltin = async (ex: Exercise, name: string) => {
+    if (!user) return null;
+    const library = ex.original ?? ex.name;
+    const clean = name.trim();
+    const { error: writeError } =
+      clean === library
+        ? await supabase.from('exercise_names').delete().eq('user_id', user.id).eq('exercise_id', ex.id)
+        : await supabase.from('exercise_names').upsert({ user_id: user.id, exercise_id: ex.id, name: clean }, { onConflict: 'user_id,exercise_id' });
+    if (writeError) {
+      console.error('Error renaming exercise:', writeError);
+      failed('Could not rename the exercise. Please try again.');
+      return null;
+    }
+    const saved: Exercise = clean === library ? { ...ex, name: library, original: undefined } : { ...ex, name: clean, original: library };
+    setExercises((prev) => prev.map((e) => (e.id === ex.id ? saved : e)).sort((a, b) => a.name.localeCompare(b.name)));
+    return saved;
+  };
+
+  // What the edit sheet saves: the user's own exercise in full, or just a built-in's name.
+  const updateExercise = (ex: Exercise, values: Omit<Exercise, 'id' | 'user_id'>) =>
+    ex.user_id ? saveExercise(values, ex.id) : renameBuiltin(ex, values.name);
 
   // The workout row first, then its sets; if the sets fail, the workout is removed again so a
   // half-saved session never shows, and the draft stays for another try.
@@ -277,6 +306,17 @@ export const useWorkouts = () => {
   };
 
   // Its sets go with it (on delete cascade).
+  const renameWorkout = async (id: string, name: string) => {
+    const { error: writeError } = await supabase.from('workouts').update({ name: name.trim() }).eq('id', id);
+    if (writeError) {
+      console.error('Error renaming workout:', writeError);
+      failed('Could not rename the workout. Please try again.');
+      return false;
+    }
+    setWorkouts((prev) => prev.map((w) => (w.id === id ? { ...w, name: name.trim() } : w)));
+    return true;
+  };
+
   const deleteWorkout = async (id: string) => {
     const { error: writeError } = await supabase.from('workouts').delete().eq('id', id);
     if (writeError) {
@@ -289,5 +329,5 @@ export const useWorkouts = () => {
     return true;
   };
 
-  return { exercises, byId, workouts, sets, routines, loading, error, createExercise, saveWorkout, deleteWorkout, exerciseHistory, saveRoutine, deleteRoutine };
+  return { exercises, byId, workouts, sets, routines, loading, error, saveExercise, updateExercise, saveWorkout, renameWorkout, deleteWorkout, exerciseHistory, saveRoutine, deleteRoutine };
 };
