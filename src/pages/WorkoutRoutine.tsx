@@ -14,7 +14,7 @@ const MAX_SETS = 20;
 const WorkoutRoutine = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { exercises, byId, routines, loading, createExercise, saveRoutine, deleteRoutine } = useWorkouts();
+  const { exercises, byId, routines, loading, saveExercise, saveRoutine, deleteRoutine } = useWorkouts();
   const existing = routines.find((r) => r.id === id) ?? null;
   const [name, setName] = useState('');
   const [items, setItems] = useState<RoutineItem[]>([]);
@@ -176,7 +176,7 @@ const WorkoutRoutine = () => {
         exercises={exercises}
         onOpenChange={setPicking}
         onAdd={(ids) => setItems((prev) => [...prev, ...ids.map((exerciseId) => ({ exerciseId, sets: ['normal', 'normal', 'normal'] as RoutineItem['sets'], rest: DEFAULT_REST }))])}
-        onCreate={createExercise}
+        onCreate={saveExercise}
       />
     </div>
   );

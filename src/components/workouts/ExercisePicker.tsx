@@ -11,17 +11,21 @@ import {
 import { Chip, partStyle, tintBg, tintInk } from './workoutUi';
 
 interface CreateFormProps {
-  initialName: string;
+  initialName?: string;
+  /** Editing this exercise instead of creating one. */
+  initial?: Exercise;
+  /** A built-in: only its name (the user's own) can change. */
+  nameOnly?: boolean;
   onCancel: () => void;
   onCreate: (values: Omit<Exercise, 'id' | 'user_id'>) => Promise<Exercise | null>;
 }
 
-const CreateForm = ({ initialName, onCancel, onCreate }: CreateFormProps) => {
-  const [name, setName] = useState(initialName);
-  const [part, setPart] = useState<BodyPart | null>(null);
-  const [secondary, setSecondary] = useState<BodyPart[]>([]);
-  const [equipment, setEquipment] = useState<Equipment>('barbell');
-  const [kind, setKind] = useState<ExerciseKind>('weight_reps');
+export const CreateForm = ({ initialName = '', initial, nameOnly, onCancel, onCreate }: CreateFormProps) => {
+  const [name, setName] = useState(initial?.name ?? initialName);
+  const [part, setPart] = useState<BodyPart | null>(initial?.body_part ?? null);
+  const [secondary, setSecondary] = useState<BodyPart[]>(initial?.secondary ?? []);
+  const [equipment, setEquipment] = useState<Equipment>(initial?.equipment ?? 'barbell');
+  const [kind, setKind] = useState<ExerciseKind>(initial?.kind ?? 'weight_reps');
   const [saving, setSaving] = useState(false);
   const ready = name.trim() && part && !saving;
 
@@ -36,7 +40,7 @@ const CreateForm = ({ initialName, onCancel, onCreate }: CreateFormProps) => {
   return (
     <>
       <div className="flex items-center justify-between">
-        <div className="font-display text-xl font-semibold tracking-tight">New exercise</div>
+        <div className="font-display text-xl font-semibold tracking-tight">{initial ? 'Edit exercise' : 'New exercise'}</div>
         <button type="button" onClick={onCancel} className="h-11 px-2 text-sm font-semibold text-muted-foreground">Cancel</button>
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-2">
@@ -44,6 +48,19 @@ const CreateForm = ({ initialName, onCancel, onCreate }: CreateFormProps) => {
           <span className="block text-[12px] font-semibold text-muted-foreground">Name</span>
           <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} className="h-12 text-base" />
         </label>
+        {nameOnly && initial && (
+          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span className="min-w-0">
+              The name only changes for you. Library name: <span className="font-semibold text-foreground">{initial.original ?? initial.name}</span>
+            </span>
+            {name.trim() !== (initial.original ?? initial.name) && (
+              <button type="button" onClick={() => setName(initial.original ?? initial.name)} className="h-11 flex-none rounded-full bg-muted px-3.5 font-semibold text-foreground">
+                Use it
+              </button>
+            )}
+          </div>
+        )}
+        {!nameOnly && <>
         <div className="space-y-2">
           <div className="text-[12px] font-semibold text-muted-foreground">Body part</div>
           <div className="flex flex-wrap gap-1.5">
@@ -70,7 +87,9 @@ const CreateForm = ({ initialName, onCancel, onCreate }: CreateFormProps) => {
             ))}
           </div>
         </div>
-        <div role="radiogroup" aria-label="Exercise type" className="space-y-2">
+        </>}
+        {/* The type stays fixed once made: logged sets only hold the fields of their type. */}
+        {!initial && <div role="radiogroup" aria-label="Exercise type" className="space-y-2">
           <div className="text-[12px] font-semibold text-muted-foreground">Exercise type</div>
           <div className="grid grid-cols-2 gap-1.5">
             {KIND_KEYS.map((k) => (
@@ -90,12 +109,28 @@ const CreateForm = ({ initialName, onCancel, onCreate }: CreateFormProps) => {
               </button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
       <button type="button" disabled={!ready} onClick={save} className="h-14 w-full flex-none rounded-full bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
         Save exercise
       </button>
     </>
+  );
+};
+
+// The edit sheet for one exercise: everything for the user's own, just the name for a built-in.
+// Mounted only while open, so Android Back closes it.
+export const EditExerciseSheet = ({ exercise, onClose, onSave }: { exercise: Exercise; onClose: () => void; onSave: CreateFormProps['onCreate'] }) => {
+  useEffect(() => closeOnBack(onClose), []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Drawer open onOpenChange={(open) => !open && onClose()}>
+      <DrawerContent className="h-[92vh] rounded-t-[26px] border-border bg-card">
+        <DrawerTitle className="sr-only">Edit exercise</DrawerTitle>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] pt-3">
+          <CreateForm initial={exercise} nameOnly={!exercise.user_id} onCancel={onClose} onCreate={onSave} />
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 };
 
@@ -117,7 +152,7 @@ const ExercisePicker = ({ open, exercises, onOpenChange, onAdd, onCreate }: Exer
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return exercises.filter(
-      (e) => (!q || e.name.toLowerCase().includes(q)) && (!part || e.body_part === part) && (!equipment || e.equipment === equipment)
+      (e) => (!q || e.name.toLowerCase().includes(q) || !!e.original?.toLowerCase().includes(q)) && (!part || e.body_part === part) && (!equipment || e.equipment === equipment)
     );
   }, [exercises, query, part, equipment]);
 

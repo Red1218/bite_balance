@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Loader2, Play } from 'lucide-react';
+import { Check, ChevronLeft, Loader2, Pencil, Play } from 'lucide-react';
 import { useWorkoutDraft, useWorkouts } from '@/hooks/useWorkouts';
 import { cn } from '@/lib/utils';
 import { EQUIPMENT_LABEL, draftFrom, fmtSet, minutesBetween, routineItemsFromSets, setLabels, workoutSummary } from '@/lib/workouts';
@@ -10,8 +10,9 @@ const WorkoutDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [draft, setDraft] = useWorkoutDraft();
-  const { byId, workouts, sets, routines, loading, deleteWorkout, saveRoutine } = useWorkouts();
+  const { byId, workouts, sets, routines, loading, renameWorkout, deleteWorkout, saveRoutine } = useWorkouts();
   const [confirming, setConfirming] = useState(false);
+  const [newName, setNewName] = useState<string | null>(null); // null when not renaming
 
   const workout = workouts.find((w) => w.id === id);
   if (loading && !workout) {
@@ -43,7 +44,36 @@ const WorkoutDetail = () => {
         <button type="button" aria-label="Back to workouts" onClick={() => navigate('/workouts')} className="-ml-2 flex h-11 w-11 items-center justify-center rounded-full">
           <ChevronLeft className="h-6 w-6" />
         </button>
-        <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{workout.name}</h1>
+        {newName === null ? (
+          <>
+            <h1 className="min-w-0 flex-1 truncate font-display text-2xl font-semibold tracking-tight">{workout.name}</h1>
+            <button type="button" aria-label="Rename workout" onClick={() => setNewName(workout.name)} className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-muted">
+              <Pencil className="h-[18px] w-[18px]" />
+            </button>
+          </>
+        ) : (
+          <form
+            className="flex min-w-0 flex-1 items-center gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!newName.trim()) return;
+              if (newName.trim() === workout.name || (await renameWorkout(workout.id, newName))) setNewName(null);
+            }}
+          >
+            <input
+              autoFocus
+              aria-label="Workout name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setNewName(null)}
+              maxLength={60}
+              className="h-11 min-w-0 flex-1 rounded-xl bg-muted px-3 font-display text-xl font-semibold outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button type="submit" aria-label="Save name" disabled={!newName.trim()} className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50">
+              <Check className="h-5 w-5" strokeWidth={3} />
+            </button>
+          </form>
+        )}
       </div>
       <p className="-mt-2 px-1 text-sm text-muted-foreground">
         {started.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} ·{' '}

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2, Pencil } from 'lucide-react';
+import { EditExerciseSheet } from '@/components/workouts/ExercisePicker';
 import { useExerciseHistory, useWorkouts } from '@/hooks/useWorkouts';
 import { BODY_PART_LABEL, EQUIPMENT_LABEL, chartMetric, exerciseBests, exerciseTrend, fmtSet, setLabels, workoutSummary } from '@/lib/workouts';
 
@@ -53,9 +55,10 @@ const TrendChart = ({ points, show, label }: { points: { at: string; value: numb
 const WorkoutExercise = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { byId, loading: loadingList } = useWorkouts();
+  const { byId, loading: loadingList, updateExercise } = useWorkouts();
   const { sessions, loading, error } = useExerciseHistory(id);
   const ex = id ? byId.get(id) : undefined;
+  const [editing, setEditing] = useState(false);
 
   if ((loading || loadingList) && !ex) {
     return (
@@ -93,7 +96,11 @@ const WorkoutExercise = () => {
             {[BODY_PART_LABEL[ex.body_part], ex.secondary.map((p) => BODY_PART_LABEL[p]).join(', '), EQUIPMENT_LABEL[ex.equipment]].filter(Boolean).join(' · ')}
           </p>
         </div>
+        <button type="button" aria-label={`Edit ${ex.name}`} onClick={() => setEditing(true)} className="flex h-11 w-11 flex-none items-center justify-center rounded-full bg-muted">
+          <Pencil className="h-[18px] w-[18px]" />
+        </button>
       </div>
+      {editing && <EditExerciseSheet exercise={ex} onClose={() => setEditing(false)} onSave={(values) => updateExercise(ex, values)} />}
 
       {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-destructive">Could not load this exercise's history.</div>}
       {loading && !sessions.length ? (
